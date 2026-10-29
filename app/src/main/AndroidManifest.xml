@@ -38,6 +38,18 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:theme="@style/Theme.Jangada.Setup"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Jangada.Setup" />
+
+        <activity
             android:name=".SetupActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"

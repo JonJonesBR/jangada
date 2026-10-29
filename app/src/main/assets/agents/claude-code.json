@@ -4,6 +4,7 @@
   "name": "Claude Code",
   "vendor": "Anthropic",
   "command": "claude",
+  "chat": true,
   "install": "curl -fsSL https://claude.ai/install.sh | bash",
   "update": "claude update",
   "homepage": "https://code.claude.com/docs",

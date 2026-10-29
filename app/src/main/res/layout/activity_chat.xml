@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/setup_bg"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@color/keys_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/chat_home"
+            style="@style/BarButton"
+            android:text="@string/terminal_home_arrow" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/chat_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/chat_title"
+                android:textColor="@color/setup_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/chat_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/setup_muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/chat_new"
+            style="@style/BarButton"
+            android:text="@string/chat_new" />
+
+        <TextView
+            android:id="@+id/chat_terminal"
+            style="@style/BarButton"
+            android:text="@string/chat_terminal" />
+    </LinearLayout>
+
+    <ListView
+        android:id="@+id/chat_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:divider="@null"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:stackFromBottom="true"
+        android:transcriptMode="normal" />
+
+    <TextView
+        android:id="@+id/chat_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:lineSpacingMultiplier="1.25"
+        android:padding="32dp"
+        android:text="@string/chat_empty"
+        android:textColor="@color/setup_muted"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/chat_status"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:indeterminateTint="@color/key_active" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="@string/chat_working"
+            android:textColor="@color/setup_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/chat_stop"
+            style="@style/BarButton"
+            android:text="@string/chat_stop"
+            android:textColor="@color/setup_error" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/keys_bg"
+        android:gravity="bottom"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="6dp">
+
+        <EditText
+            android:id="@+id/chat_input"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/compose_bg"
+            android:hint="@string/chat_hint"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine|textCapSentences|textAutoCorrect"
+            android:maxLines="6"
+            android:minHeight="44dp"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:textColor="@color/key_text"
+            android:textColorHint="@color/setup_muted"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/chat_send"
+            android:layout_width="48dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/compose_send"
+            android:gravity="center"
+            android:text="➤"
+            android:textColor="@color/key_active"
+            android:textSize="24sp" />
+    </LinearLayout>
+</LinearLayout>

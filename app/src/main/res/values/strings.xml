@@ -70,4 +70,33 @@
     <string name="storage_ready">Projects: ~/projetos · Phone files: ~/celular (Downloads in ~/celular/Download)</string>
     <string name="storage_denied">Access not granted. You can allow it in Android settings for Jangada.</string>
     <string name="storage_new_sessions">Open sessions see the phone files after you reopen them.</string>
+
+    <string name="chat_title">Claude Code</string>
+    <string name="chat_new">New</string>
+    <string name="chat_terminal">Terminal</string>
+    <string name="chat_working">Working…</string>
+    <string name="chat_stop">Stop</string>
+    <string name="chat_hint">Message Claude</string>
+    <string name="chat_empty">Talk to Claude here. It works in the ~/projetos folder and asks before acting.\n\nTap Terminal at the top to switch to the full screen of the same conversation.</string>
+    <string name="chat_wants">Claude wants to: %s</string>
+    <string name="chat_allow">Allow</string>
+    <string name="chat_deny">Deny</string>
+    <string name="chat_allowed">Allowed</string>
+    <string name="chat_denied">Denied</string>
+    <string name="chat_copied">Copied</string>
+    <string name="chat_session">Chat</string>
+    <string name="agent_chat">Chat</string>
+    <string name="agent_terminal">Terminal</string>
+    <string name="agent_talk">Talk</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_mode">Mode</string>
+    <string name="settings_mode_simple">Simple — agents open as a chat when possible, with the text box on</string>
+    <string name="settings_mode_pro">Pro — agents open in the terminal first</string>
+    <string name="settings_typing">Typing</string>
+    <string name="settings_enter_sends">Keyboard Enter sends the message (instead of a new line)</string>
+    <string name="settings_chat">Chat permissions</string>
+    <string name="settings_permissions_ask">Ask before each action (recommended)</string>
+    <string name="settings_permissions_auto">Automatic: the agent decides what is safe</string>
+    <string name="settings_permissions_note">Applies to new conversations.</string>
+    <string name="home_settings">Settings</string>
 </resources>

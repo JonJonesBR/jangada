@@ -53,6 +53,7 @@ class HomeActivity : ComponentActivity() {
     private var service: TerminalService? = null
 
     private val prefs by lazy { getSharedPreferences("agents", MODE_PRIVATE) }
+    private val simpleMode get() = AppSettings(this).simpleMode
     private var askedStorage = false
     private var allFilesOpened = false
     private var paused = true
@@ -74,6 +75,9 @@ class HomeActivity : ComponentActivity() {
 
         findViewById<Button>(R.id.open_terminal).setOnClickListener { openTerminal() }
         findViewById<Button>(R.id.storage_allow).setOnClickListener { requestStorage() }
+        findViewById<View>(R.id.open_settings).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         if (!linux.isDeviceSupported) findViewById<View>(R.id.unsupported).visibility = View.VISIBLE
         renderAgents()
         fetchLatestVersions()
@@ -118,6 +122,7 @@ class HomeActivity : ComponentActivity() {
         paused = false
         if (!::agentsList.isInitialized) return
         if (askedStorage) afterStorageRequest() else renderStorage()
+        renderAgents()
     }
 
     override fun onPause() {
@@ -284,11 +289,30 @@ class HomeActivity : ComponentActivity() {
             primary.visibility = View.GONE
             update.visibility = View.GONE
         } else {
-            primary.setText(if (isInstalled) R.string.agent_open else R.string.agent_install)
+            // Agentes com chat: no Modo Simples o botão principal é "Conversar" (chat)
+            // e o terminal fica como alternativa; no Modo Pro, o contrário.
+            val chatFirst = recipe.chat && simpleMode
+            primary.setText(
+                when {
+                    !isInstalled -> R.string.agent_install
+                    chatFirst -> R.string.agent_talk
+                    else -> R.string.agent_open
+                },
+            )
             primary.isEnabled = enabled
             primary.alpha = if (enabled) 1f else 0.5f
             primary.setOnClickListener {
-                if (isInstalled) openAgent(recipe) else startTask(recipe, updating = false)
+                when {
+                    !isInstalled -> startTask(recipe, updating = false)
+                    chatFirst -> openChat()
+                    else -> openAgent(recipe)
+                }
+            }
+            val alternative = card.findViewById<Button>(R.id.alternative)
+            if (isInstalled && recipe.chat) {
+                alternative.visibility = View.VISIBLE
+                alternative.setText(if (chatFirst) R.string.agent_terminal else R.string.agent_chat)
+                alternative.setOnClickListener { if (chatFirst) openAgent(recipe) else openChat() }
             }
 
             val updateLabel = updateLabel(recipe, isInstalled, version, latest)
@@ -365,8 +389,17 @@ class HomeActivity : ComponentActivity() {
     private fun renderSessions() {
         sessionsList.removeAllViews()
         val sessions = service?.sessions.orEmpty()
-        runningTitle.visibility = if (sessions.isEmpty()) View.GONE else View.VISIBLE
+        val chat = service?.chat
+        runningTitle.visibility = if (sessions.isEmpty() && chat == null) View.GONE else View.VISIBLE
         val inflater = LayoutInflater.from(this)
+        if (chat != null) {
+            val row = inflater.inflate(R.layout.item_session, sessionsList, false)
+            row.findViewById<TextView>(R.id.session_title).text =
+                getString(R.string.chat_title) + " · " + getString(R.string.chat_session)
+            row.setOnClickListener { openChat() }
+            row.findViewById<Button>(R.id.session_close).setOnClickListener { service?.closeChat() }
+            sessionsList.addView(row)
+        }
         for (session in sessions) {
             val row = inflater.inflate(R.layout.item_session, sessionsList, false)
             row.findViewById<TextView>(R.id.session_title).text = session.mSessionName ?: TerminalService.DEFAULT_TITLE
@@ -382,18 +415,23 @@ class HomeActivity : ComponentActivity() {
     private fun openAgent(recipe: AgentRecipe) {
         val existing = service?.sessions?.lastOrNull { it.mSessionName == recipe.name }
         if (existing != null) showSession(existing.mHandle)
-        else openTerminal(recipe.name, recipe.launchScript())
+        else openTerminal(recipe.name, recipe.launchScript(), agent = recipe.id)
+    }
+
+    private fun openChat() {
+        startActivity(Intent(this, ChatActivity::class.java))
     }
 
     private fun showSession(handle: String) {
         startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SESSION, handle))
     }
 
-    private fun openTerminal(title: String? = null, script: String? = null) {
+    private fun openTerminal(title: String? = null, script: String? = null, agent: String? = null) {
         val intent = Intent(this, MainActivity::class.java)
         if (script != null) {
             intent.putExtra(MainActivity.EXTRA_TITLE, title)
             intent.putExtra(MainActivity.EXTRA_SCRIPT, script)
+            if (agent != null) intent.putExtra(MainActivity.EXTRA_AGENT, agent)
         } else {
             intent.putExtra(MainActivity.EXTRA_NEW_SHELL, true)
         }

@@ -54,6 +54,8 @@ class MainActivity : ComponentActivity() {
     private var commandMode = false
     /** Enviando um comando tecla por tecla. */
     private var typing = false
+    private var enterAt = -1
+    private val appSettings by lazy { AppSettings(this) }
 
     private var service: TerminalService? = null
     private var terminalTypeface: Typeface = Typeface.MONOSPACE
@@ -105,8 +107,18 @@ class MainActivity : ComponentActivity() {
         findViewById<View>(R.id.compose_send).setOnClickListener { sendCompose() }
         composeText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                enterAt = if (count == 1 && before == 0 && s?.getOrNull(start) == '\n') start else -1
+            }
             override fun afterTextChanged(s: Editable?) {
+                val at = enterAt
+                enterAt = -1
+                // Opção "Enter envia": o Enter do teclado manda o texto em vez de pular linha.
+                if (at >= 0 && s != null && s.length > 1 && appSettings.enterSends && at < s.length) {
+                    s.delete(at, at + 1)
+                    sendCompose()
+                    return
+                }
                 val text = s?.toString().orEmpty()
                 // Enter do teclado com a caixa vazia vai para o terminal (confirma
                 // menus e listas dos agentes), em vez de pular linha na caixa.
@@ -128,11 +140,22 @@ class MainActivity : ComponentActivity() {
                 false
             }
         }
-        setComposeVisible(prefs.getBoolean(PREF_COMPOSE, true), focus = false)
+        setComposeVisible(prefs.getBoolean(PREF_COMPOSE, appSettings.simpleMode), focus = false)
+
+        // Sessão do Claude Code: botão para ver a mesma conversa no chat.
+        findViewById<View>(R.id.terminal_chat).setOnClickListener { switchToChat() }
 
         // Voltar (ou o botão Início) leva à tela inicial; as sessões continuam rodando.
         findViewById<View>(R.id.home_button).setOnClickListener { goHome() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
+    }
+
+    /** Fecha esta sessão do Claude Code e continua a mesma conversa no chat. */
+    private fun switchToChat() {
+        val svc = service ?: return
+        session?.let { svc.closeSession(it.mHandle) }
+        startActivity(Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_CONTINUE, true))
+        finish()
     }
 
     private fun goHome() {
@@ -203,8 +226,12 @@ class MainActivity : ComponentActivity() {
         intent.removeExtra(EXTRA_SESSION)
         intent.removeExtra(EXTRA_NEW_SHELL)
 
+        val agent = intent.getStringExtra(EXTRA_AGENT)
+        intent.removeExtra(EXTRA_AGENT)
         val target = when {
-            script != null -> svc.createSession(title, script)
+            script != null -> svc.createSession(title, script).also { created ->
+                if (agent != null) svc.sessionAgent[created.mHandle] = agent
+            }
             newShell -> svc.createSession()
             handle != null -> svc.session(handle)
             else -> null
@@ -215,6 +242,8 @@ class MainActivity : ComponentActivity() {
     private fun show(newSession: TerminalSession) {
         session = newSession
         findViewById<TextView>(R.id.session_title_bar).text = newSession.mSessionName ?: TerminalService.DEFAULT_TITLE
+        val isClaude = service?.sessionAgent?.get(newSession.mHandle) == ChatActivity.CLAUDE_AGENT_ID
+        findViewById<View>(R.id.terminal_chat).visibility = if (isClaude) View.VISIBLE else View.GONE
         terminalView.attachSession(newSession)
         terminalView.onScreenUpdated()
     }
@@ -401,5 +430,6 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SCRIPT = "script"
         const val EXTRA_SESSION = "session"
         const val EXTRA_NEW_SHELL = "new_shell"
+        const val EXTRA_AGENT = "agent"
     }
 }

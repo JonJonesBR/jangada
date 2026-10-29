@@ -140,6 +140,23 @@ class LinuxEnv(context: Context) {
     /** Como [run], mas num bash interativo (enxerga o PATH dos instaladores). */
     fun runBash(script: String, onLine: (String) -> Unit): Int = runArgv(bashCommand(script), onLine)
 
+    /**
+     * Inicia [script] num bash de login dentro do Debian e devolve o processo
+     * (para conversar com ele por stdin/stdout, como faz o chat).
+     */
+    fun startProcess(script: String): Process {
+        val builder = ProcessBuilder(*prootArgv(guestEnv() + listOf("/bin/bash", "--login", "-c", script)))
+            .directory(files)
+        builder.environment().apply {
+            clear()
+            for (entry in hostEnv()) {
+                val (key, value) = entry.split("=", limit = 2)
+                put(key, value)
+            }
+        }
+        return builder.start()
+    }
+
     private fun runArgv(inner: List<String>, onLine: (String) -> Unit): Int {
         val builder = ProcessBuilder(*prootArgv(inner))
             .directory(files)

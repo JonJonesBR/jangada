@@ -85,6 +85,52 @@ class TerminalService : Service() {
 
     private var lastTaskPost = 0L
 
+    /** Conversa do chat (Claude Code sem terminal), quando aberta. */
+    var chat: io.github.jonjonesbr.jangada.chat.ChatEngine? = null
+        private set
+
+    /** Agente de cada sessão de terminal (id da receita), para a troca Chat ⇄ Terminal. */
+    val sessionAgent = HashMap<String, String>()
+
+    /**
+     * Abre (ou devolve) a conversa do chat. [continueLast] retoma a conversa
+     * mais recente da pasta de projetos — a mesma que estava no terminal.
+     */
+    fun openChat(continueLast: Boolean, resume: String? = null): io.github.jonjonesbr.jangada.chat.ChatEngine {
+        chat?.let { if (it.running || resume == null && !continueLast) return it }
+        val linux = LinuxEnv(this)
+        runCatching { linux.refreshIntegration() }
+        startLinkWatcher(linux)
+        val engine = io.github.jonjonesbr.jangada.chat.ChatEngine(linux, AppSettings(this).askPermissions)
+        val previous = chat
+        previous?.stop()
+        chat = engine
+        // Ao continuar, mostra o que já foi conversado (no chat anterior ou no terminal).
+        if (previous != null && previous.items.isNotEmpty() && (resume != null || continueLast)) {
+            engine.items.addAll(previous.items)
+        } else if (resume != null || continueLast) {
+            sessionFile(linux, resume)?.let { engine.loadHistory(it) }
+        }
+        goForeground()
+        engine.start(resume = resume, continueLast = continueLast)
+        sessionsChanged()
+        return engine
+    }
+
+    /** Arquivo da conversa do Claude Code: a [id] pedida ou a mais recente. */
+    private fun sessionFile(linux: LinuxEnv, id: String?): File? {
+        val dir = File(linux.rootfs, "root/.claude/projects/-root-${LinuxEnv.WORKSPACE}")
+        if (id != null) return File(dir, "$id.jsonl").takeIf { it.exists() }
+        return dir.listFiles()?.filter { it.name.endsWith(".jsonl") }?.maxByOrNull { it.lastModified() }
+    }
+
+    fun closeChat() {
+        chat?.stop()
+        chat = null
+        sessionsChanged()
+        leaveForegroundIfIdle()
+    }
+
     override fun onBind(intent: Intent): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -97,6 +143,8 @@ class TerminalService : Service() {
     }
 
     override fun onDestroy() {
+        chat?.stop()
+        chat = null
         linkWatcher?.stopWatching()
         sessions.forEach { it.finishIfRunning() }
         sessions.clear()
@@ -140,6 +188,7 @@ class TerminalService : Service() {
         val session = session(handle) ?: return
         session.finishIfRunning()
         sessions.remove(session)
+        sessionAgent.remove(handle)
         sessionsChanged()
         leaveForegroundIfIdle()
     }
@@ -192,7 +241,7 @@ class TerminalService : Service() {
     private fun hasRunningTasks() = tasks.values.any { it.state == AgentTask.State.RUNNING }
 
     private fun leaveForegroundIfIdle() {
-        if (sessions.isEmpty() && !hasRunningTasks()) leaveForeground()
+        if (sessions.isEmpty() && !hasRunningTasks() && chat == null) leaveForeground()
     }
 
     private fun sessionsChanged() {
@@ -244,6 +293,8 @@ class TerminalService : Service() {
     private fun exit() {
         sessions.forEach { it.finishIfRunning() }
         sessions.clear()
+        chat?.stop()
+        chat = null
         onSessionsChanged?.invoke()
         onExit?.invoke()
         leaveForeground()
@@ -276,7 +327,7 @@ class TerminalService : Service() {
             Intent(this, TerminalService::class.java).setAction(ACTION_EXIT),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val count = sessions.size.coerceAtLeast(1)
+        val count = (sessions.size + if (chat != null) 1 else 0).coerceAtLeast(1)
         val running = tasks.values.firstOrNull { it.state == AgentTask.State.RUNNING }
         val text = when {
             running != null -> getString(

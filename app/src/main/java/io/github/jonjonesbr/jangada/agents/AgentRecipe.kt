@@ -27,6 +27,8 @@ data class AgentRecipe(
     private val note: Map<String, String>,
     /** Pacote no npm usado só para saber qual é a versão mais nova. */
     val npm: String? = null,
+    /** O agente tem chat nativo no app (hoje, só o Claude Code). */
+    val chat: Boolean = false,
 ) {
     fun description(): String = localized(description)
     fun note(): String? = localized(note).ifEmpty { null }
@@ -101,6 +103,7 @@ data class AgentRecipe(
                 description = strings("description"),
                 note = strings("note"),
                 npm = json.optString("npm").ifEmpty { null },
+                chat = json.optBoolean("chat", false),
             )
         }
     }

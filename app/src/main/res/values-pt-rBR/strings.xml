@@ -68,4 +68,33 @@
     <string name="storage_ready">Projetos: ~/projetos · Arquivos do celular: ~/celular (Downloads em ~/celular/Download)</string>
     <string name="storage_denied">Acesso não liberado. Você pode permitir nas configurações do Android, no app Jangada.</string>
     <string name="storage_new_sessions">Sessões já abertas só enxergam os arquivos do celular depois de reabertas.</string>
+
+    <string name="chat_title">Claude Code</string>
+    <string name="chat_new">Nova</string>
+    <string name="chat_terminal">Terminal</string>
+    <string name="chat_working">Trabalhando…</string>
+    <string name="chat_stop">Parar</string>
+    <string name="chat_hint">Mensagem para o Claude</string>
+    <string name="chat_empty">Converse com o Claude aqui. Ele trabalha na pasta ~/projetos e pede licença antes de agir.\n\nToque em Terminal, no topo, para ver a mesma conversa na tela completa.</string>
+    <string name="chat_wants">O Claude quer: %s</string>
+    <string name="chat_allow">Permitir</string>
+    <string name="chat_deny">Recusar</string>
+    <string name="chat_allowed">Permitido</string>
+    <string name="chat_denied">Recusado</string>
+    <string name="chat_copied">Copiado</string>
+    <string name="chat_session">Chat</string>
+    <string name="agent_chat">Chat</string>
+    <string name="agent_terminal">Terminal</string>
+    <string name="agent_talk">Conversar</string>
+    <string name="settings_title">Configurações</string>
+    <string name="settings_mode">Modo</string>
+    <string name="settings_mode_simple">Simples — os agentes abrem como chat quando possível, com a caixa de texto ligada</string>
+    <string name="settings_mode_pro">Pro — os agentes abrem primeiro no terminal</string>
+    <string name="settings_typing">Digitação</string>
+    <string name="settings_enter_sends">Enter do teclado envia a mensagem (em vez de pular linha)</string>
+    <string name="settings_chat">Permissões no chat</string>
+    <string name="settings_permissions_ask">Perguntar antes de cada ação (recomendado)</string>
+    <string name="settings_permissions_auto">Automático: o agente decide o que é seguro</string>
+    <string name="settings_permissions_note">Vale para as próximas conversas.</string>
+    <string name="home_settings">Configurações</string>
 </resources>
