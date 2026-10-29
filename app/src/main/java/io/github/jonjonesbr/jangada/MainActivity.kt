@@ -80,8 +80,17 @@ class MainActivity : ComponentActivity() {
             onKeyboard = ::showKeyboard,
         )
 
-        // Voltar não encerra nada: só manda o app para o fundo.
-        onBackPressedDispatcher.addCallback(this) { moveTaskToBack(true) }
+        // Voltar leva à tela inicial; as sessões continuam rodando no serviço.
+        onBackPressedDispatcher.addCallback(this) {
+            startActivity(Intent(this@MainActivity, HomeActivity::class.java))
+            finish()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        service?.let { handleIntent(it) }
     }
 
     override fun onStart() {
@@ -120,14 +129,34 @@ class MainActivity : ComponentActivity() {
             svc.screenClient = sessionClient
             svc.screenLinkOpener = { url -> if (screenVisible) { openUrl(url); true } else false }
             svc.onExit = { finishAndRemoveTask() }
-            val current = svc.sessions.lastOrNull() ?: svc.createSession()
-            show(current)
+            handleIntent(svc)
             terminalView.post { showKeyboard() }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             service = null
         }
+    }
+
+    /** Decide qual sessão mostrar a partir do pedido que abriu a tela. */
+    private fun handleIntent(svc: TerminalService) {
+        val intent = intent
+        val script = intent.getStringExtra(EXTRA_SCRIPT)
+        val handle = intent.getStringExtra(EXTRA_SESSION)
+        val newShell = intent.getBooleanExtra(EXTRA_NEW_SHELL, false)
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: TerminalService.DEFAULT_TITLE
+        // Consome o pedido, para não repetir ao voltar para a tela.
+        intent.removeExtra(EXTRA_SCRIPT)
+        intent.removeExtra(EXTRA_SESSION)
+        intent.removeExtra(EXTRA_NEW_SHELL)
+
+        val target = when {
+            script != null -> svc.createSession(title, script)
+            newShell -> svc.createSession()
+            handle != null -> svc.session(handle)
+            else -> null
+        } ?: session?.takeIf { it in svc.sessions } ?: svc.sessions.lastOrNull() ?: svc.createSession()
+        show(target)
     }
 
     private fun show(newSession: TerminalSession) {
@@ -227,5 +256,9 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val PREF_FONT_SIZE = "font_size_px"
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_SCRIPT = "script"
+        const val EXTRA_SESSION = "session"
+        const val EXTRA_NEW_SHELL = "new_shell"
     }
 }

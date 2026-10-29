@@ -1,0 +1,13 @@
+{
+  "id": "oh-my-pi",
+  "order": 60,
+  "name": "oh-my-pi (omp)",
+  "vendor": "oh-my-pi",
+  "command": "omp",
+  "install": "curl -fsSL https://omp.sh/install | sh",
+  "homepage": "https://github.com/can1357/oh-my-pi",
+  "description": {
+    "pt": "Derivado do Pi, com mais recursos prontos.",
+    "en": "A Pi derivative with more built-in features."
+  }
+}

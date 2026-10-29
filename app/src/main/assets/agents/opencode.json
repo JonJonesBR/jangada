@@ -1,0 +1,13 @@
+{
+  "id": "opencode",
+  "order": 40,
+  "name": "OpenCode",
+  "vendor": "OpenCode",
+  "command": "opencode",
+  "install": "curl -fsSL https://opencode.ai/v2/install | bash",
+  "homepage": "https://opencode.ai",
+  "description": {
+    "pt": "Agente de código aberto que funciona com vários provedores de IA.",
+    "en": "Open-source agent that works with many AI providers."
+  }
+}

@@ -13,4 +13,8 @@
     <color name="setup_done">#7FD1C7</color>
     <color name="setup_error">#FF9E8A</color>
     <color name="setup_on_accent">#10232A</color>
+
+    <color name="card_bg">#123844</color>
+    <color name="card_stroke">#1E4D5B</color>
+    <color name="chip_bg">#0B2129</color>
 </resources>

@@ -1,0 +1,18 @@
+{
+  "id": "hermes",
+  "order": 80,
+  "name": "Hermes Agent",
+  "vendor": "Nous Research",
+  "command": "hermes",
+  "install": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+  "update": "hermes update",
+  "homepage": "https://hermes-agent.nousresearch.com",
+  "description": {
+    "pt": "Agente da Nous Research, com vários provedores de IA.",
+    "en": "Nous Research's agent, with many AI providers."
+  },
+  "note": {
+    "pt": "Instalação grande: traz Python, Node.js e outras ferramentas.",
+    "en": "Large install: brings Python, Node.js and other tools."
+  }
+}

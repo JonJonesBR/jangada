@@ -1,0 +1,17 @@
+{
+  "id": "openclaw",
+  "order": 100,
+  "name": "OpenClaw",
+  "vendor": "OpenClaw",
+  "command": "openclaw",
+  "install": "curl -fsSL https://openclaw.ai/install.sh | bash",
+  "homepage": "https://openclaw.ai",
+  "description": {
+    "pt": "Assistente pessoal de IA de código aberto.",
+    "en": "Open-source personal AI assistant."
+  },
+  "note": {
+    "pt": "Recursos que dependem de serviços do sistema podem não funcionar dentro do app.",
+    "en": "Features that depend on system services may not work inside the app."
+  }
+}

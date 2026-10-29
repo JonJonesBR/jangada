@@ -102,6 +102,17 @@ class LinuxEnv(context: Context) {
     /** Shell interativo do Debian, com ambiente limpo. */
     fun loginCommand(): List<String> = guestEnv() + listOf("/bin/bash", "--login")
 
+    /**
+     * Roda [script] num bash interativo (lê ~/.bashrc, onde instaladores
+     * costumam pôr o PATH) e, ao terminar, continua com um shell normal.
+     */
+    fun sessionScriptCommand(script: String): List<String> =
+        guestEnv() + listOf("/bin/bash", "--login", "-i", "-c", script + "\nexec /bin/bash --login")
+
+    /** Igual ao anterior, mas sem terminal: para consultas rápidas do app. */
+    fun bashCommand(script: String): List<String> =
+        guestEnv() + listOf("/bin/bash", "--login", "-i", "-c", script)
+
     /** Script não interativo (usado na instalação). */
     fun scriptCommand(script: String): List<String> =
         guestEnv() + listOf("DEBIAN_FRONTEND=noninteractive", "/bin/sh", "-c", script)
@@ -115,8 +126,13 @@ class LinuxEnv(context: Context) {
     )
 
     /** Roda um script dentro do Debian e entrega a saída linha a linha. */
-    fun run(script: String, onLine: (String) -> Unit): Int {
-        val builder = ProcessBuilder(*prootArgv(scriptCommand(script)))
+    fun run(script: String, onLine: (String) -> Unit): Int = runArgv(scriptCommand(script), onLine)
+
+    /** Como [run], mas num bash interativo (enxerga o PATH dos instaladores). */
+    fun runBash(script: String, onLine: (String) -> Unit): Int = runArgv(bashCommand(script), onLine)
+
+    private fun runArgv(inner: List<String>, onLine: (String) -> Unit): Int {
+        val builder = ProcessBuilder(*prootArgv(inner))
             .directory(files)
             .redirectErrorStream(true)
         builder.environment().apply {
@@ -194,7 +210,12 @@ class LinuxEnv(context: Context) {
 
         private const val PROFILE_SCRIPT =
             "# Gerado pelo Jangada a cada sessão.\n" +
-                "case \":\$PATH:\" in *\":\$HOME/.local/bin:\"*) ;; *) PATH=\"\$HOME/.local/bin:\$PATH\" ;; esac\n" +
+                "# Pastas onde os instaladores dos agentes costumam colocar os programas.\n" +
+                "for d in \"\$HOME/.npm-global/bin\" \"\$HOME/.cargo/bin\" \"\$HOME/.bun/bin\" " +
+                "\"\$HOME/.opencode/bin\" \"\$HOME/.local/bin\"; do\n" +
+                "  case \":\$PATH:\" in *\":\$d:\"*) ;; *) PATH=\"\$d:\$PATH\" ;; esac\n" +
+                "done\n" +
+                "unset d\n" +
                 "export PATH\n" +
                 "export BROWSER=/usr/local/bin/jangada-open\n"
 

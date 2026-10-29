@@ -49,6 +49,9 @@ class TerminalService : Service() {
     /** Chamado quando o usuário encerra tudo pela notificação. */
     var onExit: (() -> Unit)? = null
 
+    /** Avisa a tela inicial quando a lista de sessões muda. */
+    var onSessionsChanged: (() -> Unit)? = null
+
     override fun onBind(intent: Intent): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -68,27 +71,56 @@ class TerminalService : Service() {
         super.onDestroy()
     }
 
-    /** Cria uma sessão: Debian quando instalado, shell do Android como reserva. */
-    fun createSession(): TerminalSession {
+    /**
+     * Cria uma sessão: Debian quando instalado, shell do Android como reserva.
+     * Com [script], roda o script primeiro (ex.: abrir um agente) e depois
+     * deixa um shell aberto na mesma sessão.
+     */
+    fun createSession(title: String = DEFAULT_TITLE, script: String? = null): TerminalSession {
         val linux = LinuxEnv(this)
         val session = if (linux.isReady) {
             runCatching { linux.refreshIntegration() }.onFailure { Log.w(TAG, "integração", it) }
             startLinkWatcher(linux)
-            val argv = linux.prootArgv(linux.loginCommand())
+            val inner = if (script == null) linux.loginCommand() else linux.sessionScriptCommand(script)
+            val argv = linux.prootArgv(inner)
             TerminalSession(argv[0], filesDir.absolutePath, argv, linux.hostEnv(), TRANSCRIPT_ROWS, proxyClient)
         } else {
             androidSession()
         }
+        session.mSessionName = title
         sessions += session
-        updateNotification()
+        sessionsChanged()
         return session
     }
+
+    fun session(handle: String): TerminalSession? = sessions.firstOrNull { it.mHandle == handle }
 
     /** Troca uma sessão encerrada por uma nova (Enter depois de "exit"). */
     fun replaceSession(old: TerminalSession): TerminalSession {
         old.finishIfRunning()
         sessions.remove(old)
-        return createSession()
+        return createSession(old.mSessionName ?: DEFAULT_TITLE)
+    }
+
+    /** Fecha uma sessão; sem nenhuma aberta, o serviço sai do primeiro plano. */
+    fun closeSession(handle: String) {
+        val session = session(handle) ?: return
+        session.finishIfRunning()
+        sessions.remove(session)
+        sessionsChanged()
+        if (sessions.isEmpty()) leaveForeground()
+    }
+
+    private fun sessionsChanged() {
+        updateNotification()
+        onSessionsChanged?.invoke()
+    }
+
+    private fun leaveForeground() {
+        stopForeground(true)
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        stopSelf()
     }
 
     private fun androidSession(): TerminalSession {
@@ -128,9 +160,9 @@ class TerminalService : Service() {
     private fun exit() {
         sessions.forEach { it.finishIfRunning() }
         sessions.clear()
+        onSessionsChanged?.invoke()
         onExit?.invoke()
-        stopForeground(true)
-        stopSelf()
+        leaveForeground()
     }
 
     private fun goForeground() {
@@ -244,5 +276,6 @@ class TerminalService : Service() {
         private const val NOTIFICATION_SESSIONS = 1
         private const val NOTIFICATION_LINK = 2
         private const val TRANSCRIPT_ROWS = 5000
+        const val DEFAULT_TITLE = "Terminal"
     }
 }

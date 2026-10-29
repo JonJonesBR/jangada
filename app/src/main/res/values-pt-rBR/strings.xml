@@ -32,4 +32,18 @@
     <string name="channel_sessions">Sessões em andamento</string>
     <string name="channel_links">Links do terminal</string>
     <string name="link_notification_title">O terminal quer abrir um link</string>
+
+    <string name="home_subtitle">Seus agentes de IA, rodando no celular</string>
+    <string name="home_open_terminal">Abrir terminal</string>
+    <string name="home_running">Em andamento</string>
+    <string name="home_agents">Agentes</string>
+    <string name="agent_install">Instalar</string>
+    <string name="agent_open">Abrir</string>
+    <string name="agent_update">Atualizar</string>
+    <string name="agent_installed">Instalado</string>
+    <string name="agent_not_installed">Não instalado</string>
+    <string name="agent_checking">Verificando…</string>
+    <string name="agent_site">Site</string>
+    <string name="session_back">Toque para voltar</string>
+    <string name="session_close">Fechar</string>
 </resources>

@@ -1,0 +1,13 @@
+{
+  "id": "antigravity",
+  "order": 20,
+  "name": "Antigravity CLI (agy)",
+  "vendor": "Google",
+  "command": "agy",
+  "install": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+  "homepage": "https://antigravity.google/docs/cli/overview",
+  "description": {
+    "pt": "Agente do Google, sucessor do Gemini CLI.",
+    "en": "Google's agent, successor to Gemini CLI."
+  }
+}

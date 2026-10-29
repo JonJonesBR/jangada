@@ -1,0 +1,14 @@
+{
+  "id": "claude-code",
+  "order": 10,
+  "name": "Claude Code",
+  "vendor": "Anthropic",
+  "command": "claude",
+  "install": "curl -fsSL https://claude.ai/install.sh | bash",
+  "update": "claude update",
+  "homepage": "https://code.claude.com/docs",
+  "description": {
+    "pt": "Agente de programação da Anthropic.",
+    "en": "Anthropic's coding agent."
+  }
+}

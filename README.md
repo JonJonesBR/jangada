@@ -4,7 +4,7 @@
 
 *AI command-line agents on Android — Claude Code, Gemini CLI, Codex, OpenCode and more. No root, no PC, no server.*
 
-> Projeto em construção. Status: **Etapa 3 de 7** — segundo plano e login fácil.
+> Projeto em construção. Status: **Etapa 4 de 7** — catálogo de agentes.
 
 ## Como funciona
 
@@ -26,10 +26,35 @@ O app terá dois modos:
 - [x] **1. Terminal base** — teclas extras pensadas para agentes, links clicáveis, pinça para a fonte, copiar e colar, APK assinado.
 - [x] **2. Linux dentro do app** — Debian instalado com um toque, com progresso, mensagens claras e retomada se a internet cair.
 - [x] **3. Segundo plano e login fácil** — sessões continuam rodando fora da tela; os agentes abrem o navegador sozinhos (login sem copiar e colar); fonte com os símbolos que os agentes usam.
-- [ ] **4. Catálogo de agentes** — instalar, atualizar e abrir com um toque. Cada agente é uma receita em JSON; adicionar um novo é um pull request.
+- [x] **4. Catálogo de agentes** — instalar, atualizar e abrir com um toque: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw.
 - [ ] **5. Modo Simples** — chat nativo e tela do agente adaptada, alternando na mesma conversa.
 - [ ] **6. Modo Pro** — abas, chaves de API cifradas, pastas do celular, configurações avançadas.
 - [ ] **7. Lançamento** — temas, backup do ambiente, releases para Obtainium/F-Droid.
+
+## Adicionar um agente
+
+Cada agente é um arquivo JSON em `app/src/main/assets/agents/`. Para incluir
+um novo, copie um dos existentes e mande um pull request:
+
+```json
+{
+  "id": "meu-agente",
+  "order": 110,
+  "name": "Meu Agente",
+  "vendor": "Quem faz",
+  "command": "meuagente",
+  "install": "curl -fsSL https://exemplo.com/install.sh | bash",
+  "update": "meuagente update",
+  "requires": ["nodejs", "npm"],
+  "homepage": "https://exemplo.com",
+  "description": { "pt": "O que ele faz.", "en": "What it does." },
+  "note": { "pt": "Aviso opcional.", "en": "Optional note." }
+}
+```
+
+- `command` é o que abre o agente; o app usa esse nome para saber se ele está instalado.
+- `install` roda dentro do Debian do app; `requires` instala pacotes do Debian antes.
+- `update` é opcional; sem ele, o botão Atualizar repete a instalação.
 
 ## Baixar
 

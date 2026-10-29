@@ -1,0 +1,22 @@
+{
+  "id": "command-code",
+  "order": 90,
+  "name": "Command Code",
+  "vendor": "Command Code",
+  "command": "cmd",
+  "requires": [
+    "nodejs",
+    "npm"
+  ],
+  "install": "npm i -g command-code@latest",
+  "update": "npm i -g command-code@latest",
+  "homepage": "https://commandcode.ai",
+  "description": {
+    "pt": "Agente que aprende o seu jeito de programar.",
+    "en": "An agent that learns how you write code."
+  },
+  "note": {
+    "pt": "Na primeira vez, entre com: cmd login",
+    "en": "First time, sign in with: cmd login"
+  }
+}

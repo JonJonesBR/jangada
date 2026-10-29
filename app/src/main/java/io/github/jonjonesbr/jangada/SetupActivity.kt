@@ -86,7 +86,7 @@ class SetupActivity : ComponentActivity() {
 
     private fun render(state: Setup.State) {
         if (state is Setup.State.Done) {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, HomeActivity::class.java))
             finish()
             return
         }

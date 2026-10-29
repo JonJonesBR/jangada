@@ -34,4 +34,18 @@
     <string name="channel_sessions">Running sessions</string>
     <string name="channel_links">Links from the terminal</string>
     <string name="link_notification_title">The terminal wants to open a link</string>
+
+    <string name="home_subtitle">Your AI agents, running on your phone</string>
+    <string name="home_open_terminal">Open terminal</string>
+    <string name="home_running">Running</string>
+    <string name="home_agents">Agents</string>
+    <string name="agent_install">Install</string>
+    <string name="agent_open">Open</string>
+    <string name="agent_update">Update</string>
+    <string name="agent_installed">Installed</string>
+    <string name="agent_not_installed">Not installed</string>
+    <string name="agent_checking">Checking…</string>
+    <string name="agent_site">Website</string>
+    <string name="session_back">Tap to go back</string>
+    <string name="session_close">Close</string>
 </resources>
