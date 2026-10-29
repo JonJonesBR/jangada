@@ -46,6 +46,7 @@ class ChatActivity : ComponentActivity() {
     private lateinit var status: View
     private lateinit var input: EditText
     private lateinit var subtitle: TextView
+    private lateinit var continueChip: TextView
     private lateinit var settings: AppSettings
     private val adapter = ChatAdapter()
 
@@ -63,6 +64,8 @@ class ChatActivity : ComponentActivity() {
         status = findViewById(R.id.chat_status)
         input = findViewById(R.id.chat_input)
         subtitle = findViewById(R.id.chat_subtitle)
+        continueChip = findViewById(R.id.chat_continue)
+        continueChip.setOnClickListener { engine?.sendMessage(getString(R.string.chat_continue_prompt)) }
         list.adapter = adapter
 
         findViewById<View>(R.id.chat_home).setOnClickListener { goHome() }
@@ -136,6 +139,7 @@ class ChatActivity : ComponentActivity() {
         empty.visibility = if (isEmpty) View.VISIBLE else View.GONE
         list.visibility = if (isEmpty) View.GONE else View.VISIBLE
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
+        continueChip.visibility = if (chat.interrupted && !chat.busy) View.VISIBLE else View.GONE
         val model = friendlyModel(chat.model) ?: getString(R.string.chat_model_default)
         subtitle.text = "$model ▾"
     }
@@ -156,27 +160,90 @@ class ChatActivity : ComponentActivity() {
         }
     }
 
-    /** Lista as conversas anteriores (as que o Claude Code guardou) para retomar uma. */
+    /**
+     * Conversas anteriores (as que o Claude Code guardou): toque para
+     * retomar, 🗑 para apagar. Apagar a conversa aberta já começa outra.
+     */
     private fun showHistory() {
         val svc = service ?: return
-        val conversations = ChatHistory.list(LinuxEnv(this))
+        val linux = LinuxEnv(this)
+        val conversations = ChatHistory.list(linux).toMutableList()
         if (conversations.isEmpty()) {
             Toast.makeText(this, R.string.chat_history_empty, Toast.LENGTH_SHORT).show()
             return
         }
-        val current = engine?.sessionId
         val format = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
-        val labels = conversations.map { conversation ->
-            val mark = if (conversation.id == current) "● " else ""
-            "$mark${conversation.title}\n${format.format(java.util.Date(conversation.updatedAt))}"
-        }.toTypedArray()
-        android.app.AlertDialog.Builder(this)
+        var dialog: android.app.AlertDialog? = null
+
+        val historyAdapter = object : BaseAdapter() {
+            override fun getCount() = conversations.size
+            override fun getItem(position: Int): Any = conversations[position]
+            override fun getItemId(position: Int) = position.toLong()
+
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
+                val conversation = conversations[position]
+                val isCurrent = conversation.id == engine?.sessionId
+                val row = LinearLayout(this@ChatActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(20), dp(10), dp(8), dp(10))
+                }
+                row.addView(TextView(this@ChatActivity).apply {
+                    text = (if (isCurrent) "● " else "") + conversation.title + "\n" +
+                        format.format(java.util.Date(conversation.updatedAt))
+                    textSize = 15f
+                    maxLines = 3
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    setOnClickListener {
+                        dialog?.dismiss()
+                        if (!isCurrent) {
+                            svc.closeChat {
+                                if (!isDestroyed) attach(svc.openChat(continueLast = false, resume = conversation.id, restart = true))
+                            }
+                        }
+                    }
+                })
+                row.addView(TextView(this@ChatActivity).apply {
+                    text = "🗑"
+                    textSize = 20f
+                    contentDescription = getString(R.string.chat_delete)
+                    setPadding(dp(14), dp(8), dp(14), dp(8))
+                    setOnClickListener {
+                        confirmDelete(conversation, isCurrent) {
+                            conversations.remove(conversation)
+                            notifyDataSetChanged()
+                            if (conversations.isEmpty()) dialog?.dismiss()
+                        }
+                    }
+                })
+                return row
+            }
+        }
+
+        dialog = android.app.AlertDialog.Builder(this)
             .setTitle(R.string.chat_history)
-            .setItems(labels) { _, which ->
-                val chosen = conversations[which]
-                if (chosen.id == current) return@setItems
-                svc.closeChat {
-                    if (!isDestroyed) attach(svc.openChat(continueLast = false, resume = chosen.id, restart = true))
+            .setView(ListView(this).apply { adapter = historyAdapter })
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Confirma e apaga; se for a conversa aberta, começa uma nova. */
+    private fun confirmDelete(conversation: ChatHistory.Conversation, isCurrent: Boolean, done: () -> Unit) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.chat_delete_title)
+            .setMessage(conversation.title)
+            .setPositiveButton(R.string.chat_delete) { _, _ ->
+                val svc = service ?: return@setPositiveButton
+                val linux = LinuxEnv(this)
+                if (isCurrent) {
+                    svc.closeChat {
+                        ChatHistory.delete(linux, conversation.id)
+                        if (!isDestroyed) attach(svc.openChat(continueLast = false))
+                        done()
+                    }
+                } else {
+                    ChatHistory.delete(linux, conversation.id)
+                    done()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -212,7 +279,13 @@ class ChatActivity : ComponentActivity() {
         val svc = service ?: return
         val id = engine?.sessionId
         // Sem id (conversa nova, ainda sem mensagens), abre o Claude numa conversa nova.
-        val resume = if (id != null) "--resume $id" else ""
+        // Se ele estava no meio de uma resposta, o terminal já pede para continuar.
+        val wasBusy = engine?.busy == true
+        val resume = when {
+            id == null -> ""
+            wasBusy -> "--resume $id " + io.github.jonjonesbr.jangada.agents.AgentRecipe.q(getString(R.string.chat_continue_prompt))
+            else -> "--resume $id"
+        }
         val model = settings.chatModel.takeIf { it.isNotEmpty() }?.let { " --model $it" } ?: ""
         svc.closeChat {
             startActivity(

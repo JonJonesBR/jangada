@@ -51,6 +51,12 @@ class ChatEngine(
         private set
     @Volatile var running = false
         private set
+    /**
+     * A última resposta foi cortada no meio (por exemplo, ao trocar entre
+     * chat e terminal enquanto o agente trabalhava). A tela oferece "Continuar".
+     */
+    @Volatile var interrupted = false
+        private set
 
     /** Chamado (na thread principal) sempre que a conversa muda. */
     var onChanged: (() -> Unit)? = null
@@ -111,6 +117,7 @@ class ChatEngine(
         if (!running) start(resume = sessionId)
         add(ChatItem.User(text))
         busy = true
+        interrupted = false
         send(
             JSONObject()
                 .put("type", "user")
@@ -217,6 +224,8 @@ class ChatEngine(
             }
         }
         items.addAll(0, loaded.takeLast(MAX_HISTORY))
+        // Terminou numa ação ou numa mensagem sua, sem resposta depois: foi interrompida.
+        interrupted = loaded.lastOrNull().let { it is ChatItem.Tool || it is ChatItem.User }
         changed()
     }
 

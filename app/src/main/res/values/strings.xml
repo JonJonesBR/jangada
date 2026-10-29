@@ -109,4 +109,9 @@
     <string name="crash_title">Jangada closed unexpectedly</string>
     <string name="crash_message">Copy the details and send them to the developer, or open an issue on GitHub.</string>
     <string name="crash_copy">Copy details</string>
+
+    <string name="chat_continue">↻ Continue where it stopped</string>
+    <string name="chat_continue_prompt">Continue from where you stopped.</string>
+    <string name="chat_delete">Delete</string>
+    <string name="chat_delete_title">Delete this conversation?</string>
 </resources>

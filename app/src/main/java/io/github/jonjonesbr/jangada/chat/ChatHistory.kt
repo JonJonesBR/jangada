@@ -26,6 +26,14 @@ object ChatHistory {
                 Conversation(file.name.removeSuffix(".jsonl"), title, file.lastModified())
             }
 
+    /** Apaga uma conversa (o arquivo e a pasta de anexos que o Claude cria com o mesmo id). */
+    fun delete(linux: LinuxEnv, id: String) {
+        val dir = dir(linux)
+        File(dir, "$id.jsonl").delete()
+        val extra = File(dir, id)
+        if (extra.exists()) io.github.jonjonesbr.jangada.linux.Fs.deleteTree(extra.toPath())
+    }
+
     /** Resumo gravado pelo Claude ou a primeira mensagem do usuário. */
     private fun title(file: File): String? {
         var firstMessage: String? = null
