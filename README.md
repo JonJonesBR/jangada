@@ -4,7 +4,7 @@
 
 *AI command-line agents on Android — Claude Code, Gemini CLI, Codex, OpenCode and more. No root, no PC, no server.*
 
-> Projeto em construção. Status: **Etapa 5 de 7** — Modo Simples.
+> Projeto em construção. Status: **Etapa 6 de 7** — Modo Pro.
 
 ## Como funciona
 
@@ -30,7 +30,7 @@ O app terá dois modos:
 - [x] **Extras** — caixa de texto com corretor e ditado por voz (✎); comandos com `/` ou `!` vão sem corretor e como digitação; agentes trabalham em `~/projetos`, arquivos do celular em `~/celular`.
 - [x] **5. Modo Simples** — chat nativo para o Claude Code (balões, permissões com botões, respostas em tempo real, histórico de conversas, escolha do modelo) alternando com o terminal na mesma conversa; configurações (Simples/Pro, Enter envia, permissões).
 - [x] **Chat para todos os agentes** — via [Agent Client Protocol](https://agentclientprotocol.com) para OpenCode, Codex, Pi, oh-my-pi, Qwen Code, Hermes e Command Code; anexos de fotos e arquivos; "Permitir sempre nesta conversa"; copiar blocos de código.
-- [ ] **6. Modo Pro** — abas, chaves de API cifradas, pastas do celular, configurações avançadas.
+- [x] **6. Modo Pro** — abas de terminal, chaves de API com criptografia (Android Keystore), opções avançadas (processador ativo, tela ligada, teclas extras), reparar e reinstalar o Linux, chat experimental do Antigravity.
 - [ ] **7. Lançamento** — temas, backup do ambiente, releases para Obtainium/F-Droid.
 
 ## Adicionar um agente

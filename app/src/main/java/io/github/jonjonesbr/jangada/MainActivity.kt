@@ -21,7 +21,9 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -92,7 +94,8 @@ class MainActivity : ComponentActivity() {
         terminalView.setTextSize(fontSizePx) // precisa vir antes de setTypeface()
         terminalTypeface = TerminalFonts.load(this)
         terminalView.setTypeface(terminalTypeface)
-        terminalView.keepScreenOn = true
+        terminalView.keepScreenOn = appSettings.keepScreenOn
+        if (!appSettings.showExtraKeys) extraKeys.visibility = View.GONE
 
         extraKeys.attach(
             terminalView,
@@ -207,6 +210,7 @@ class MainActivity : ComponentActivity() {
             it.screenClient = null
             it.screenLinkOpener = null
             it.onExit = null
+            it.removeSessionsListener(tabsListener)
             unbindService(connection)
         }
         service = null
@@ -220,6 +224,7 @@ class MainActivity : ComponentActivity() {
             svc.screenClient = sessionClient
             svc.screenLinkOpener = { url -> if (screenVisible) { openUrl(url); true } else false }
             svc.onExit = { finishAndRemoveTask() }
+            svc.addSessionsListener(tabsListener)
             handleIntent(svc)
             terminalView.post { if (composeBar.visibility == View.VISIBLE) focusCompose() else showKeyboard() }
         }
@@ -257,12 +262,68 @@ class MainActivity : ComponentActivity() {
         show(target)
     }
 
+    private val tabsListener: () -> Unit = { renderTabs() }
+
+    /**
+     * Abas das sessões abertas. No Modo Pro aparecem sempre; no Simples,
+     * só quando há mais de uma. Toque troca; segurar fecha; ＋ abre outra.
+     */
+    private fun renderTabs() {
+        val svc = service ?: return
+        val scroll = findViewById<View>(R.id.terminal_tabs_scroll)
+        val tabs = findViewById<LinearLayout>(R.id.terminal_tabs)
+        val sessions = svc.sessions.toList()
+        scroll.visibility = if (!appSettings.simpleMode || sessions.size > 1) View.VISIBLE else View.GONE
+        tabs.removeAllViews()
+        for (item in sessions) {
+            val selected = item == session
+            tabs.addView(TextView(this).apply {
+                text = item.mSessionName ?: TerminalService.DEFAULT_TITLE
+                textSize = 13f
+                maxLines = 1
+                setTextColor(getColor(if (selected) R.color.key_text else R.color.setup_muted))
+                setBackgroundResource(if (selected) R.drawable.tab_bg_selected else R.drawable.tab_bg)
+                setPadding(sp(12f), sp(5f), sp(12f), sp(5f))
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { marginEnd = sp(6f) }
+                setOnClickListener { show(item) }
+                setOnLongClickListener { confirmClose(item); true }
+            })
+        }
+        tabs.addView(TextView(this).apply {
+            text = "＋"
+            contentDescription = getString(R.string.tab_new)
+            textSize = 16f
+            setTextColor(getColor(R.color.key_active))
+            setPadding(sp(12f), sp(2f), sp(12f), sp(2f))
+            setOnClickListener { show(svc.createSession()) }
+        })
+    }
+
+    private fun confirmClose(item: TerminalSession) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.tab_close_title)
+            .setMessage(item.mSessionName ?: TerminalService.DEFAULT_TITLE)
+            .setPositiveButton(R.string.session_close) { _, _ ->
+                val svc = service ?: return@setPositiveButton
+                svc.closeSession(item.mHandle)
+                if (item == session) {
+                    val next = svc.sessions.lastOrNull()
+                    if (next != null) show(next) else goHome()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun show(newSession: TerminalSession) {
         session = newSession
         findViewById<TextView>(R.id.session_title_bar).text = newSession.mSessionName ?: TerminalService.DEFAULT_TITLE
         val agent = service?.sessionAgent?.get(newSession.mHandle)
         val hasChat = agent != null && agents.firstOrNull { it.id == agent }?.hasChat == true
         findViewById<View>(R.id.terminal_chat).visibility = if (hasChat) View.VISIBLE else View.GONE
+        renderTabs()
         terminalView.attachSession(newSession)
         terminalView.onScreenUpdated()
     }

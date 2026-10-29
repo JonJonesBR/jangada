@@ -44,6 +44,24 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <HorizontalScrollView
+        android:id="@+id/terminal_tabs_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="38dp"
+        android:background="@color/terminal_bg"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/terminal_tabs"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp" />
+    </HorizontalScrollView>
+
     <com.termux.view.TerminalView
         android:id="@+id/terminal_view"
         android:layout_width="match_parent"

@@ -39,6 +39,7 @@ class TerminalService : Service() {
     private val binder = LocalBinder()
     private val main = Handler(Looper.getMainLooper())
     private var wakeLock: PowerManager.WakeLock? = null
+    private var foreground = false
     private var linkWatcher: LinkWatcher? = null
 
     val sessions = mutableListOf<TerminalSession>()
@@ -52,8 +53,11 @@ class TerminalService : Service() {
     /** Chamado quando o usuário encerra tudo pela notificação. */
     var onExit: (() -> Unit)? = null
 
-    /** Avisa a tela inicial quando a lista de sessões muda. */
-    var onSessionsChanged: (() -> Unit)? = null
+    /** Telas avisadas quando a lista de sessões (ou o chat) muda. */
+    private val sessionListeners = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
+
+    fun addSessionsListener(listener: () -> Unit) { sessionListeners += listener }
+    fun removeSessionsListener(listener: () -> Unit) { sessionListeners -= listener }
 
     /** Instalação ou atualização de um agente rodando em segundo plano. */
     class AgentTask(val recipe: AgentRecipe, val updating: Boolean) {
@@ -320,10 +324,11 @@ class TerminalService : Service() {
 
     private fun sessionsChanged() {
         updateNotification()
-        onSessionsChanged?.invoke()
+        sessionListeners.forEach { it() }
     }
 
     private fun leaveForeground() {
+        foreground = false
         stopForeground(true)
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
@@ -369,15 +374,20 @@ class TerminalService : Service() {
         sessions.clear()
         chat?.stop()
         chat = null
-        onSessionsChanged?.invoke()
+        sessionListeners.forEach { it() }
         onExit?.invoke()
         leaveForeground()
     }
 
+    /** Encerra tudo (sessões, chat, tarefas visíveis) — usado antes de reinstalar o Linux. */
+    fun closeEverything() = exit()
+
     private fun goForeground() {
         createChannels()
         startForeground(NOTIFICATION_SESSIONS, buildNotification())
-        if (wakeLock == null) {
+        foreground = true
+        // Manter o processador acordado é opcional (configurações, Modo Pro).
+        if (wakeLock == null && AppSettings(this).keepCpuAwake) {
             val power = getSystemService(PowerManager::class.java)
             wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "jangada:sessions").apply {
                 setReferenceCounted(false)
@@ -387,7 +397,7 @@ class TerminalService : Service() {
     }
 
     private fun updateNotification() {
-        if (wakeLock != null) notifications().notify(NOTIFICATION_SESSIONS, buildNotification())
+        if (foreground) notifications().notify(NOTIFICATION_SESSIONS, buildNotification())
     }
 
     private fun buildNotification(): Notification {

@@ -31,7 +31,25 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_CHAT_EFFORT, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CHAT_EFFORT, value).apply()
 
+    /** Segura o processador acordado enquanto há sessões (agentes não param com a tela apagada). */
+    var keepCpuAwake: Boolean
+        get() = prefs.getBoolean(KEY_CPU_AWAKE, true)
+        set(value) = prefs.edit().putBoolean(KEY_CPU_AWAKE, value).apply()
+
+    /** Tela do terminal não apaga sozinha. */
+    var keepScreenOn: Boolean
+        get() = prefs.getBoolean(KEY_SCREEN_ON, true)
+        set(value) = prefs.edit().putBoolean(KEY_SCREEN_ON, value).apply()
+
+    /** Barra de teclas extras do terminal (dá para esconder com teclado físico). */
+    var showExtraKeys: Boolean
+        get() = prefs.getBoolean(KEY_EXTRA_KEYS, true)
+        set(value) = prefs.edit().putBoolean(KEY_EXTRA_KEYS, value).apply()
+
     private companion object {
+        const val KEY_CPU_AWAKE = "keep_cpu_awake"
+        const val KEY_SCREEN_ON = "keep_screen_on"
+        const val KEY_EXTRA_KEYS = "show_extra_keys"
         const val KEY_CHAT_EFFORT = "chat_effort"
         const val KEY_CHAT_MODEL = "chat_model"
         const val KEY_MODE = "mode"

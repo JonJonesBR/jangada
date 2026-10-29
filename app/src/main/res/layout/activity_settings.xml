@@ -148,6 +148,64 @@
                 android:text="@string/settings_permissions_note"
                 android:textColor="@color/setup_muted"
                 android:textSize="13sp" />
+
+            <TextView
+                style="@style/HomeSection"
+                android:text="@string/settings_advanced" />
+
+            <Switch
+                android:id="@+id/settings_cpu_awake"
+                style="@style/SettingsOption"
+                android:text="@string/settings_cpu_awake" />
+
+            <Switch
+                android:id="@+id/settings_screen_on"
+                style="@style/SettingsOption"
+                android:text="@string/settings_screen_on" />
+
+            <Switch
+                android:id="@+id/settings_extra_keys"
+                style="@style/SettingsOption"
+                android:text="@string/settings_extra_keys" />
+
+            <Button
+                android:id="@+id/settings_api_keys"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/keys_title"
+                android:textAllCaps="false"
+                android:textColor="@color/key_active" />
+
+            <TextView
+                style="@style/HomeSection"
+                android:text="@string/settings_linux" />
+
+            <TextView
+                android:id="@+id/settings_linux_size"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/setup_muted"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/settings_repair"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_repair"
+                android:textAllCaps="false"
+                android:textColor="@color/key_active" />
+
+            <Button
+                android:id="@+id/settings_reinstall"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_reinstall"
+                android:textAllCaps="false"
+                android:textColor="@color/setup_error" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

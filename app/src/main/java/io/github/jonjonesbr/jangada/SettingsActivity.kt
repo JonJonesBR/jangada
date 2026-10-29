@@ -1,7 +1,19 @@
 package io.github.jonjonesbr.jangada
 
+import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.TextView
+import io.github.jonjonesbr.jangada.linux.Fs
+import io.github.jonjonesbr.jangada.linux.LinuxEnv
+import io.github.jonjonesbr.jangada.linux.Setup
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import kotlin.concurrent.thread
 import android.widget.RadioGroup
 import android.widget.Switch
 import androidx.activity.ComponentActivity
@@ -43,5 +55,79 @@ class SettingsActivity : ComponentActivity() {
         val effort = findViewById<RadioGroup>(R.id.settings_effort_group)
         effort.check(efforts.entries.firstOrNull { it.value == settings.chatEffort }?.key ?: R.id.effort_default)
         effort.setOnCheckedChangeListener { _, id -> settings.chatEffort = efforts[id] ?: "" }
+
+        // ---- Avançado (Pro) ----
+        bindSwitch(R.id.settings_cpu_awake, settings.keepCpuAwake) { settings.keepCpuAwake = it }
+        bindSwitch(R.id.settings_screen_on, settings.keepScreenOn) { settings.keepScreenOn = it }
+        bindSwitch(R.id.settings_extra_keys, settings.showExtraKeys) { settings.showExtraKeys = it }
+        findViewById<View>(R.id.settings_api_keys).setOnClickListener {
+            startActivity(Intent(this, ApiKeysActivity::class.java))
+        }
+        findViewById<View>(R.id.settings_repair).setOnClickListener { repairLinux() }
+        findViewById<View>(R.id.settings_reinstall).setOnClickListener { confirmReinstall() }
+        showLinuxSize()
+    }
+
+    private fun bindSwitch(id: Int, value: Boolean, save: (Boolean) -> Unit) {
+        val switch = findViewById<Switch>(id)
+        switch.isChecked = value
+        switch.setOnCheckedChangeListener { _, checked -> save(checked) }
+    }
+
+    /** Tamanho do Linux (calculado em segundo plano, sem seguir links). */
+    private fun showLinuxSize() {
+        val label = findViewById<TextView>(R.id.settings_linux_size)
+        val dir = LinuxEnv(this).linuxDir.toPath()
+        thread(name = "linux-size") {
+            val bytes = runCatching {
+                var total = 0L
+                Files.walkFileTree(dir, object : SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                        total += attrs.size()
+                        return FileVisitResult.CONTINUE
+                    }
+                    override fun visitFileFailed(file: Path, exc: java.io.IOException) = FileVisitResult.CONTINUE
+                })
+                total
+            }.getOrDefault(0L)
+            runOnUiThread {
+                if (!isDestroyed) label.text = getString(R.string.settings_linux_size, (bytes / 1_048_576).toString())
+            }
+        }
+    }
+
+    /** Reinstala só as ferramentas básicas, pela tela de preparação. */
+    private fun repairLinux() {
+        LinuxEnv(this).clearBaseMarker()
+        Setup.reset()
+        startActivity(Intent(this, SetupActivity::class.java))
+        finish()
+    }
+
+    private fun confirmReinstall() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_reinstall_title)
+            .setMessage(R.string.settings_reinstall_message)
+            .setPositiveButton(R.string.settings_reinstall_confirm) { _, _ -> reinstallLinux() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Fecha tudo, apaga o Linux e volta para a tela de preparação. */
+    private fun reinstallLinux() {
+        val progress = AlertDialog.Builder(this).setMessage(R.string.settings_erasing).setCancelable(false).show()
+        startService(Intent(this, TerminalService::class.java).setAction(TerminalService.ACTION_EXIT))
+        val linux = LinuxEnv(this)
+        thread(name = "linux-erase") {
+            Thread.sleep(1500) // dá tempo de os processos do Linux terminarem
+            linux.clearMarkers()
+            runCatching { Fs.deleteTree(linux.linuxDir.toPath()) }
+            runOnUiThread {
+                progress.dismiss()
+                Setup.reset()
+                startActivity(Intent(this, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
+                finish()
+            }
+        }
     }
 }

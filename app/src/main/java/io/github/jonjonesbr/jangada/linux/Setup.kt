@@ -51,6 +51,11 @@ object Setup {
 
     fun logText(): String = synchronized(logLines) { logLines.joinToString("\n") }
 
+    /** Volta ao começo (antes de reparar ou reinstalar o Linux). */
+    fun reset() {
+        if (state !is State.Running) state = State.Idle
+    }
+
     fun start(context: Context) {
         if (state is State.Running) return
         val app = context.applicationContext

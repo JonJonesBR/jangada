@@ -53,6 +53,7 @@ class HomeActivity : ComponentActivity() {
     private var service: TerminalService? = null
 
     private val prefs by lazy { getSharedPreferences("agents", MODE_PRIVATE) }
+    private val sessionsListener: () -> Unit = { renderSessions() }
     private val simpleMode get() = AppSettings(this).simpleMode
     private var askedStorage = false
     private var allFilesOpened = false
@@ -173,7 +174,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onStop() {
         service?.let {
-            it.onSessionsChanged = null
+            it.removeSessionsListener(sessionsListener)
             it.onTasksChanged = null
             unbindService(connection)
         }
@@ -185,7 +186,7 @@ class HomeActivity : ComponentActivity() {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             val svc = (binder as TerminalService.LocalBinder).service
             service = svc
-            svc.onSessionsChanged = { renderSessions() }
+            svc.addSessionsListener(sessionsListener)
             svc.onTasksChanged = { onTasksChanged() }
             renderSessions()
             renderAgents()

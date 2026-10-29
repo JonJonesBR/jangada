@@ -9,5 +9,20 @@
   "description": {
     "pt": "Agente do Google, sucessor do Gemini CLI.",
     "en": "Google's agent, successor to Gemini CLI."
+  },
+  "acp": {
+    "command": "/root/.local/share/agy-acp/agy_acp_server.par --uid=",
+    "bin": "/root/.local/share/agy-acp/agy_acp_server.par",
+    "install": "mkdir -p ~/.local/share/agy-acp && cd ~/.local/share/agy-acp && curl -fsSL -o agy-acp.zip https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.4-linux-arm64.zip && echo 'b0273227c07cfa1ea5c1d9ff869b64c5b2b39b98862081fcd4c597ec316e0c57  agy-acp.zip' | sha256sum -c - && unzip -o -q agy-acp.zip && rm agy-acp.zip && chmod +x agy_acp_server.par",
+    "requires": [
+      "python3",
+      "unzip",
+      "curl",
+      "ca-certificates"
+    ]
+  },
+  "note": {
+    "pt": "O chat do Antigravity é experimental: usa o servidor ACP que o Google distribui à parte.",
+    "en": "Antigravity chat is experimental: it uses the ACP server Google ships separately."
   }
 }

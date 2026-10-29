@@ -42,6 +42,11 @@ class LinuxEnv(context: Context) {
 
     fun markRootfsReady() = rootfsMarker.writeText(IMAGE + "\n")
     fun markBaseReady() = baseMarker.writeText(BASE_PACKAGES + "\n")
+    /** Faz a tela de preparação reinstalar só as ferramentas básicas ("Reparar"). */
+    fun clearBaseMarker() {
+        baseMarker.delete()
+    }
+
     fun clearMarkers() {
         rootfsMarker.delete()
         baseMarker.delete()
@@ -132,7 +137,7 @@ class LinuxEnv(context: Context) {
         "LANG=C.UTF-8", "TERM=xterm-256color", "COLORTERM=truecolor", "TMPDIR=/tmp",
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "BROWSER=/usr/local/bin/jangada-open",
-    )
+    ) + runCatching { io.github.jonjonesbr.jangada.SecretStore(app).environment() }.getOrDefault(emptyList())
 
     /** Roda um script dentro do Debian e entrega a saída linha a linha. */
     fun run(script: String, onLine: (String) -> Unit): Int = runArgv(scriptCommand(script), onLine)

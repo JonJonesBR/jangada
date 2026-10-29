@@ -173,7 +173,9 @@ class ChatActivity : ComponentActivity() {
         val spec = recipe?.acp
         val bin = spec?.bin
         val script = spec?.installScript()
-        if (isClaude || bin == null || script == null || File(linux.rootfs, "usr/local/bin/$bin").exists()) {
+        // bin pode ser um nome (instalado em /usr/local/bin) ou um caminho absoluto no Linux.
+        val binFile = bin?.let { if (it.startsWith("/")) File(linux.rootfs, it.removePrefix("/")) else File(linux.rootfs, "usr/local/bin/$it") }
+        if (isClaude || binFile == null || script == null || binFile.exists()) {
             then()
             return
         }

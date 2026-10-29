@@ -136,4 +136,39 @@
     <string name="effort_max">Máximo</string>
     <string name="settings_effort">Esforço do Claude no chat</string>
     <string name="settings_other_agents">Nos outros agentes, toque no nome do modelo no topo do chat para trocar modelo, esforço e modo.</string>
+
+    <string name="settings_advanced">Avançado (Pro)</string>
+    <string name="settings_cpu_awake">Manter o processador ativo enquanto há sessões abertas (os agentes seguem trabalhando com a tela apagada; gasta mais bateria)</string>
+    <string name="settings_screen_on">Manter a tela ligada no terminal</string>
+    <string name="settings_extra_keys">Mostrar a barra de teclas extras no terminal</string>
+    <string name="settings_linux">Linux</string>
+    <string name="settings_linux_size">O Debian ocupa %1$s MB no celular</string>
+    <string name="settings_repair">Reparar o Linux (reinstalar as ferramentas básicas)</string>
+    <string name="settings_reinstall">Reinstalar o Linux do zero</string>
+    <string name="settings_reinstall_title">Reinstalar o Linux do zero?</string>
+    <string name="settings_reinstall_message">Isso apaga tudo dentro do Linux do Jangada: agentes instalados, logins, conversas e ~/projetos. Os arquivos do celular (~/celular) não são tocados.</string>
+    <string name="settings_reinstall_confirm">Apagar e reinstalar</string>
+    <string name="settings_erasing">Apagando o Linux…</string>
+    <string name="keys_title">Chaves de API</string>
+    <string name="keys_intro">Para quem usa os agentes com chave de API em vez de assinatura. As chaves ficam guardadas com criptografia (Android Keystore) e viram variáveis de ambiente nas sessões e chats abertos depois.</string>
+    <string name="keys_anthropic">Anthropic. Atenção: com esta chave o Claude Code passa a cobrar pela API, e não pela sua assinatura do Claude.</string>
+    <string name="keys_openai">OpenAI (Codex e outros)</string>
+    <string name="keys_gemini">Google Gemini</string>
+    <string name="keys_openrouter">OpenRouter (vários modelos com uma chave só)</string>
+    <string name="keys_dashscope">Alibaba DashScope (Qwen)</string>
+    <string name="keys_github">GitHub (gh e agentes que usam o GitHub)</string>
+    <string name="keys_custom">Variável personalizada</string>
+    <string name="keys_add_custom">Adicionar outra variável</string>
+    <string name="keys_saved">Salva (com criptografia)</string>
+    <string name="keys_not_set">Não definida</string>
+    <string name="keys_set">Definir</string>
+    <string name="keys_change">Trocar</string>
+    <string name="keys_save">Salvar</string>
+    <string name="keys_paste_hint">Cole a chave</string>
+    <string name="keys_saved_note">Salva. Vale para as sessões e chats que você abrir daqui em diante.</string>
+    <string name="keys_removed">Chave apagada</string>
+    <string name="keys_invalid_name">Use letras maiúsculas, números e _ (por exemplo MINHA_CHAVE_API)</string>
+
+    <string name="tab_close_title">Fechar esta sessão?</string>
+    <string name="tab_new">Novo terminal</string>
 </resources>
