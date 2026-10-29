@@ -28,6 +28,10 @@ class LinuxEnv(context: Context) {
     /** Pasta (dentro do Debian: /var/lib/jangada/open) onde chegam os links a abrir. */
     val linkInbox = File(rootfs, "var/lib/jangada/open")
 
+    /** O app pode ler e gravar na memória do celular (Downloads, Documentos...)? */
+    val hasStorageAccess: Boolean
+        get() = runCatching { File(SHARED_STORAGE).let { it.canRead() && it.canWrite() } }.getOrDefault(false)
+
     /** Por enquanto o ambiente Linux existe só para celulares ARM de 64 bits. */
     val isDeviceSupported: Boolean
         get() = Build.SUPPORTED_ABIS.contains("arm64-v8a") &&
@@ -95,6 +99,11 @@ class LinuxEnv(context: Context) {
         }
         args += FakeSysData.bindings(sysdataDir)
         args += "--bind=${shmDir.absolutePath}:/dev/shm"
+        // Memória do celular: /sdcard dentro do Debian (e ~/celular aponta para lá).
+        if (hasStorageAccess) {
+            args += "--bind=/storage"
+            args += "--bind=$SHARED_STORAGE:/sdcard"
+        }
         args += inner
         return args.toTypedArray()
     }
@@ -187,6 +196,15 @@ class LinuxEnv(context: Context) {
         }
         linkInbox.mkdirs()
 
+        // Pasta de trabalho dos agentes. Fora da home de propósito: o Claude Code
+        // não guarda a confiança na pasta home e perguntaria toda vez.
+        File(rootfs, "root/$WORKSPACE").mkdirs()
+        val phone = File(rootfs, "root/celular").toPath()
+        if (hasStorageAccess && !java.nio.file.Files.isSymbolicLink(phone)) {
+            Fs.deleteTree(phone)
+            java.nio.file.Files.createSymbolicLink(phone, java.nio.file.Paths.get("/sdcard"))
+        }
+
         // /tmp precisa do "sticky bit" (1777); sem ele o Claude Code desliga recursos.
         for (tmp in listOf(File(rootfs, "tmp"), File(rootfs, "var/tmp"))) {
             tmp.mkdirs()
@@ -207,6 +225,9 @@ class LinuxEnv(context: Context) {
         const val IMAGE = "debian:$IMAGE_TAG"
         const val ARCHITECTURE = "arm64"
         const val BASE_PACKAGES = "ca-certificates curl git less nano procps unzip xz-utils"
+        /** Pasta (dentro da home do Debian) onde os agentes trabalham. */
+        const val WORKSPACE = "projetos"
+        private const val SHARED_STORAGE = "/storage/emulated/0"
 
         private const val PROFILE_SCRIPT =
             "# Gerado pelo Jangada a cada sessão.\n" +

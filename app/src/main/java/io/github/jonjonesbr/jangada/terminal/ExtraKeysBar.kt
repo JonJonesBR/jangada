@@ -15,7 +15,8 @@ import io.github.jonjonesbr.jangada.R
 /**
  * Duas fileiras de teclas que faltam no teclado do celular.
  * Pensadas para os agentes: ESC interrompe, ⇧⇥ troca o modo do Claude Code,
- * "/" abre comandos, "@" cita arquivos, "!" roda comandos do shell.
+ * "/" abre comandos, "@" cita arquivos, "!" roda comandos do shell,
+ * ✎ abre a caixa de texto (com corretor e voz) e ⌨ o teclado do terminal.
  */
 class ExtraKeysBar @JvmOverloads constructor(
     context: Context,
@@ -44,6 +45,7 @@ class ExtraKeysBar @JvmOverloads constructor(
         onPaste: () -> Unit,
         onOpenLink: () -> Unit,
         onKeyboard: () -> Unit,
+        onCompose: () -> Unit,
     ) {
         terminalView = view
         removeAllViews()
@@ -56,7 +58,7 @@ class ExtraKeysBar @JvmOverloads constructor(
         key(top, "↑") { sendKey(KeyEvent.KEYCODE_DPAD_UP) }
         key(top, "@") { sendText("@") }
         key(top, "|") { sendText("|") }
-        key(top, "~") { sendText("~") }
+        key(top, "✎") { onCompose() }
         key(top, "⌨") { onKeyboard() }
 
         val bottom = newRow()

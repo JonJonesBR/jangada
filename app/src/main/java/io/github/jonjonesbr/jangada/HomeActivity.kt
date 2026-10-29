@@ -1,5 +1,6 @@
 package io.github.jonjonesbr.jangada
 
+import android.Manifest
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -9,8 +10,10 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Typeface
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
@@ -50,6 +53,9 @@ class HomeActivity : ComponentActivity() {
     private var service: TerminalService? = null
 
     private val prefs by lazy { getSharedPreferences("agents", MODE_PRIVATE) }
+    private var askedStorage = false
+    private var allFilesOpened = false
+    private var paused = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +73,7 @@ class HomeActivity : ComponentActivity() {
         recipes = AgentCatalog.load(this)
 
         findViewById<Button>(R.id.open_terminal).setOnClickListener { openTerminal() }
+        findViewById<Button>(R.id.storage_allow).setOnClickListener { requestStorage() }
         if (!linux.isDeviceSupported) findViewById<View>(R.id.unsupported).visibility = View.VISIBLE
         renderAgents()
         fetchLatestVersions()
@@ -77,6 +84,66 @@ class HomeActivity : ComponentActivity() {
         if (!::agentsList.isInitialized) return
         bindService(Intent(this, TerminalService::class.java), connection, Context.BIND_AUTO_CREATE)
         refreshInstalled()
+        renderStorage()
+    }
+
+    // ---- Arquivos do celular ----
+
+    private fun renderStorage() {
+        val granted = linux.hasStorageAccess
+        findViewById<TextView>(R.id.storage_text).setText(if (granted) R.string.storage_ready else R.string.storage_ask)
+        findViewById<View>(R.id.storage_allow).visibility = if (granted) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.storage_card).visibility = if (linux.isReady) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * Pede acesso à memória do celular: primeiro a permissão comum do
+     * Android; se ela não liberar a escrita (algumas versões 11+), abre a
+     * tela "Acesso a todos os arquivos" do Jangada. O resultado é conferido
+     * quando a tela volta (onResume), sem depender de callbacks.
+     */
+    private fun requestStorage() {
+        askedStorage = true
+        allFilesOpened = false
+        requestPermissions(
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE),
+            REQUEST_STORAGE,
+        )
+        // Se o Android nem mostrar a pergunta (negada antes), segue sozinho.
+        window.decorView.postDelayed({ if (askedStorage && !paused) afterStorageRequest() }, 800)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        paused = false
+        if (!::agentsList.isInitialized) return
+        if (askedStorage) afterStorageRequest() else renderStorage()
+    }
+
+    override fun onPause() {
+        paused = true
+        super.onPause()
+    }
+
+    private fun afterStorageRequest() {
+        if (linux.hasStorageAccess) {
+            askedStorage = false
+            runCatching { linux.refreshIntegration() }
+            if (service?.sessions?.isNotEmpty() == true) {
+                Toast.makeText(this, R.string.storage_new_sessions, Toast.LENGTH_LONG).show()
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !allFilesOpened) {
+            allFilesOpened = true // continua "askedStorage" para conferir na volta
+            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName"))
+            runCatching { startActivity(intent) }.onFailure {
+                runCatching { startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
+            }
+            return
+        } else {
+            askedStorage = false
+            Toast.makeText(this, R.string.storage_denied, Toast.LENGTH_LONG).show()
+        }
+        renderStorage()
     }
 
     override fun onStop() {
@@ -343,5 +410,6 @@ class HomeActivity : ComponentActivity() {
         const val FOUND = "JANGADA_FOUND "
         const val VERSION = "JANGADA_VERSION "
         const val UPDATE_QUIET_MS = 7L * 24 * 60 * 60 * 1000
+        const val REQUEST_STORAGE = 42
     }
 }

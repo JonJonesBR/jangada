@@ -59,4 +59,13 @@
     <string name="task_terminal">No terminal</string>
     <string name="task_details">Detalhes</string>
     <string name="terminal_home_arrow">‹  Início</string>
+
+    <string name="compose_hint">Escreva para o agente (aqui funcionam o corretor e a voz)</string>
+    <string name="compose_send">Enviar</string>
+    <string name="storage_title">Arquivos do celular</string>
+    <string name="storage_ask">Deixe os agentes lerem e salvarem arquivos no celular (Downloads, Documentos…).</string>
+    <string name="storage_allow">Permitir acesso</string>
+    <string name="storage_ready">Projetos: ~/projetos · Arquivos do celular: ~/celular (Downloads em ~/celular/Download)</string>
+    <string name="storage_denied">Acesso não liberado. Você pode permitir nas configurações do Android, no app Jangada.</string>
+    <string name="storage_new_sessions">Sessões já abertas só enxergam os arquivos do celular depois de reabertas.</string>
 </resources>

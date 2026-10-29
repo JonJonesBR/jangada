@@ -61,4 +61,13 @@
     <string name="task_terminal">In terminal</string>
     <string name="task_details">Details</string>
     <string name="terminal_home_arrow">‹  Home</string>
+
+    <string name="compose_hint">Write to the agent (autocorrect and voice work here)</string>
+    <string name="compose_send">Send</string>
+    <string name="storage_title">Phone files</string>
+    <string name="storage_ask">Let agents read and save files on your phone (Downloads, Documents…).</string>
+    <string name="storage_allow">Allow access</string>
+    <string name="storage_ready">Projects: ~/projetos · Phone files: ~/celular (Downloads in ~/celular/Download)</string>
+    <string name="storage_denied">Access not granted. You can allow it in Android settings for Jangada.</string>
+    <string name="storage_new_sessions">Open sessions see the phone files after you reopen them.</string>
 </resources>

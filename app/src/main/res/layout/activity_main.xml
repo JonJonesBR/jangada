@@ -48,6 +48,51 @@
         android:importantForAutofill="no"
         android:scrollbars="vertical" />
 
+    <LinearLayout
+        android:id="@+id/compose_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/keys_bg"
+        android:gravity="bottom"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="6dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/compose_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/compose_bg"
+            android:hint="@string/compose_hint"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine|textCapSentences|textAutoCorrect"
+            android:maxLines="5"
+            android:minHeight="44dp"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:textColor="@color/key_text"
+            android:textColorHint="@color/setup_muted"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/compose_send"
+            android:layout_width="48dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/compose_send"
+            android:gravity="center"
+            android:text="➤"
+            android:textColor="@color/key_active"
+            android:textSize="24sp" />
+    </LinearLayout>
+
     <io.github.jonjonesbr.jangada.terminal.ExtraKeysBar
         android:id="@+id/extra_keys"
         android:layout_width="match_parent"

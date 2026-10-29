@@ -15,6 +15,7 @@ import android.util.TypedValue
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -40,6 +41,9 @@ class MainActivity : ComponentActivity() {
         private set
     lateinit var extraKeys: ExtraKeysBar
         private set
+
+    private lateinit var composeBar: View
+    private lateinit var composeText: EditText
 
     private var service: TerminalService? = null
     private var session: TerminalSession? = null
@@ -80,7 +84,14 @@ class MainActivity : ComponentActivity() {
             onPaste = ::pasteFromClipboard,
             onOpenLink = ::openLastLink,
             onKeyboard = ::showKeyboard,
+            onCompose = { setComposeVisible(composeBar.visibility != View.VISIBLE, focus = true) },
         )
+
+        // Caixa de texto: digita com corretor, voz e sem atraso; ➤ manda tudo de uma vez.
+        composeBar = findViewById(R.id.compose_bar)
+        composeText = findViewById(R.id.compose_text)
+        findViewById<View>(R.id.compose_send).setOnClickListener { sendCompose() }
+        setComposeVisible(prefs.getBoolean(PREF_COMPOSE, true), focus = false)
 
         // Voltar (ou o botão Início) leva à tela inicial; as sessões continuam rodando.
         findViewById<View>(R.id.home_button).setOnClickListener { goHome() }
@@ -135,7 +146,7 @@ class MainActivity : ComponentActivity() {
             svc.screenLinkOpener = { url -> if (screenVisible) { openUrl(url); true } else false }
             svc.onExit = { finishAndRemoveTask() }
             handleIntent(svc)
-            terminalView.post { showKeyboard() }
+            terminalView.post { if (composeBar.visibility == View.VISIBLE) focusCompose() else showKeyboard() }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -176,6 +187,30 @@ class MainActivity : ComponentActivity() {
         val svc = service ?: return
         val old = session
         show(if (old != null) svc.replaceSession(old) else svc.createSession())
+    }
+
+    private fun setComposeVisible(visible: Boolean, focus: Boolean) {
+        composeBar.visibility = if (visible) View.VISIBLE else View.GONE
+        prefs.edit().putBoolean(PREF_COMPOSE, visible).apply()
+        if (!focus) return
+        if (visible) focusCompose() else showKeyboard()
+    }
+
+    private fun focusCompose() {
+        composeText.requestFocus()
+        getSystemService(InputMethodManager::class.java)?.showSoftInput(composeText, 0)
+    }
+
+    /**
+     * Manda o texto da caixa para o terminal como uma colagem e aperta Enter.
+     * Com a caixa vazia, ➤ é só um Enter (útil para confirmar menus).
+     */
+    private fun sendCompose() {
+        val current = session ?: return
+        val text = composeText.text.toString()
+        composeText.setText("")
+        if (text.isNotEmpty()) current.emulator?.paste(text)
+        terminalView.postDelayed({ current.write("\r") }, if (text.isEmpty()) 0L else 80L)
     }
 
     fun showKeyboard() {
@@ -262,6 +297,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val PREF_FONT_SIZE = "font_size_px"
+        private const val PREF_COMPOSE = "compose_visible"
         const val EXTRA_TITLE = "title"
         const val EXTRA_SCRIPT = "script"
         const val EXTRA_SESSION = "session"

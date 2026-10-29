@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada.agents
 
 import android.content.Context
+import io.github.jonjonesbr.jangada.linux.LinuxEnv.Companion.WORKSPACE
 import org.json.JSONObject
 import java.util.Locale
 
@@ -42,7 +43,7 @@ data class AgentRecipe(
             status=${'$'}?
             for f in /etc/profile ~/.profile ~/.bashrc; do [ -f "${'$'}f" ] && . "${'$'}f"; done 2>/dev/null; hash -r
             if [ "${'$'}status" -eq 0 ] && command -v ${q(command)} >/dev/null 2>&1; then
-              printf '\n✓ %s pronto. Abrindo...\n\n' ${q(name)}; sleep 1; $command
+              printf '\n✓ %s pronto. Abrindo...\n\n' ${q(name)}; sleep 1; ${launchScript()}
             else
               printf '\n✕ Não terminou (código %s). Veja as mensagens acima.\n' "${'$'}status"
             fi
@@ -69,7 +70,8 @@ data class AgentRecipe(
         """.trimIndent()
     }
 
-    fun launchScript(): String = command
+    /** Abre o agente na pasta de trabalho (~/projetos), não na home. */
+    fun launchScript(): String = "mkdir -p ~/$WORKSPACE && cd ~/$WORKSPACE && $command"
 
     private fun localized(map: Map<String, String>): String {
         val lang = Locale.getDefault().language
