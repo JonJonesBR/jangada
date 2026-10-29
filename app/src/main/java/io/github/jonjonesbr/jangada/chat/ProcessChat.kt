@@ -73,6 +73,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
                 main.post {
                     if (connection !== c) return@post
                     finish(c)
+                    settleItems()
                     onStopped()
                     add(ChatItem.Info(context.getString(R.string.chat_error_start, e.message.orEmpty()), isError = true))
                 }
@@ -116,6 +117,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         connection = null
         running = false
         busy = false
+        settleItems()
         onStopped()
         changed()
         if (c == null) {
@@ -140,10 +142,13 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         }
     }
 
-    /** Escreve uma linha JSON no agente (entra na fila, atrás do início). */
-    protected fun send(json: JSONObject) {
-        val c = connection ?: return
-        runCatching {
+    /**
+     * Escreve uma linha JSON no agente (entra na fila, atrás do início).
+     * Devolve false quando não há execução do agente para receber a linha.
+     */
+    protected fun send(json: JSONObject): Boolean {
+        val c = connection ?: return false
+        return runCatching {
             c.writer.execute {
                 val out = c.process?.outputStream ?: return@execute
                 runCatching {
@@ -151,7 +156,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
                     out.flush()
                 }.onFailure { Log.w(tag, "falha ao escrever", it) }
             }
-        }
+        }.isSuccess
     }
 
     /** Uma mensagem do agente, já como JSON. Roda na thread principal. */
@@ -189,6 +194,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
                 if (connection !== c) return@post
                 finish(c)
                 onExited(code, synchronized(stderrTail) { stderrTail.joinToString("\n") })
+                settleItems()
                 onStopped()
                 changed()
             }
@@ -201,6 +207,21 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         c.writer.shutdown()
         running = false
         busy = false
+    }
+
+    /**
+     * Quando o agente para, nada fica pendente: pedidos de permissão sem
+     * resposta viram cancelados e nenhuma resposta fica com o cursor piscando.
+     * Roda na thread principal, antes de [onStopped].
+     */
+    private fun settleItems() {
+        for (item in items) {
+            if (item is ChatItem.Permission && item.chosen == null) {
+                item.chosen = PermissionOption("", "", PermissionOption.Kind.REJECT_ONCE)
+            } else if (item is ChatItem.Assistant) {
+                item.streaming = false
+            }
+        }
     }
 
     /** Explica o código de saída e junta as últimas linhas de erro do agente. */

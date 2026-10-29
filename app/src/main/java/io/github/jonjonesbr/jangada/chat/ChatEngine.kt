@@ -147,6 +147,11 @@ class ChatEngine(
     /** Responde a um pedido de permissão. */
     override fun answer(item: ChatItem.Permission, option: PermissionOption) {
         if (item.chosen != null) return
+        if (!running) {
+            // O agente parou: não há a quem responder; enviar uma mensagem retoma a conversa.
+            add(ChatItem.Info(context.getString(R.string.chat_permission_agent_stopped)))
+            return
+        }
         item.chosen = option
         val allow = option.allows
         if (option.kind == PermissionOption.Kind.ALLOW_ALWAYS) alwaysAllowed += item.toolName
@@ -170,18 +175,19 @@ class ChatEngine(
 
     override fun handle(json: JSONObject) {
         json.optString("session_id").takeIf { it.isNotEmpty() && it != "default" }?.let { sessionId = it }
+        // Mensagens de subagentes trazem o id da ferramenta que os chamou: não são a resposta principal.
+        val fromSubagent = json.has("parent_tool_use_id") && !json.isNull("parent_tool_use_id")
         when (json.optString("type")) {
             "system" -> if (json.optString("subtype") == "init") {
                 model = json.optString("model").ifEmpty { null }
                 changed()
             }
-            "stream_event" -> handleStreamEvent(json.optJSONObject("event"))
-            "assistant" -> handleAssistant(json.optJSONObject("message"), json.has("parent_tool_use_id") && !json.isNull("parent_tool_use_id"))
+            "stream_event" -> if (!fromSubagent) handleStreamEvent(json.optJSONObject("event"))
+            "assistant" -> handleAssistant(json.optJSONObject("message"), fromSubagent)
             "user" -> handleToolResults(json.optJSONObject("message"))
             "result" -> {
                 busy = false
-                draft?.streaming = false
-                draft = null
+                endStreaming()
                 if (json.optBoolean("is_error")) {
                     val text = json.optString("result").ifEmpty { json.optString("subtype") }
                     if (Regex("login|log in|auth|api key|credential", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
@@ -199,13 +205,18 @@ class ChatEngine(
         }
     }
 
+    /** Nenhuma resposta fica com o cursor piscando depois que o Claude parou de escrever. */
+    private fun endStreaming() {
+        draft = null
+        for (item in items) {
+            if (item is ChatItem.Assistant) item.streaming = false
+        }
+    }
+
     private fun handleStreamEvent(event: JSONObject?) {
         event ?: return
         when (event.optString("type")) {
-            "message_start" -> {
-                draft?.streaming = false
-                draft = null
-            }
+            "message_start" -> endStreaming()
             "content_block_delta" -> {
                 val delta = event.optJSONObject("delta") ?: return
                 if (delta.optString("type") != "text_delta") return

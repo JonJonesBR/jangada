@@ -74,6 +74,8 @@ class AcpChat(
     /** Conversa a reabrir depois do login. */
     private var resumeAfterLogin: String? = null
     private var loginCard: ChatItem.Login? = null
+    /** Tempo limite do login em andamento (para tirar da fila se ele terminar antes). */
+    private var loginTimeout: Runnable? = null
 
     /** Inicia o agente; com [resume], recarrega essa conversa (se o agente suportar). */
     fun start(resume: String? = null) {
@@ -94,6 +96,8 @@ class AcpChat(
                 .put("clientInfo", JSONObject().put("name", "jangada").put("title", "Jangada").put("version", appVersion)),
         ) { result, error ->
             if (result == null) {
+                // Parou durante o início: o motivo já aparece pela saída do agente.
+                if (isStopped(error)) return@request
                 add(ChatItem.Info(context.getString(R.string.chat_acp_no_init, error?.optString("message").orEmpty()), isError = true))
                 return@request
             }
@@ -142,7 +146,23 @@ class AcpChat(
         card.state = ChatItem.Login.State.WORKING
         card.message = null
         changed()
+        // Sem resposta a tempo, o cartão mostra que o login não terminou.
+        clearLoginTimeout()
+        val timeout = Runnable {
+            loginTimeout = null
+            if (card.state == ChatItem.Login.State.WORKING) {
+                card.state = ChatItem.Login.State.FAILED
+                card.message = context.getString(R.string.chat_login_timeout)
+                changed()
+            }
+        }
+        loginTimeout = timeout
+        main.postDelayed(timeout, LOGIN_TIMEOUT_MS)
         request("authenticate", JSONObject().put("methodId", option.id)) { _, error ->
+            main.removeCallbacks(timeout)
+            if (loginTimeout === timeout) loginTimeout = null
+            // Cancelado ou já com tempo esgotado: a resposta atrasada não mexe mais no cartão.
+            if (card.state != ChatItem.Login.State.WORKING) return@request
             if (error != null) {
                 card.state = ChatItem.Login.State.FAILED
                 card.message = error.optString("message")
@@ -153,6 +173,20 @@ class AcpChat(
             changed()
             openSession(resumeAfterLogin)
         }
+    }
+
+    /** Cancela o login em andamento (botão Cancelar): o cartão volta a esperar. */
+    fun cancelLogin(card: ChatItem.Login) {
+        if (card.state != ChatItem.Login.State.WORKING) return
+        clearLoginTimeout()
+        card.state = ChatItem.Login.State.WAITING
+        card.message = null
+        changed()
+    }
+
+    private fun clearLoginTimeout() {
+        loginTimeout?.let { main.removeCallbacks(it) }
+        loginTimeout = null
     }
 
     /** Comando para entrar pela tela de terminal (método "terminal" do agente). */
@@ -172,6 +206,8 @@ class AcpChat(
                 result?.let { parseConfig(it) }
                 finishDrafts()
                 if (error != null) {
+                    // Parou no meio da recarga: mantém o sessionId para retomar a mesma conversa depois.
+                    if (isStopped(error)) return@request
                     if (isAuthError(error)) {
                         requireLogin(resume)
                         return@request
@@ -193,6 +229,7 @@ class AcpChat(
         val params = JSONObject().put("cwd", "/root/${LinuxEnv.WORKSPACE}").put("mcpServers", JSONArray())
         request("session/new", params) { result, error ->
             if (result == null) {
+                if (isStopped(error)) return@request
                 if (isAuthError(error)) requireLogin(null)
                 else add(ChatItem.Info(friendlyError(error), isError = true))
                 return@request
@@ -257,6 +294,11 @@ class AcpChat(
 
     override fun answer(item: ChatItem.Permission, option: PermissionOption) {
         if (item.chosen != null) return
+        if (!running) {
+            // O agente parou: não há a quem responder; enviar uma mensagem retoma a conversa.
+            add(ChatItem.Info(context.getString(R.string.chat_permission_agent_stopped)))
+            return
+        }
         item.chosen = option
         respond(
             item.requestId,
@@ -358,14 +400,24 @@ class AcpChat(
         request("session/delete", JSONObject().put("sessionId", id)) { _, _ -> callback() }
     }
 
-    /** Pedidos sem resposta e mensagens na fila morrem com o agente. */
+    /**
+     * Pedidos sem resposta e mensagens na fila morrem com o agente. Quem
+     * esperava uma resposta (listar, apagar, login...) recebe a falha e conclui.
+     */
     override fun onStopped() {
+        val waiting = pending.values.toList()
         pending.clear()
         waitingPrompts.clear()
         ready = false
         loadingHistory = false
         draft = null
         userDraft = null
+        clearLoginTimeout()
+        for (callback in waiting) callback(null, stoppedError())
+        loginCard?.takeIf { it.state == ChatItem.Login.State.WORKING }?.let {
+            it.state = ChatItem.Login.State.FAILED
+            it.message = context.getString(R.string.chat_acp_agent_stopped)
+        }
     }
 
     override fun onExited(code: Int, stderr: String) {
@@ -531,10 +583,21 @@ class AcpChat(
     // ---- JSON-RPC ----
 
     private fun request(method: String, params: JSONObject, callback: (JSONObject?, JSONObject?) -> Unit) {
+        if (!running) {
+            // Sem agente rodando o pedido nem sai: quem espera recebe a falha na hora.
+            callback(null, stoppedError())
+            return
+        }
         val id = nextId++
         pending[id] = callback
         send(JSONObject().put("jsonrpc", "2.0").put("id", id).put("method", method).put("params", params))
     }
+
+    /** Falha entregue a quem esperava resposta de um agente que parou (marcada com [STOPPED]). */
+    private fun stoppedError(): JSONObject =
+        JSONObject().put("message", context.getString(R.string.chat_acp_agent_stopped)).put(STOPPED, true)
+
+    private fun isStopped(error: JSONObject?): Boolean = error?.optBoolean(STOPPED) == true
 
     private fun notify(method: String, params: JSONObject) =
         send(JSONObject().put("jsonrpc", "2.0").put("method", method).put("params", params))
@@ -544,5 +607,9 @@ class AcpChat(
 
     private companion object {
         const val TAG = "JangadaAcp"
+        /** Quanto o cartão de login espera o navegador antes de dar o login como não terminado. */
+        const val LOGIN_TIMEOUT_MS = 120_000L
+        /** Campo interno que marca a falha "o agente parou" (não vem do agente). */
+        const val STOPPED = "jangadaStopped"
     }
 }
