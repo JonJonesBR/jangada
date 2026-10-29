@@ -108,6 +108,13 @@ class MainActivity : ComponentActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 val text = s?.toString().orEmpty()
+                // Enter do teclado com a caixa vazia vai para o terminal (confirma
+                // menus e listas dos agentes), em vez de pular linha na caixa.
+                if (text == "\n") {
+                    s?.clear()
+                    session?.write("\r")
+                    return
+                }
                 setCommandMode(text.startsWith("/") || text.startsWith("!"))
             }
         })

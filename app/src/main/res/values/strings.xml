@@ -62,7 +62,7 @@
     <string name="task_details">Details</string>
     <string name="terminal_home_arrow">‹  Home</string>
 
-    <string name="compose_hint">Write to the agent (autocorrect and voice work here)</string>
+    <string name="compose_hint">Message the agent</string>
     <string name="compose_send">Send</string>
     <string name="storage_title">Phone files</string>
     <string name="storage_ask">Let agents read and save files on your phone (Downloads, Documents…).</string>

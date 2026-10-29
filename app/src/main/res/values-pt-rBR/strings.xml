@@ -60,7 +60,7 @@
     <string name="task_details">Detalhes</string>
     <string name="terminal_home_arrow">‹  Início</string>
 
-    <string name="compose_hint">Escreva para o agente (aqui funcionam o corretor e a voz)</string>
+    <string name="compose_hint">Mensagem para o agente</string>
     <string name="compose_send">Enviar</string>
     <string name="storage_title">Arquivos do celular</string>
     <string name="storage_ask">Deixe os agentes lerem e salvarem arquivos no celular (Downloads, Documentos…).</string>
