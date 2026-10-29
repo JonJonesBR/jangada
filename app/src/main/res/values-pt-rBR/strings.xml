@@ -70,17 +70,14 @@
     <string name="storage_new_sessions">Sessões já abertas só enxergam os arquivos do celular depois de reabertas.</string>
 
     <string name="chat_title">Claude Code</string>
-    <string name="chat_new">Nova</string>
+    <string name="chat_new">Nova conversa</string>
     <string name="chat_terminal">Terminal</string>
     <string name="chat_working">Trabalhando…</string>
     <string name="chat_stop">Parar</string>
     <string name="chat_hint">Mensagem para o Claude</string>
     <string name="chat_empty">Converse com o %1$s aqui. Ele trabalha na pasta ~/projetos e pede licença antes de agir.\n\nToque em &gt;_ no topo para abrir a tela completa do agente.</string>
-    <string name="chat_wants">O Claude quer: %s</string>
     <string name="chat_allow">Permitir</string>
     <string name="chat_deny">Recusar</string>
-    <string name="chat_allowed">Permitido</string>
-    <string name="chat_denied">Recusado</string>
     <string name="chat_copied">Copiado</string>
     <string name="chat_session">Chat</string>
     <string name="agent_chat">Chat</string>
@@ -92,13 +89,12 @@
     <string name="settings_mode_pro">Pro — os agentes abrem primeiro no terminal</string>
     <string name="settings_typing">Digitação</string>
     <string name="settings_enter_sends">Enter do teclado envia a mensagem (em vez de pular linha)</string>
-    <string name="settings_chat">Permissões no chat</string>
+    <string name="settings_chat">Permissões no chat do Claude Code</string>
     <string name="settings_permissions_ask">Perguntar antes de cada ação (recomendado)</string>
     <string name="settings_permissions_auto">Automático: o agente decide o que é seguro</string>
-    <string name="settings_permissions_note">Vale para as próximas conversas.</string>
+    <string name="settings_permissions_note">Vale para as próximas conversas. Os outros agentes sempre perguntam antes de agir.</string>
     <string name="home_settings">Configurações</string>
 
-    <string name="chat_model_title">Modelo do chat</string>
     <string name="chat_model_default">Padrão da conta</string>
     <string name="settings_model">Modelo do Claude no chat</string>
 
@@ -222,7 +218,7 @@
     <string name="about_version">Versão %s</string>
     <string name="about_repo">Código-fonte no GitHub</string>
     <string name="about_licenses">Licenças e créditos</string>
-    <string name="about_privacy">Sem anúncios e sem rastreamento: o Jangada não envia nada para lugar nenhum. Suas conversas vão só para os serviços de IA que você escolher usar.</string>
+    <string name="about_privacy">Sem anúncios e sem rastreamento. O Jangada só acessa a internet para instalar o Linux e os agentes e para ver se há versões novas; suas conversas vão só para os serviços de IA que você escolher usar.</string>
 
     <!-- Chat: agente fechou ou não abriu -->
     <string name="chat_error_start">Não consegui abrir o agente: %1$s</string>
@@ -262,4 +258,44 @@
     <string name="install_ready">✓ %1$s pronto. Abrindo…</string>
     <string name="install_failed">✕ Não terminou (código %1$s). Veja as mensagens acima.</string>
     <string name="about_credits">Jangada — GPL-3.0\nTerminal: Termux terminal-emulator e terminal-view (Apache 2.0)\nLinux: Debian, via proot (GPL-2.0), talloc (LGPL/GPL v3) e libandroid-shmem (BSD 3-Clause), do Termux\nFontes: JetBrains Mono, Noto Sans Symbols e Noto Sans Symbols 2 (SIL OFL 1.1)\nChat com agentes: Agent Client Protocol (ACP)</string>
+
+    <!-- Auditoria 1.0.2: segurança, chat, telas e terminal -->
+    <string name="backup_error_target">Não consegui abrir o arquivo de destino</string>
+    <string name="backup_error_open_backup">Não consegui abrir o arquivo do backup</string>
+    <string name="backup_error_tar_exit">tar terminou com código %1$d</string>
+    <string name="chat_permission_agent_stopped">O agente parou; envie uma mensagem para retomar.</string>
+    <string name="chat_acp_agent_stopped">O agente parou antes de responder.</string>
+    <string name="chat_login_timeout">O login demorou demais. Tente de novo.</string>
+    <string name="chat_prepare_retry">Tentar de novo</string>
+    <string name="chat_prepare_details">Detalhes</string>
+    <string name="chat_login_cancel">Cancelar</string>
+    <string name="chat_remove_attachment">Remover anexo %1$s</string>
+    <string name="api_key_reserved">%1$s é reservado pelo sistema. Escolha outro nome.</string>
+    <string name="api_key_save_failed">Não foi possível salvar a chave neste celular.</string>
+    <string name="theme_default">Jangada</string>
+    <string name="theme_sea">Mar</string>
+    <string name="theme_dracula">Dracula</string>
+    <string name="theme_solarized_dark">Solarized escuro</string>
+    <string name="theme_solarized_light">Solarized claro</string>
+    <string name="about_back">‹  Ajustes</string>
+    <string name="tab_close">Fechar %1$s</string>
+    <string name="login_banner">Já entrou? Toque em Chat no topo para voltar.</string>
+    <string name="login_banner_close">Fechar</string>
+    <string name="key_desc_esc">Escape</string>
+    <string name="key_desc_shift_tab">Shift+Tab</string>
+    <string name="key_desc_slash">Barra</string>
+    <string name="key_desc_hyphen">Hífen</string>
+    <string name="key_desc_up">Seta para cima</string>
+    <string name="key_desc_at">Arroba</string>
+    <string name="key_desc_pipe">Barra vertical</string>
+    <string name="key_desc_compose">Caixa de texto</string>
+    <string name="key_desc_keyboard">Teclado do terminal</string>
+    <string name="key_desc_ctrl">Ctrl</string>
+    <string name="key_desc_alt">Alt</string>
+    <string name="key_desc_tab">Tab</string>
+    <string name="key_desc_left">Seta para a esquerda</string>
+    <string name="key_desc_down">Seta para baixo</string>
+    <string name="key_desc_right">Seta para a direita</string>
+    <string name="key_desc_bang">Ponto de exclamação</string>
+    <string name="key_desc_link">Abrir link</string>
 </resources>

@@ -72,17 +72,14 @@
     <string name="storage_new_sessions">Open sessions see the phone files after you reopen them.</string>
 
     <string name="chat_title">Claude Code</string>
-    <string name="chat_new">New</string>
+    <string name="chat_new">New conversation</string>
     <string name="chat_terminal">Terminal</string>
     <string name="chat_working">Working…</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_hint">Message Claude</string>
     <string name="chat_empty">Talk to %1$s here. It works in the ~/projetos folder and asks before acting.\n\nTap &gt;_ at the top to open the agent’s full screen.</string>
-    <string name="chat_wants">Claude wants to: %s</string>
     <string name="chat_allow">Allow</string>
     <string name="chat_deny">Deny</string>
-    <string name="chat_allowed">Allowed</string>
-    <string name="chat_denied">Denied</string>
     <string name="chat_copied">Copied</string>
     <string name="chat_session">Chat</string>
     <string name="agent_chat">Chat</string>
@@ -94,13 +91,12 @@
     <string name="settings_mode_pro">Pro — agents open in the terminal first</string>
     <string name="settings_typing">Typing</string>
     <string name="settings_enter_sends">Keyboard Enter sends the message (instead of a new line)</string>
-    <string name="settings_chat">Chat permissions</string>
+    <string name="settings_chat">Claude Code chat permissions</string>
     <string name="settings_permissions_ask">Ask before each action (recommended)</string>
     <string name="settings_permissions_auto">Automatic: the agent decides what is safe</string>
-    <string name="settings_permissions_note">Applies to new conversations.</string>
+    <string name="settings_permissions_note">Applies to new conversations. Other agents always ask before acting.</string>
     <string name="home_settings">Settings</string>
 
-    <string name="chat_model_title">Chat model</string>
     <string name="chat_model_default">Account default</string>
     <string name="settings_model">Claude chat model</string>
 
@@ -224,7 +220,7 @@
     <string name="about_version">Version %s</string>
     <string name="about_repo">Source code on GitHub</string>
     <string name="about_licenses">Licenses and credits</string>
-    <string name="about_privacy">No ads, no tracking: Jangada sends nothing anywhere. Your conversations go only to the AI services you choose to use.</string>
+    <string name="about_privacy">No ads, no tracking. Jangada only goes online to install the Linux and the agents and to check for new versions; your conversations go only to the AI services you choose to use.</string>
 
     <!-- Chat: agente fechou ou não abriu -->
     <string name="chat_error_start">Couldn’t start the agent: %1$s</string>
@@ -264,4 +260,44 @@
     <string name="install_ready">✓ %1$s is ready. Opening…</string>
     <string name="install_failed">✕ Didn’t finish (code %1$s). See the messages above.</string>
     <string name="about_credits">Jangada — GPL-3.0\nTerminal: Termux terminal-emulator and terminal-view (Apache 2.0)\nLinux: Debian, via proot (GPL-2.0), talloc (LGPL/GPL v3) and libandroid-shmem (BSD 3-Clause), from Termux\nFonts: JetBrains Mono, Noto Sans Symbols and Noto Sans Symbols 2 (SIL OFL 1.1)\nChat with agents: Agent Client Protocol (ACP)</string>
+
+    <!-- Auditoria 1.0.2: segurança, chat, telas e terminal -->
+    <string name="backup_error_target">Could not open the destination file</string>
+    <string name="backup_error_open_backup">Could not open the backup file</string>
+    <string name="backup_error_tar_exit">tar finished with code %1$d</string>
+    <string name="chat_permission_agent_stopped">The agent stopped. Send a message to resume.</string>
+    <string name="chat_acp_agent_stopped">The agent stopped before it could answer.</string>
+    <string name="chat_login_timeout">The login timed out. Try again.</string>
+    <string name="chat_prepare_retry">Try again</string>
+    <string name="chat_prepare_details">Details</string>
+    <string name="chat_login_cancel">Cancel</string>
+    <string name="chat_remove_attachment">Remove attachment %1$s</string>
+    <string name="api_key_reserved">%1$s is reserved by the system. Choose another name.</string>
+    <string name="api_key_save_failed">Could not save the key on this device.</string>
+    <string name="theme_default">Jangada</string>
+    <string name="theme_sea">Sea</string>
+    <string name="theme_dracula">Dracula</string>
+    <string name="theme_solarized_dark">Solarized dark</string>
+    <string name="theme_solarized_light">Solarized light</string>
+    <string name="about_back">‹  Settings</string>
+    <string name="tab_close">Close %1$s</string>
+    <string name="login_banner">Logged in? Tap Chat at the top to go back.</string>
+    <string name="login_banner_close">Close</string>
+    <string name="key_desc_esc">Escape</string>
+    <string name="key_desc_shift_tab">Shift+Tab</string>
+    <string name="key_desc_slash">Slash</string>
+    <string name="key_desc_hyphen">Hyphen</string>
+    <string name="key_desc_up">Up arrow</string>
+    <string name="key_desc_at">At sign</string>
+    <string name="key_desc_pipe">Pipe</string>
+    <string name="key_desc_compose">Text box</string>
+    <string name="key_desc_keyboard">Terminal keyboard</string>
+    <string name="key_desc_ctrl">Ctrl</string>
+    <string name="key_desc_alt">Alt</string>
+    <string name="key_desc_tab">Tab</string>
+    <string name="key_desc_left">Left arrow</string>
+    <string name="key_desc_down">Down arrow</string>
+    <string name="key_desc_right">Right arrow</string>
+    <string name="key_desc_bang">Exclamation mark</string>
+    <string name="key_desc_link">Open link</string>
 </resources>

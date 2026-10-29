@@ -24,5 +24,7 @@
     <color name="chip_bg">#EEE8DC</color>
     <color name="bar_bg">#E7E0D2</color>
     <color name="bar_text">#12303A</color>
+    <!-- Âmbar para TEXTO nas telas do app (no tema claro, com contraste suficiente). key_active fica para fundos e para o terminal. -->
+    <color name="accent_text">#8F5200</color>
     <color name="input_bg">#FFFFFF</color>
 </resources>

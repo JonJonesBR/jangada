@@ -26,7 +26,7 @@ O Jangada traz um Linux Debian completo para dentro do app e deixa você instala
 - **Modo Simples e Modo Pro**, tema claro, escuro ou do sistema.
 - **Chaves de API** guardadas com criptografia (Android Keystore), para quem usa os agentes com chave.
 - **Backup** dos projetos e das configurações dos agentes, e **Liberar espaço** com um toque.
-- **Sem anúncios e sem rastreamento.** O Jangada não envia nada para lugar nenhum; suas conversas vão só para os serviços de IA que você escolher.
+- **Sem anúncios e sem rastreamento.** O Jangada só acessa a internet para instalar o Linux e os agentes e para ver se há versões novas; suas conversas vão só para os serviços de IA que você escolher.
 
 ## Instalar
 
