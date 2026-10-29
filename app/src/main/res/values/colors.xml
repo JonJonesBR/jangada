@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paleta da jangada: mar à noite, vela de algodão, madeira do casco, espuma. -->
+    <color name="terminal_bg">#000000</color>
+    <color name="keys_bg">#0E2A33</color>
+    <color name="key_text">#F2EDE4</color>
+    <color name="key_active">#E9A23B</color>
+    <color name="icon_bg">#0E3A4A</color>
+
+    <color name="setup_bg">#0E2A33</color>
+    <color name="setup_text">#F2EDE4</color>
+    <color name="setup_muted">#A9BEC3</color>
+    <color name="setup_done">#7FD1C7</color>
+    <color name="setup_error">#FF9E8A</color>
+    <color name="setup_on_accent">#10232A</color>
+</resources>

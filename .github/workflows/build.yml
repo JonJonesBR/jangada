@@ -1,0 +1,73 @@
+name: Compilar APK
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      # proot + bibliotecas, direto do repositório oficial do Termux (conferidos por SHA-256).
+      - name: Baixar proot do Termux
+        run: bash scripts/fetch-proot.sh aarch64
+
+      # A chave fica nos "secrets" do repositório, nunca no código.
+      # Forks e pull requests não têm acesso a ela e compilam com chave de debug.
+      - name: Preparar chave de assinatura
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "SIGNING_STORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Compilar APK
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Preparar APK
+        run: cp app/build/outputs/apk/release/app-release.apk Jangada.apk
+
+      - name: Guardar APK nos artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jangada-apk
+          path: Jangada.apk
+
+      - name: Publicar "Build mais recente"
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_KEYSTORE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Build mais recente
+          prerelease: true
+          files: Jangada.apk
+
+      - name: Publicar versão (tag v*)
+        if: startsWith(github.ref, 'refs/tags/v') && env.HAS_KEYSTORE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Jangada.apk

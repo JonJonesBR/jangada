@@ -1,0 +1,14 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.kotlin/
+.cxx/
+# Chaves de assinatura NUNCA vão para o repositório
+*.jks
+*.keystore
+# Baixado pelo scripts/fetch-proot.sh na hora do build
+app/src/main/assets/bootstrap/

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="key_paste">Colar</string>
+    <string name="no_link_found">Nenhum link na tela</string>
+    <string name="cannot_open_link">Nenhum app consegue abrir este link</string>
+
+    <string name="setup_title">Vamos preparar seu Linux</string>
+    <string name="setup_intro">O Jangada roda os assistentes de IA dentro de um Linux Debian guardado no app. Isso acontece uma vez só: baixa cerca de 70 MB e ocupa uns 300 MB. Deixe o app aberto até terminar.</string>
+    <string name="setup_step_download">Baixar o Debian</string>
+    <string name="setup_step_extract">Instalar o Debian</string>
+    <string name="setup_step_packages">Instalar ferramentas básicas</string>
+    <string name="setup_start">Instalar agora</string>
+    <string name="setup_retry">Tentar de novo</string>
+    <string name="setup_show_log">Ver detalhes técnicos</string>
+    <string name="setup_hide_log">Esconder detalhes técnicos</string>
+    <string name="setup_copy_log">Copiar detalhes</string>
+    <string name="setup_copied">Detalhes copiados</string>
+    <string name="setup_unsupported">Este celular ainda não é compatível: o Linux do Jangada precisa de um processador ARM de 64 bits.</string>
+    <string name="setup_error_space">Pouco espaço livre. O Linux precisa de cerca de 700 MB livres para instalar.</string>
+    <string name="setup_error_rate_limit">O Docker Hub está limitando downloads da sua conexão. Espere alguns minutos e tente de novo.</string>
+    <string name="setup_error_offline">Sem conexão com a internet. Confira o Wi-Fi ou os dados móveis e tente de novo.</string>
+    <string name="setup_error_download">O download falhou. Confira sua conexão e tente de novo.</string>
+    <string name="setup_error_packages">Não consegui instalar as ferramentas básicas. Confira sua conexão e tente de novo; o Debian já está instalado.</string>
+    <string name="setup_error_generic">Algo deu errado. Tente de novo. Se continuar, copie os detalhes técnicos e abra uma issue no GitHub.</string>
+</resources>

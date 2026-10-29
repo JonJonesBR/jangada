@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Jangada</string>
+    <string name="key_paste">Paste</string>
+    <string name="key_link" translatable="false">🔗</string>
+    <string name="no_link_found">No link on screen</string>
+    <string name="cannot_open_link">No app can open this link</string>
+
+    <string name="setup_title">Let’s set up your Linux</string>
+    <string name="setup_intro">Jangada runs AI assistants inside a Debian Linux kept in the app. This happens only once: it downloads about 70 MB and takes about 300 MB of space. Keep the app open until it finishes.</string>
+    <string name="setup_step_download">Download Debian</string>
+    <string name="setup_step_extract">Install Debian</string>
+    <string name="setup_step_packages">Install basic tools</string>
+    <string name="setup_start">Install now</string>
+    <string name="setup_retry">Try again</string>
+    <string name="setup_show_log">Show technical details</string>
+    <string name="setup_hide_log">Hide technical details</string>
+    <string name="setup_copy_log">Copy details</string>
+    <string name="setup_copied">Details copied</string>
+    <string name="setup_unsupported">This phone isn’t supported yet: Jangada’s Linux needs a 64-bit ARM processor.</string>
+    <string name="setup_error_space">Not enough free space. Linux needs about 700 MB free to install.</string>
+    <string name="setup_error_rate_limit">Docker Hub is limiting downloads from your connection. Wait a few minutes and try again.</string>
+    <string name="setup_error_offline">No internet connection. Check Wi-Fi or mobile data and try again.</string>
+    <string name="setup_error_download">The download failed. Check your connection and try again.</string>
+    <string name="setup_error_packages">Couldn’t install the basic tools. Check your connection and try again; Debian is already installed.</string>
+    <string name="setup_error_generic">Something went wrong. Try again. If it keeps happening, copy the technical details and open an issue on GitHub.</string>
+</resources>
