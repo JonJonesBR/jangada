@@ -57,9 +57,10 @@ data class AgentRecipe(
             "apt-get update && apt-get install -y --no-install-recommends ${requires.joinToString(" ")} && "
         // printf com o texto como argumento, nunca como formato (exceto o "%s" do código).
         val failedFormat = failed.replace("%", "%%").replace("%%s", "%s")
+        // pipefail: se o download do "curl | bash" falhar, o passo falha também (sem ele, vale só o "bash").
         return """
             printf '\n== %s ==\n\n' ${q(heading)}
-            ( set -e; $apt$steps )
+            ( set -eo pipefail; $apt$steps )
             status=${'$'}?
             for f in /etc/profile ~/.profile ~/.bashrc; do [ -f "${'$'}f" ] && . "${'$'}f"; done 2>/dev/null; hash -r
             if [ "${'$'}status" -eq 0 ] && command -v ${q(command)} >/dev/null 2>&1; then
@@ -80,7 +81,7 @@ data class AgentRecipe(
             "apt-get update && apt-get install -y --no-install-recommends ${requires.joinToString(" ")} && "
         return """
             export DEBIAN_FRONTEND=noninteractive
-            ( set -e; $apt$steps ) </dev/null
+            ( set -eo pipefail; $apt$steps ) </dev/null
             status=${'$'}?
             for f in /etc/profile ~/.profile ~/.bashrc; do [ -f "${'$'}f" ] && . "${'$'}f"; done 2>/dev/null; hash -r
             if [ "${'$'}status" -eq 0 ] && command -v ${q(command)} >/dev/null 2>&1; then
@@ -176,7 +177,7 @@ data class AcpSpec(
         val steps = install ?: return null
         val apt = if (requires.isEmpty()) "" else
             "apt-get update && apt-get install -y --no-install-recommends ${requires.joinToString(" ")} && "
-        return "export DEBIAN_FRONTEND=noninteractive; set -e; $apt$steps"
+        return "export DEBIAN_FRONTEND=noninteractive; set -eo pipefail; $apt$steps"
     }
 }
 

@@ -4,7 +4,7 @@
   "name": "OpenCode",
   "vendor": "OpenCode",
   "command": "opencode",
-  "install": "curl -fsSL https://opencode.ai/v2/install | bash",
+  "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://opencode.ai/v2/install | bash",
   "homepage": "https://opencode.ai",
   "npm": "@opencode/cli",
   "description": {

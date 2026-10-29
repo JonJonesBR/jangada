@@ -4,7 +4,7 @@
   "name": "Pi",
   "vendor": "Earendil",
   "command": "pi",
-  "install": "curl -fsSL https://pi.dev/install.sh | sh",
+  "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://pi.dev/install.sh | sh",
   "update": "pi update",
   "homepage": "https://pi.dev",
   "npm": "@earendil-works/pi-coding-agent",

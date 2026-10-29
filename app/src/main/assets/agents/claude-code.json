@@ -5,7 +5,7 @@
   "vendor": "Anthropic",
   "command": "claude",
   "chat": true,
-  "install": "curl -fsSL https://claude.ai/install.sh | bash",
+  "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://claude.ai/install.sh | bash",
   "update": "claude update",
   "homepage": "https://code.claude.com/docs",
   "npm": "@anthropic-ai/claude-code",

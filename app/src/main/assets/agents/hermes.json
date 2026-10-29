@@ -4,7 +4,7 @@
   "name": "Hermes Agent",
   "vendor": "Nous Research",
   "command": "hermes",
-  "install": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+  "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://hermes-agent.nousresearch.com/install.sh | bash",
   "update": "hermes update",
   "homepage": "https://hermes-agent.nousresearch.com",
   "description": {

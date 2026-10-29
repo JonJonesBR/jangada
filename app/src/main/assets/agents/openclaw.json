@@ -4,7 +4,7 @@
   "name": "OpenClaw",
   "vendor": "OpenClaw",
   "command": "openclaw",
-  "install": "curl -fsSL https://openclaw.ai/install.sh | bash",
+  "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://openclaw.ai/install.sh | bash",
   "homepage": "https://openclaw.ai",
   "npm": "openclaw",
   "description": {
@@ -12,7 +12,7 @@
     "en": "Open-source personal AI assistant."
   },
   "note": {
-    "pt": "Recursos que dependem de serviços do sistema podem não funcionar dentro do app.",
-    "en": "Features that depend on system services may not work inside the app."
+    "pt": "Recursos que dependem de serviços do sistema podem não funcionar dentro do app. Nesta versão, só no terminal.",
+    "en": "Features that depend on system services may not work inside the app. Terminal only for now."
   }
 }

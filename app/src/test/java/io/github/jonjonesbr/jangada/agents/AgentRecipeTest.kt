@@ -66,6 +66,30 @@ class AgentRecipeTest {
     }
 
     @Test
+    fun pipefailFazDownloadQuebradoFalhar() {
+        // Os scripts de instalação e de segundo plano precisam de pipefail (o "curl | bash" depende disso).
+        for (recipe in recipes) {
+            for (updating in listOf(false, true)) {
+                assertTrue("${recipe.id}: installScript sem pipefail", recipe.installScript(updating, "H", "R", "F %s").contains("pipefail"))
+                assertTrue("${recipe.id}: backgroundScript sem pipefail", recipe.backgroundScript(updating).contains("pipefail"))
+            }
+            recipe.acp?.installScript()?.let { assertTrue("${recipe.id}: acp sem pipefail", it.contains("pipefail")) }
+        }
+        // Com pipefail, um pipeline com falha não passa; sem ele, passa (é o que o teste impede de voltar).
+        assertFalse(runBash("set -eo pipefail; false | cat; echo JANGADA_OK").contains("JANGADA_OK"))
+        assertTrue(runBash("set -e; false | cat; echo JANGADA_OK").contains("JANGADA_OK"))
+        // Receita com instalação "false | bash" (download quebrado) e um comando que existe: não pode dar JANGADA_OK.
+        val broken = AgentRecipe(
+            id = "quebrada", order = 0, name = "Quebrada", vendor = "teste", command = "bash",
+            install = "false | bash", update = null, requires = emptyList(), homepage = null,
+            description = emptyMap(), note = emptyMap(),
+        )
+        val output = runBash(broken.backgroundScript(false))
+        assertFalse("instalação com download quebrado não pode dar certo", output.contains("JANGADA_OK"))
+        assertTrue(output.contains("JANGADA_FAIL 1"))
+    }
+
+    @Test
     fun versoes() {
         assertEquals("2.1.312", Versions.parse("2.1.312 (Claude Code)"))
         assertEquals(null, Versions.parse("sem versão"))

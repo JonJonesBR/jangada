@@ -4,7 +4,7 @@
   "name": "oh-my-pi (omp)",
   "vendor": "oh-my-pi",
   "command": "omp",
-  "install": "curl -fsSL https://omp.sh/install | sh",
+  "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://omp.sh/install | sh",
   "homepage": "https://github.com/can1357/oh-my-pi",
   "npm": "@oh-my-pi/pi-coding-agent",
   "description": {
