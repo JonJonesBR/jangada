@@ -1,5 +1,13 @@
 # Novidades
 
+## 1.0.1
+
+- Chat abre mais rápido: integração com o Linux, conversa mais recente e histórico são lidos fora da thread principal. O terminal não copia mais o proot a cada abertura.
+- Chat dos agentes ACP mais estável: ao fechar e reabrir, nada da execução anterior (pedidos, fila, estado) vaza para a nova.
+- Mensagens do chat, nomes das ferramentas, avisos da instalação e créditos traduzidos para o inglês.
+- Versões fixas do proot (Termux) e da imagem do Debian: toda instalação nova recebe o mesmo sistema.
+- Testes automáticos no build (leitor de tar, receitas e scripts, histórico, traduções).
+
 ## 1.0.0
 
 Primeira versão pública.

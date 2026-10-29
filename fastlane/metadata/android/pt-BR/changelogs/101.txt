@@ -1,0 +1,1 @@
+Chat mais rápido para abrir (arquivos lidos fora da tela) e mais estável ao fechar e reabrir agentes ACP. Textos do chat e da instalação agora também em inglês. Versões do proot e do Debian fixas, para cada instalação receber o mesmo sistema.

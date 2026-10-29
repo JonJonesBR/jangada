@@ -1,0 +1,1 @@
+Chat opens faster (files are read off the screen thread) and ACP agents are more stable when closing and reopening. Chat and install messages are now translated to English too. Pinned proot and Debian versions, so every install gets the same system.
