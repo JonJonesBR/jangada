@@ -166,8 +166,9 @@
             android:gravity="center"
             android:paddingStart="8dp"
             android:paddingEnd="4dp"
-            android:text="@string/agent_site"
+            android:contentDescription="@string/agent_more"
+            android:text="⋯"
             android:textColor="@color/setup_muted"
-            android:textSize="14sp" />
+            android:textSize="22sp" />
     </LinearLayout>
 </LinearLayout>

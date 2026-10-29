@@ -13,5 +13,6 @@
   },
   "acp": {
     "command": "opencode acp"
-  }
+  },
+  "uninstall": "rm -rf ~/.opencode"
 }

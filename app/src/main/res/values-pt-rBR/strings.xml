@@ -180,4 +180,17 @@
     <string name="login_in_terminal">%s (tela do agente)</string>
     <string name="login_open_screen">Entrar pela tela do %s</string>
     <string name="login_come_back">Depois de entrar, toque em Chat no topo para voltar</string>
+
+    <string name="agent_more">Mais opções</string>
+    <string name="agent_reinstall">Reinstalar</string>
+    <string name="agent_uninstall">Desinstalar</string>
+    <string name="agent_uninstalling">Desinstalando…</string>
+    <string name="task_uninstalling">Desinstalando %s…</string>
+    <string name="task_uninstall_failed">A desinstalação não terminou. Tente de novo, ou rode no terminal.</string>
+    <string name="uninstall_title">Desinstalar o %s?</string>
+    <string name="uninstall_message">O programa é removido e as sessões abertas dele são fechadas. Suas configurações, logins e projetos ficam guardados: se reinstalar no futuro, ele volta como estava.</string>
+
+    <string name="settings_cleanup">Liberar espaço (caches e versões antigas)</string>
+    <string name="settings_cleaning">Liberando espaço…</string>
+    <string name="settings_cleaned">Pronto: %1$s MB liberados. Agentes, logins, conversas e projetos não foram tocados.</string>
 </resources>

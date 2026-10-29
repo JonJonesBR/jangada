@@ -63,6 +63,7 @@ class SettingsActivity : ComponentActivity() {
         findViewById<View>(R.id.settings_api_keys).setOnClickListener {
             startActivity(Intent(this, ApiKeysActivity::class.java))
         }
+        findViewById<View>(R.id.settings_cleanup).setOnClickListener { freeSpace() }
         findViewById<View>(R.id.settings_repair).setOnClickListener { repairLinux() }
         findViewById<View>(R.id.settings_reinstall).setOnClickListener { confirmReinstall() }
         showLinuxSize()
@@ -77,21 +78,43 @@ class SettingsActivity : ComponentActivity() {
     /** Tamanho do Linux (calculado em segundo plano, sem seguir links). */
     private fun showLinuxSize() {
         val label = findViewById<TextView>(R.id.settings_linux_size)
-        val dir = LinuxEnv(this).linuxDir.toPath()
         thread(name = "linux-size") {
-            val bytes = runCatching {
-                var total = 0L
-                Files.walkFileTree(dir, object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        total += attrs.size()
-                        return FileVisitResult.CONTINUE
-                    }
-                    override fun visitFileFailed(file: Path, exc: java.io.IOException) = FileVisitResult.CONTINUE
-                })
-                total
-            }.getOrDefault(0L)
+            val bytes = linuxBytes()
             runOnUiThread {
                 if (!isDestroyed) label.text = getString(R.string.settings_linux_size, (bytes / 1_048_576).toString())
+            }
+        }
+    }
+
+    private fun linuxBytes(): Long = runCatching {
+        var total = 0L
+        Files.walkFileTree(LinuxEnv(this).linuxDir.toPath(), object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                total += attrs.size()
+                return FileVisitResult.CONTINUE
+            }
+            override fun visitFileFailed(file: Path, exc: java.io.IOException) = FileVisitResult.CONTINUE
+        })
+        total
+    }.getOrDefault(0L)
+
+    /** Apaga caches e versões antigas dentro do Linux e mostra quanto liberou. */
+    private fun freeSpace() {
+        val progress = AlertDialog.Builder(this).setMessage(R.string.settings_cleaning).setCancelable(false).show()
+        val linux = LinuxEnv(this)
+        thread(name = "linux-cleanup") {
+            val before = linuxBytes()
+            runCatching { linux.refreshIntegration() }
+            runCatching { linux.runBash(LinuxEnv.CLEANUP_SCRIPT) { } }
+            val freed = (before - linuxBytes()).coerceAtLeast(0)
+            runOnUiThread {
+                progress.dismiss()
+                if (isDestroyed) return@runOnUiThread
+                AlertDialog.Builder(this)
+                    .setMessage(getString(R.string.settings_cleaned, (freed / 1_048_576).toString()))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+                showLinuxSize()
             }
         }
     }

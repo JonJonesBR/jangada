@@ -22,5 +22,6 @@
   },
   "acp": {
     "command": "cmd acp"
-  }
+  },
+  "uninstall": "npm uninstall -g command-code"
 }

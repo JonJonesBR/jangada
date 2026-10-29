@@ -19,5 +19,6 @@
       "nodejs",
       "npm"
     ]
-  }
+  },
+  "uninstall": "npm uninstall -g @agentclientprotocol/codex-acp"
 }

@@ -48,6 +48,8 @@ class HomeActivity : ComponentActivity() {
     private var installed: Set<String>? = null
     /** Versão instalada por comando (chega depois do [installed]). */
     private val installedVersions = ConcurrentHashMap<String, String>()
+    /** Espaço ocupado por cada agente instalado, em KB (por comando). */
+    private val installedSizes = ConcurrentHashMap<String, Long>()
     /** Versão mais nova publicada, por id do agente (quando há fonte). */
     private val latestVersions = ConcurrentHashMap<String, String>()
     private var service: TerminalService? = null
@@ -209,6 +211,11 @@ class HomeActivity : ComponentActivity() {
                 linux.runBash(AgentCatalog.detectScript(recipes)) { line ->
                     when {
                         line.startsWith(FOUND) -> found += line.removePrefix(FOUND).trim()
+                        line.startsWith(SIZE) -> {
+                            val parts = line.removePrefix(SIZE).trim().split(' ')
+                            parts.getOrNull(1)?.toLongOrNull()?.let { installedSizes[parts[0]] = it }
+                            runOnUiThread { if (!isDestroyed) renderAgents() }
+                        }
                         line.startsWith(VERSION) -> {
                             val rest = line.removePrefix(VERSION)
                             val command = rest.substringBefore(' ')
@@ -294,11 +301,21 @@ class HomeActivity : ComponentActivity() {
         // Situação mostrada na etiqueta do cartão.
         when {
             task?.state == AgentTask.State.RUNNING ->
-                status.setText(if (task.updating) R.string.agent_updating else R.string.agent_installing)
+                status.setText(
+                    when {
+                        task.uninstalling -> R.string.agent_uninstalling
+                        task.updating -> R.string.agent_updating
+                        else -> R.string.agent_installing
+                    },
+                )
             known == null -> status.setText(R.string.agent_checking)
             !isInstalled -> status.setText(R.string.agent_not_installed)
             version != null -> status.text = getString(R.string.agent_version, version)
             else -> status.setText(R.string.agent_installed)
+        }
+        // Espaço ocupado, ao lado da versão (ajuda a decidir o que desinstalar).
+        installedSizes[recipe.command]?.takeIf { isInstalled && task?.state != AgentTask.State.RUNNING }?.let { kb ->
+            status.text = "${status.text} · ${formatSize(kb)}"
         }
         status.setTextColor(getColor(if (isInstalled) R.color.setup_done else R.color.setup_muted))
 
@@ -345,21 +362,27 @@ class HomeActivity : ComponentActivity() {
         }
 
         // Tarefa que falhou: explica e oferece as saídas.
-        if (task?.state == AgentTask.State.FAILED && (task.updating || !isInstalled)) {
+        if (task?.state == AgentTask.State.FAILED && (task.uninstalling || task.updating || !isInstalled)) {
             taskError.visibility = View.VISIBLE
-            taskError.setText(if (task.updating) R.string.task_update_failed else R.string.task_install_failed)
+            taskError.setText(
+                when {
+                    task.uninstalling -> R.string.task_uninstall_failed
+                    task.updating -> R.string.task_update_failed
+                    else -> R.string.task_install_failed
+                },
+            )
             taskActions.visibility = View.VISIBLE
-            card.findViewById<Button>(R.id.task_retry).setOnClickListener { startTask(recipe, task.updating) }
+            card.findViewById<Button>(R.id.task_retry).setOnClickListener {
+                if (task.uninstalling) startUninstall(recipe) else startTask(recipe, task.updating)
+            }
             card.findViewById<Button>(R.id.task_terminal).setOnClickListener {
-                openTerminal(recipe.name, recipe.installScript(task.updating))
+                openTerminal(recipe.name, if (task.uninstalling) recipe.uninstallScript() else recipe.installScript(task.updating))
             }
             card.findViewById<Button>(R.id.task_details).setOnClickListener { showLog(recipe, task) }
         }
 
-        val site = card.findViewById<TextView>(R.id.site)
-        val homepage = recipe.homepage
-        if (homepage == null) site.visibility = View.GONE
-        else site.setOnClickListener { openUrl(homepage) }
+        // ⋯ : site, reinstalar e desinstalar.
+        card.findViewById<TextView>(R.id.site).setOnClickListener { showAgentMenu(recipe, isInstalled) }
         return card
     }
 
@@ -376,6 +399,35 @@ class HomeActivity : ComponentActivity() {
         }
         val updatedAt = prefs.getLong(updatedKey(recipe.id), 0L)
         return if (System.currentTimeMillis() - updatedAt > UPDATE_QUIET_MS) getString(R.string.agent_update) else null
+    }
+
+    private fun showAgentMenu(recipe: AgentRecipe, isInstalled: Boolean) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        recipe.homepage?.let { url -> actions += getString(R.string.agent_site) to { openUrl(url) } }
+        if (isInstalled) {
+            actions += getString(R.string.agent_reinstall) to { startTask(recipe, updating = false) }
+            actions += getString(R.string.agent_uninstall) to { confirmUninstall(recipe) }
+        }
+        if (actions.isEmpty()) return
+        AlertDialog.Builder(this)
+            .setTitle(recipe.name)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+            .show()
+    }
+
+    private fun confirmUninstall(recipe: AgentRecipe) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.uninstall_title, recipe.name))
+            .setMessage(R.string.uninstall_message)
+            .setPositiveButton(R.string.agent_uninstall) { _, _ -> startUninstall(recipe) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun startUninstall(recipe: AgentRecipe) {
+        val svc = service ?: return
+        startService(Intent(this, TerminalService::class.java))
+        svc.runAgentTask(recipe, updating = false, uninstalling = true)
     }
 
     private fun startTask(recipe: AgentRecipe, updating: Boolean) {
@@ -464,11 +516,16 @@ class HomeActivity : ComponentActivity() {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
 
+    private fun formatSize(kb: Long): String =
+        if (kb >= 1024 * 1024) String.format(java.util.Locale.getDefault(), "%.1f GB", kb / 1048576.0)
+        else "${(kb + 512) / 1024} MB"
+
     private fun updatedKey(id: String) = "updated_$id"
 
     private companion object {
         const val FOUND = "JANGADA_FOUND "
         const val VERSION = "JANGADA_VERSION "
+        const val SIZE = "JANGADA_SIZE "
         const val UPDATE_QUIET_MS = 7L * 24 * 60 * 60 * 1000
         const val REQUEST_STORAGE = 42
     }

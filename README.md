@@ -29,8 +29,8 @@ O app terá dois modos:
 - [x] **4. Catálogo de agentes** — instalar e atualizar na própria tela, com progresso; "Atualizar" só aparece quando há versão nova: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw.
 - [x] **Extras** — caixa de texto com corretor e ditado por voz (✎); comandos com `/` ou `!` vão sem corretor e como digitação; agentes trabalham em `~/projetos`, arquivos do celular em `~/celular`.
 - [x] **5. Modo Simples** — chat nativo para o Claude Code (balões, permissões com botões, respostas em tempo real, histórico de conversas, escolha do modelo) alternando com o terminal na mesma conversa; configurações (Simples/Pro, Enter envia, permissões).
-- [x] **Chat para todos os agentes** — via [Agent Client Protocol](https://agentclientprotocol.com) para OpenCode, Codex, Pi, oh-my-pi, Qwen Code, Hermes e Command Code; anexos de fotos e arquivos; "Permitir sempre nesta conversa"; copiar blocos de código.
-- [x] **6. Modo Pro** — abas de terminal, chaves de API com criptografia (Android Keystore), opções avançadas (processador ativo, tela ligada, teclas extras), reparar e reinstalar o Linux, chat experimental do Antigravity.
+- [x] **Chat para todos os agentes** — via [Agent Client Protocol](https://agentclientprotocol.com) para OpenCode, Codex, Pi, oh-my-pi, Qwen Code, Hermes e Command Code (o Antigravity e o OpenClaw ficam só no terminal); anexos de fotos e arquivos; "Permitir sempre nesta conversa"; copiar blocos de código.
+- [x] **6. Modo Pro** — abas de terminal, chaves de API com criptografia (Android Keystore), opções avançadas (processador ativo, tela ligada, teclas extras), reparar e reinstalar o Linux, desinstalar agentes, espaço ocupado por agente e "Liberar espaço".
 - [ ] **7. Lançamento** — temas, backup do ambiente, releases para Obtainium/F-Droid.
 
 ## Adicionar um agente
@@ -58,6 +58,7 @@ um novo, copie um dos existentes e mande um pull request:
 - `command` é o que abre o agente; o app usa esse nome para saber se ele está instalado.
 - `install` roda dentro do Debian do app; `requires` instala pacotes do Debian antes.
 - `update` é opcional; sem ele, o botão Atualizar repete a instalação.
+- `uninstall` é opcional: passos extras para desinstalar (o app já apaga o comando do agente).
 - `npm` é opcional: o nome do pacote no npm, usado só para descobrir a versão mais nova.
 - `acp` é opcional: como abrir o agente no modo [ACP](https://agentclientprotocol.com) para ter chat no app.
   Ex.: `{ "command": "opencode acp" }`, ou com adaptador separado:

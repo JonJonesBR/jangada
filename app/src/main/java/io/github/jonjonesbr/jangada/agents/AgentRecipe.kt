@@ -31,6 +31,8 @@ data class AgentRecipe(
     val chat: Boolean = false,
     /** Como abrir o agente no modo ACP, para o chat dos demais agentes. */
     val acp: AcpSpec? = null,
+    /** Passos extras para desinstalar (além de apagar o próprio comando). */
+    val uninstall: String? = null,
 ) {
     /** Tem chat no app (próprio ou via ACP). */
     val hasChat: Boolean get() = chat || acp != null
@@ -77,6 +79,29 @@ data class AgentRecipe(
         """.trimIndent()
     }
 
+    /**
+     * Desinstala em segundo plano: roda os passos da receita e apaga o
+     * comando do agente (só dentro de /root ou /usr/local, nunca do sistema).
+     * Configurações e logins ficam guardados, para uma reinstalação futura.
+     */
+    fun uninstallScript(): String {
+        val c = q(command)
+        return """
+            export DEBIAN_FRONTEND=noninteractive
+            for f in /etc/profile ~/.profile ~/.bashrc; do [ -f "${'$'}f" ] && . "${'$'}f"; done 2>/dev/null
+            ( ${uninstall ?: "true"} ) </dev/null || true
+            for i in 1 2 3; do
+              p=${'$'}(command -v $c 2>/dev/null) || break
+              t=${'$'}(readlink -f "${'$'}p")
+              case "${'$'}p" in /root/*|/usr/local/*) rm -f "${'$'}p" ;; *) break ;; esac
+              case "${'$'}t" in /root/*|/usr/local/*) rm -f "${'$'}t" ;; esac
+              hash -r
+            done
+            if command -v $c >/dev/null 2>&1; then echo "JANGADA_FAIL ainda instalado em ${'$'}(command -v $c)"; exit 1; fi
+            echo "JANGADA_OK"
+        """.trimIndent()
+    }
+
     /** Abre o agente na pasta de trabalho (~/projetos), não na home. */
     fun launchScript(): String = "mkdir -p ~/$WORKSPACE && cd ~/$WORKSPACE && $command"
 
@@ -108,6 +133,7 @@ data class AgentRecipe(
                 description = strings("description"),
                 note = strings("note"),
                 npm = json.optString("npm").ifEmpty { null },
+                uninstall = json.optString("uninstall").ifEmpty { null },
                 chat = json.optBoolean("chat", false),
                 acp = json.optJSONObject("acp")?.let { spec ->
                     val requires = spec.optJSONArray("requires")
@@ -168,8 +194,24 @@ object AgentCatalog {
             "for b in $names; do command -v \"\$b\" >/dev/null && echo \"JANGADA_FOUND \$b\"; done; " +
             "for b in $names; do command -v \"\$b\" >/dev/null || continue; " +
             "v=\$(timeout 20 \"\$b\" --version </dev/null 2>/dev/null | head -n 1); " +
-            "echo \"JANGADA_VERSION \$b \$v\"; done; true"
+            "echo \"JANGADA_VERSION \$b \$v\"; done; " +
+            SIZE_FUNCTION +
+            "for b in $names; do command -v \"\$b\" >/dev/null || continue; " +
+            "echo \"JANGADA_SIZE \$b \$(size_of \"\$b\")\"; done; true"
     }
+
+    /**
+     * Tamanho de um agente: a pasta onde ele foi instalado (ex.: ~/.opencode,
+     * ~/.local/share/claude, o pacote em node_modules) ou o próprio arquivo.
+     */
+    private const val SIZE_FUNCTION =
+        "size_of() { p=\$(command -v \"\$1\" 2>/dev/null) || return; t=\$(readlink -f \"\$p\"); d=\"\$t\"; " +
+            "case \"\$t\" in " +
+            "/root/.local/share/*) d=\$(printf '%s' \"\$t\" | cut -d/ -f1-5) ;; " +
+            "/root/.local/*) d=\"\$t\" ;; " +
+            "/root/.*/*) d=\$(printf '%s' \"\$t\" | cut -d/ -f1-3) ;; " +
+            "*/node_modules/*) d=\$(printf '%s' \"\$t\" | sed -E 's#(.*/node_modules/(@[^/]+/)?[^/]+).*#\\1#') ;; " +
+            "esac; du -sk \"\$d\" 2>/dev/null | cut -f1; }; "
 }
 
 /** Versões: ler, comparar e descobrir a mais nova no npm. */

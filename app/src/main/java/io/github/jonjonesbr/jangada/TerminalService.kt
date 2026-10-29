@@ -60,7 +60,7 @@ class TerminalService : Service() {
     fun removeSessionsListener(listener: () -> Unit) { sessionListeners -= listener }
 
     /** Instalação ou atualização de um agente rodando em segundo plano. */
-    class AgentTask(val recipe: AgentRecipe, val updating: Boolean) {
+    class AgentTask(val recipe: AgentRecipe, val updating: Boolean, val uninstalling: Boolean = false) {
         enum class State { RUNNING, OK, FAILED }
 
         @Volatile var state = State.RUNNING
@@ -276,16 +276,18 @@ class TerminalService : Service() {
      * guardada na tarefa (para "Ver detalhes") e a tela acompanha pelo
      * [onTasksChanged]. Quem chama deve ter dado startService antes.
      */
-    fun runAgentTask(recipe: AgentRecipe, updating: Boolean) {
+    fun runAgentTask(recipe: AgentRecipe, updating: Boolean, uninstalling: Boolean = false) {
         if (tasks[recipe.id]?.state == AgentTask.State.RUNNING) return
-        val task = AgentTask(recipe, updating)
+        if (uninstalling) closeAgent(recipe.id)
+        val task = AgentTask(recipe, updating, uninstalling)
         tasks[recipe.id] = task
         goForeground()
         updateNotification()
         onTasksChanged?.invoke()
         thread(name = "jangada-agent-${recipe.id}") {
             val exit = runCatching {
-                LinuxEnv(this).runBash(recipe.backgroundScript(updating)) { raw ->
+                val script = if (uninstalling) recipe.uninstallScript() else recipe.backgroundScript(updating)
+                LinuxEnv(this).runBash(script) { raw ->
                     val line = cleanLine(raw)
                     if (line.isEmpty()) return@runBash
                     task.append(line)
@@ -303,6 +305,12 @@ class TerminalService : Service() {
                 leaveForegroundIfIdle()
             }
         }
+    }
+
+    /** Fecha o chat e as sessões de terminal de um agente (antes de desinstalar). */
+    private fun closeAgent(agentId: String) {
+        if (chatAgentId == agentId) closeChat()
+        sessionAgent.filterValues { it == agentId }.keys.toList().forEach { closeSession(it) }
     }
 
     private fun postTasksChanged(throttle: Boolean) {
@@ -415,7 +423,11 @@ class TerminalService : Service() {
         val running = tasks.values.firstOrNull { it.state == AgentTask.State.RUNNING }
         val text = when {
             running != null -> getString(
-                if (running.updating) R.string.task_updating else R.string.task_installing,
+                when {
+                    running.uninstalling -> R.string.task_uninstalling
+                    running.updating -> R.string.task_updating
+                    else -> R.string.task_installing
+                },
                 running.recipe.name,
             )
             else -> resources.getQuantityString(R.plurals.service_sessions, count, count)

@@ -20,5 +20,6 @@
       "nodejs",
       "npm"
     ]
-  }
+  },
+  "uninstall": "npm uninstall -g pi-acp"
 }

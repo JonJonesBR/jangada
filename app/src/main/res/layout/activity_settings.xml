@@ -190,6 +190,15 @@
                 android:textSize="14sp" />
 
             <Button
+                android:id="@+id/settings_cleanup"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_cleanup"
+                android:textAllCaps="false"
+                android:textColor="@color/key_active" />
+
+            <Button
                 android:id="@+id/settings_repair"
                 style="?android:attr/borderlessButtonStyle"
                 android:layout_width="wrap_content"
