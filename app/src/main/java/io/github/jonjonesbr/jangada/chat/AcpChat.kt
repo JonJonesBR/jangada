@@ -1,14 +1,9 @@
 package io.github.jonjonesbr.jangada.chat
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.OutputStream
-import java.util.concurrent.Executors
-import kotlin.concurrent.thread
 
 /**
  * Chat com qualquer agente que fale o Agent Client Protocol (ACP):
@@ -20,26 +15,18 @@ import kotlin.concurrent.thread
  * e pede licença pelo "session/request_permission".
  */
 class AcpChat(
-    private val linux: LinuxEnv,
+    linux: LinuxEnv,
     /** Comando que inicia o agente em modo ACP (ex.: "opencode acp"). */
     private val command: String,
     private val appVersion: String,
-) : AgentChat {
+) : ProcessChat(linux, TAG) {
 
-    override val items = mutableListOf<ChatItem>()
     @Volatile override var sessionId: String? = null
         private set
     /** Nome do modelo atual (quando o agente informa); senão, o nome do agente. */
     override val model: String?
         get() = configOptions.firstOrNull { it.category == "model" }?.currentName ?: agentTitle
-    @Volatile override var busy = false
-        private set
-    @Volatile override var running = false
-        private set
-    @Volatile override var interrupted = false
-        private set
     override val supportsHistory: Boolean get() = canList
-    override var onChanged: (() -> Unit)? = null
 
     /**
      * Ajuste da conversa que o agente oferece (modelo, nível de raciocínio,
@@ -67,10 +54,6 @@ class AcpChat(
     @Volatile var canDelete = false
         private set
 
-    private val main = Handler(Looper.getMainLooper())
-    private val writer = Executors.newSingleThreadExecutor()
-    private var process: Process? = null
-    private var stdin: OutputStream? = null
     private var nextId = 1
     private val pending = HashMap<Int, (JSONObject?, JSONObject?) -> Unit>()
     private val waitingPrompts = mutableListOf<Pair<String, List<Attachment>>>()
@@ -90,36 +73,13 @@ class AcpChat(
     /** Conversa a reabrir depois do login. */
     private var resumeAfterLogin: String? = null
     private var loginCard: ChatItem.Login? = null
-    private var lastPost = 0L
-    /** Últimas linhas de erro do agente, mostradas se ele fechar sozinho. */
-    private val stderrTail = ArrayDeque<String>()
 
     /** Inicia o agente; com [resume], recarrega essa conversa (se o agente suportar). */
     fun start(resume: String? = null) {
         if (running) return
-        val proc = try {
-            linux.startProcess("mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && exec $command", interactive = true)
-        } catch (e: Exception) {
-            add(ChatItem.Info("Não consegui abrir o agente: ${e.message}", isError = true))
-            return
-        }
-        process = proc
-        stdin = proc.outputStream
-        running = true
-        changed()
-        thread(name = "acp-stdout") { readOutput(proc) }
-        thread(name = "acp-stderr") {
-            runCatching {
-                proc.errorStream.bufferedReader().useLines { lines ->
-                    lines.forEach {
-                        Log.d(TAG, "stderr: $it")
-                        synchronized(stderrTail) {
-                            stderrTail.addLast(it)
-                            while (stderrTail.size > 12) stderrTail.removeFirst()
-                        }
-                    }
-                }
-            }
+        launch(interactive = true) {
+            runCatching { linux.refreshIntegration() }.onFailure { Log.w(TAG, "integração", it) }
+            "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && exec $command"
         }
 
         val capabilities = JSONObject()
@@ -397,66 +357,28 @@ class AcpChat(
         request("session/delete", JSONObject().put("sessionId", id)) { _, _ -> callback() }
     }
 
-    override fun stop(then: (() -> Unit)?) {
-        running = false
-        busy = false
-        val proc = process
-        process = null
-        runCatching { stdin?.close() }
-        changed()
-        if (proc == null) {
-            then?.let { main.post(it) }
-            return
-        }
-        thread(name = "acp-stop") {
-            runCatching {
-                if (!proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
-                    proc.destroy()
-                    proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
-                }
-            }
-            then?.let { main.post(it) }
+    /** Pedidos sem resposta e mensagens na fila morrem com o agente. */
+    override fun onStopped() {
+        pending.clear()
+        waitingPrompts.clear()
+        ready = false
+        loadingHistory = false
+        draft = null
+        userDraft = null
+    }
+
+    override fun onExited(code: Int, stderr: String) {
+        // Agente que fecha logo no início reclamando de login: mostra o cartão de login.
+        if (!ready && code != 0 && Regex("auth|login|sign.?in|credential", RegexOption.IGNORE_CASE).containsMatchIn(stderr)) {
+            requireLogin(sessionId)
+        } else {
+            add(ChatItem.Info(exitMessage(code, stderr), isError = code != 0))
         }
     }
 
     // ---- Mensagens do agente ----
 
-    private fun readOutput(proc: Process) {
-        try {
-            proc.inputStream.bufferedReader().useLines { lines ->
-                for (line in lines) {
-                    val json = runCatching { JSONObject(line) }.getOrNull()
-                    if (json == null) {
-                        Log.d(TAG, "stdout: $line")
-                        continue
-                    }
-                    main.post { handle(json) }
-                }
-            }
-        } catch (e: java.io.IOException) {
-            // Leitura interrompida porque o chat foi fechado: normal.
-        } finally {
-            val code = runCatching { proc.waitFor() }.getOrDefault(-1)
-            main.post {
-                if (process === proc) {
-                    running = false
-                    busy = false
-                    process = null
-                    val wasReady = ready
-                    ready = false
-                    val tail = synchronized(stderrTail) { stderrTail.joinToString("\n") }
-                    // Agente que fecha logo no início reclamando de login: mostra o cartão de login.
-                    if (!wasReady && code != 0 && Regex("auth|login|sign.?in|credential", RegexOption.IGNORE_CASE).containsMatchIn(tail)) {
-                        requireLogin(sessionId)
-                    } else {
-                        add(ChatItem.Info(exitMessage(code), isError = code != 0))
-                    }
-                }
-            }
-        }
-    }
-
-    private fun handle(json: JSONObject) {
+    override fun handle(json: JSONObject) {
         val method = json.optString("method")
         val hasId = json.has("id") && !json.isNull("id")
         when {
@@ -617,49 +539,6 @@ class AcpChat(
 
     private fun respond(id: Any, result: JSONObject) =
         send(JSONObject().put("jsonrpc", "2.0").put("id", id).put("result", result))
-
-    private fun send(json: JSONObject) {
-        val out = stdin ?: return
-        writer.execute {
-            runCatching {
-                out.write((json.toString() + "\n").toByteArray())
-                out.flush()
-            }.onFailure { Log.w(TAG, "falha ao escrever", it) }
-        }
-    }
-
-    private fun add(item: ChatItem) {
-        items += item
-        changed()
-    }
-
-    private fun changed(throttle: Boolean = false) {
-        val now = System.currentTimeMillis()
-        if (throttle && now - lastPost < 80) {
-            main.removeCallbacks(notifyRunnable)
-            main.postDelayed(notifyRunnable, 80)
-            return
-        }
-        lastPost = now
-        onChanged?.invoke()
-    }
-
-    private val notifyRunnable = Runnable {
-        lastPost = System.currentTimeMillis()
-        onChanged?.invoke()
-    }
-
-    /** Explica o código de saída e junta as últimas linhas de erro do agente. */
-    private fun exitMessage(code: Int): String {
-        val reason = when (code) {
-            0 -> "O agente encerrou a conversa."
-            127 -> "O agente não pôde ser iniciado: o programa (ou o que ele precisa para rodar) não foi encontrado (código 127)."
-            126 -> "O agente não pôde ser iniciado: sem permissão para executar (código 126)."
-            else -> "O agente fechou (código $code)."
-        }
-        val tail = synchronized(stderrTail) { stderrTail.joinToString("\n") }
-        return if (code != 0 && tail.isNotBlank()) "$reason\n\n$tail" else reason
-    }
 
     private companion object {
         const val TAG = "JangadaAcp"

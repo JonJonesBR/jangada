@@ -11,6 +11,9 @@ import java.io.File
 class LinuxEnv(context: Context) {
 
     private val app = context.applicationContext
+
+    /** Contexto do app (para textos traduzidos de quem só recebe o LinuxEnv). */
+    val context: Context get() = app
     private val files: File = app.filesDir
 
     private val bootstrapDir = File(files, "bootstrap")

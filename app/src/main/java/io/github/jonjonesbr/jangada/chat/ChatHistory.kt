@@ -26,6 +26,65 @@ object ChatHistory {
                 Conversation(file.name.removeSuffix(".jsonl"), title, file.lastModified())
             }
 
+    /** Arquivo da conversa [id], se existir. */
+    fun file(linux: LinuxEnv, id: String): File? = File(dir(linux), "$id.jsonl").takeIf { it.isFile }
+
+    /**
+     * O que já foi conversado, lido do arquivo que o próprio Claude Code
+     * grava (.jsonl): mensagens suas, respostas e ações. Fica com as [max]
+     * últimas. Lê arquivo: rodar fora da thread principal.
+     */
+    fun read(file: File, max: Int): List<ChatItem> = runCatching {
+        file.bufferedReader().useLines { parse(it, max) }
+    }.getOrDefault(emptyList())
+
+    /** Mesmo que [read], a partir das linhas (separado para os testes). */
+    fun parse(lines: Sequence<String>, max: Int): List<ChatItem> {
+        val loaded = ArrayDeque<ChatItem>()
+        fun add(item: ChatItem) {
+            loaded.addLast(item)
+            if (loaded.size > max) loaded.removeFirst()
+        }
+        for (line in lines) {
+            val json = runCatching { JSONObject(line) }.getOrNull() ?: continue
+            if (json.optBoolean("isMeta") || json.optBoolean("isSidechain")) continue
+            val message = json.optJSONObject("message") ?: continue
+            when (json.optString("type")) {
+                "user" -> {
+                    val content = message.opt("content")
+                    if (content is String && content.isNotBlank() && !content.trimStart().startsWith("<")) {
+                        add(ChatItem.User(content))
+                    } else if (content is JSONArray) {
+                        for (i in 0 until content.length()) {
+                            val block = content.optJSONObject(i) ?: continue
+                            val text = block.optString("text")
+                            if (block.optString("type") == "text" && text.isNotBlank() && !text.trimStart().startsWith("<")) {
+                                add(ChatItem.User(text))
+                            }
+                        }
+                    }
+                }
+                "assistant" -> {
+                    val content = message.optJSONArray("content") ?: continue
+                    for (i in 0 until content.length()) {
+                        val block = content.optJSONObject(i) ?: continue
+                        when (block.optString("type")) {
+                            "text" -> block.optString("text").takeIf { it.isNotBlank() }
+                                ?.let { add(ChatItem.Assistant(it, streaming = false)) }
+                            "tool_use" -> add(
+                                ChatItem.Tool(
+                                    block.optString("id"), block.optString("name"),
+                                    ToolText.summary(block.optString("name"), block.optJSONObject("input")),
+                                ).apply { done = true },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return loaded.toList()
+    }
+
     /** Apaga uma conversa (o arquivo e a pasta de anexos que o Claude cria com o mesmo id). */
     fun delete(linux: LinuxEnv, id: String) {
         val dir = dir(linux)

@@ -225,4 +225,11 @@
     <string name="about_repo">Source code on GitHub</string>
     <string name="about_licenses">Licenses and credits</string>
     <string name="about_privacy">No ads, no tracking: Jangada sends nothing anywhere. Your conversations go only to the AI services you choose to use.</string>
+
+    <!-- Chat: agente fechou ou não abriu -->
+    <string name="chat_error_start">Couldn’t start the agent: %1$s</string>
+    <string name="chat_exit_normal">The agent ended the conversation.</string>
+    <string name="chat_exit_not_found">The agent couldn’t start: the program (or something it needs) wasn’t found (code 127).</string>
+    <string name="chat_exit_no_permission">The agent couldn’t start: no permission to run it (code 126).</string>
+    <string name="chat_exit_code">The agent closed (code %1$d).</string>
 </resources>

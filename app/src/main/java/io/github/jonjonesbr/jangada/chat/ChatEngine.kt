@@ -1,13 +1,10 @@
 package io.github.jonjonesbr.jangada.chat
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
+import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.OutputStream
-import kotlin.concurrent.thread
 
 /**
  * Conversa com o Claude Code sem a tela de terminal: roda o `claude` no
@@ -20,55 +17,68 @@ import kotlin.concurrent.thread
  *   continuar a mesma conversa na tela de terminal (e vice-versa).
  */
 class ChatEngine(
-    private val linux: LinuxEnv,
+    linux: LinuxEnv,
     private val askPermissions: Boolean,
     /** Apelido do modelo ("opus", "sonnet", "haiku") ou vazio para o padrão da conta. */
     private val modelAlias: String = "",
     /** Esforço ("low" ... "max") ou vazio para o padrão. */
     private val effort: String = "",
-) : AgentChat {
-    override val items = mutableListOf<ChatItem>()
+) : ProcessChat(linux, TAG) {
 
     @Volatile override var sessionId: String? = null
         private set
     @Volatile override var model: String? = null
         private set
-    /** O Claude está trabalhando num pedido. */
-    @Volatile override var busy = false
-        private set
-    @Volatile override var running = false
-        private set
     override val supportsHistory = true
 
     /** Ferramentas liberadas com "Sempre nesta conversa". */
     private val alwaysAllowed = HashSet<String>()
-    /**
-     * A última resposta foi cortada no meio (por exemplo, ao trocar entre
-     * chat e terminal enquanto o agente trabalhava). A tela oferece "Continuar".
-     */
-    @Volatile override var interrupted = false
-        private set
 
-    /** Chamado (na thread principal) sempre que a conversa muda. */
-    override var onChanged: (() -> Unit)? = null
-
-    private val main = Handler(Looper.getMainLooper())
-    private var process: Process? = null
-    private var stdin: OutputStream? = null
     private var draft: ChatItem.Assistant? = null
     private val tools = HashMap<String, ChatItem.Tool>()
     private var requestCounter = 0
-    private var lastPost = 0L
-    /** Últimas linhas de erro do Claude, mostradas se ele fechar sozinho. */
-    private val stderrTail = ArrayDeque<String>()
 
     /**
      * Inicia o Claude. [resume] continua uma conversa específica;
-     * [continueLast] continua a mais recente da pasta de projetos.
+     * [continueLast], a mais recente da pasta de projetos. Com [history],
+     * mostra o que já foi conversado: os itens de [previous] (se for a mesma
+     * conversa) ou o arquivo que o Claude Code grava (terminal, histórico).
+     * Tudo o que lê arquivo roda fora da thread principal.
      */
-    fun start(resume: String? = null, continueLast: Boolean = false) {
+    fun start(
+        resume: String? = null,
+        continueLast: Boolean = false,
+        history: Boolean = false,
+        previous: AgentChat? = null,
+    ) {
         if (running) return
-        val args = StringBuilder("cd ~/${LinuxEnv.WORKSPACE} && exec claude")
+        val previousId = previous?.sessionId
+        val previousItems = previous?.items?.toList().orEmpty()
+        if (resume != null) sessionId = resume
+        launch(interactive = false) {
+            runCatching { linux.refreshIntegration() }.onFailure { Log.w(TAG, "integração", it) }
+            // "Continuar a última" vira o id da conversa mais recente: mais seguro que
+            // o --continue do Claude, que nem sempre enxerga conversas do outro modo.
+            val id = resume ?: if (continueLast) ChatHistory.list(linux, limit = 1).firstOrNull()?.id else null
+            if (id != null) sessionId = id
+            if (history && id != null) {
+                if (id == previousId && previousItems.isNotEmpty()) {
+                    main.post { showHistory(previousItems, markInterrupted = false) }
+                } else {
+                    ChatHistory.file(linux, id)?.let { file ->
+                        val loaded = ChatHistory.read(file, MAX_HISTORY)
+                        main.post { showHistory(loaded, markInterrupted = true) }
+                    }
+                }
+            }
+            command(id)
+        }
+        send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
+            .put("request", JSONObject().put("subtype", "initialize").put("hooks", JSONObject.NULL)))
+    }
+
+    private fun command(resume: String?): String {
+        val args = StringBuilder("mkdir -p ~/${LinuxEnv.WORKSPACE}; cd ~/${LinuxEnv.WORKSPACE} && exec claude")
         args.append(" --output-format stream-json --verbose --input-format stream-json")
         args.append(" --include-partial-messages")
         if (askPermissions) {
@@ -76,42 +86,18 @@ class ChatEngine(
         } else {
             args.append(" --permission-prompt-tool stdio --permission-mode auto")
         }
-        if (modelAlias.isNotEmpty()) args.append(" --model ").append(modelAlias)
-        if (effort.isNotEmpty()) args.append(" --effort ").append(effort)
-        when {
-            resume != null -> args.append(" --resume=").append(resume)
-            continueLast -> args.append(" --continue")
-        }
+        if (modelAlias.isNotEmpty()) args.append(" --model ").append(AgentRecipe.q(modelAlias))
+        if (effort.isNotEmpty()) args.append(" --effort ").append(AgentRecipe.q(effort))
+        if (resume != null) args.append(" --resume=").append(AgentRecipe.q(resume))
+        return args.toString()
+    }
 
-        val proc = try {
-            linux.startProcess("mkdir -p ~/${LinuxEnv.WORKSPACE}; $args")
-        } catch (e: Exception) {
-            add(ChatItem.Info("Não consegui abrir o Claude Code: ${e.message}", isError = true))
-            return
-        }
-        process = proc
-        stdin = proc.outputStream
-        running = true
+    /** Põe o que já foi conversado antes das mensagens novas (thread principal). */
+    private fun showHistory(loaded: List<ChatItem>, markInterrupted: Boolean) {
+        items.addAll(0, loaded)
+        // Terminou numa ação ou numa mensagem sua, sem resposta depois: foi interrompida.
+        if (markInterrupted) interrupted = loaded.lastOrNull().let { it is ChatItem.Tool || it is ChatItem.User }
         changed()
-
-        if (resume != null) sessionId = resume
-        thread(name = "chat-stdout") { readOutput(proc) }
-        thread(name = "chat-stderr") {
-            // Ao fechar o chat, a leitura é interrompida de propósito: não é erro.
-            runCatching {
-                proc.errorStream.bufferedReader().useLines { lines ->
-                    lines.forEach {
-                        Log.d(TAG, "stderr: $it")
-                        synchronized(stderrTail) {
-                            stderrTail.addLast(it)
-                            while (stderrTail.size > 12) stderrTail.removeFirst()
-                        }
-                    }
-                }
-            }
-        }
-        send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
-            .put("request", JSONObject().put("subtype", "initialize").put("hooks", JSONObject.NULL)))
     }
 
     /**
@@ -181,120 +167,7 @@ class ChatEngine(
         )
     }
 
-    /**
-     * Encerra o Claude. [then] roda (na thread principal) depois que o
-     * processo terminou de fato — importante antes de abrir a mesma
-     * conversa no terminal, para os dois não gravarem ao mesmo tempo.
-     */
-    override fun stop(then: (() -> Unit)?) {
-        running = false
-        busy = false
-        val proc = process
-        process = null
-        runCatching { stdin?.close() }
-        changed()
-        if (proc == null) {
-            then?.let { main.post(it) }
-            return
-        }
-        thread(name = "chat-stop") {
-            // Fechar a entrada já faz o Claude sair; se demorar, força.
-            runCatching {
-                if (!proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
-                    proc.destroy()
-                    proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
-                }
-            }
-            then?.let { main.post(it) }
-        }
-    }
-
-    /**
-     * Mostra o que já foi conversado (por exemplo, no terminal) lendo o
-     * arquivo da sessão que o próprio Claude Code grava (.jsonl).
-     */
-    fun loadHistory(file: java.io.File) {
-        val loaded = mutableListOf<ChatItem>()
-        runCatching {
-            file.forEachLine { line ->
-                val json = runCatching { JSONObject(line) }.getOrNull() ?: return@forEachLine
-                if (json.optBoolean("isMeta") || json.optBoolean("isSidechain")) return@forEachLine
-                val message = json.optJSONObject("message") ?: return@forEachLine
-                when (json.optString("type")) {
-                    "user" -> {
-                        val content = message.opt("content")
-                        if (content is String && content.isNotBlank() && !content.trimStart().startsWith("<")) {
-                            loaded += ChatItem.User(content)
-                        } else if (content is JSONArray) {
-                            for (i in 0 until content.length()) {
-                                val block = content.optJSONObject(i) ?: continue
-                                if (block.optString("type") == "text" && !block.optString("text").trimStart().startsWith("<")) {
-                                    loaded += ChatItem.User(block.optString("text"))
-                                }
-                            }
-                        }
-                    }
-                    "assistant" -> {
-                        val content = message.optJSONArray("content") ?: return@forEachLine
-                        for (i in 0 until content.length()) {
-                            val block = content.optJSONObject(i) ?: continue
-                            when (block.optString("type")) {
-                                "text" -> block.optString("text").takeIf { it.isNotBlank() }
-                                    ?.let { loaded += ChatItem.Assistant(it, streaming = false) }
-                                "tool_use" -> loaded += ChatItem.Tool(
-                                    block.optString("id"), block.optString("name"),
-                                    ToolText.summary(block.optString("name"), block.optJSONObject("input")),
-                                ).apply { done = true }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        items.addAll(0, loaded.takeLast(MAX_HISTORY))
-        // Terminou numa ação ou numa mensagem sua, sem resposta depois: foi interrompida.
-        interrupted = loaded.lastOrNull().let { it is ChatItem.Tool || it is ChatItem.User }
-        changed()
-    }
-
-    // ---- Leitura das mensagens do Claude ----
-
-    private fun readOutput(proc: Process) {
-        try {
-            readLines(proc)
-        } catch (e: java.io.IOException) {
-            // Leitura interrompida porque o chat foi fechado: normal.
-        } finally {
-            val code = runCatching { proc.waitFor() }.getOrDefault(-1)
-            main.post {
-                if (process === proc) {
-                    running = false
-                    busy = false
-                    process = null
-                    if (code != 0) add(ChatItem.Info(exitMessage(code), isError = true))
-                    changed()
-                }
-            }
-        }
-    }
-
-    private fun readLines(proc: Process) {
-        run {
-            proc.inputStream.bufferedReader().useLines { lines ->
-                for (line in lines) {
-                    val json = runCatching { JSONObject(line) }.getOrNull()
-                    if (json == null) {
-                        Log.d(TAG, "stdout: $line")
-                        continue
-                    }
-                    main.post { handle(json) }
-                }
-            }
-        }
-    }
-
-    /** Roda na thread principal. */
-    private fun handle(json: JSONObject) {
+    override fun handle(json: JSONObject) {
         json.optString("session_id").takeIf { it.isNotEmpty() && it != "default" }?.let { sessionId = it }
         when (json.optString("type")) {
             "system" -> if (json.optString("subtype") == "init") {
@@ -425,56 +298,10 @@ class ChatEngine(
 
     // ---- Utilidades ----
 
-    private fun add(item: ChatItem) {
-        items += item
-        changed()
-    }
-
-    private fun changed(throttle: Boolean = false) {
-        val now = System.currentTimeMillis()
-        if (throttle && now - lastPost < 80) {
-            main.removeCallbacks(notifyRunnable)
-            main.postDelayed(notifyRunnable, 80)
-            return
-        }
-        lastPost = now
-        onChanged?.invoke()
-    }
-
-    private val notifyRunnable = Runnable {
-        lastPost = System.currentTimeMillis()
-        onChanged?.invoke()
-    }
-
-    /** Escreve uma linha JSON no Claude; uma fila só, para manter a ordem. */
-    private fun send(json: JSONObject) {
-        val out = stdin ?: return
-        writer.execute {
-            runCatching {
-                out.write((json.toString() + "\n").toByteArray())
-                out.flush()
-            }.onFailure { Log.w(TAG, "falha ao escrever", it) }
-        }
-    }
-
-    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
-
     private fun nextRequestId() = "req_${++requestCounter}_${System.nanoTime().toString(16)}"
 
-    /** Explica o código de saída e junta as últimas linhas de erro do agente. */
-    private fun exitMessage(code: Int): String {
-        val reason = when (code) {
-            0 -> "O agente encerrou a conversa."
-            127 -> "O agente não pôde ser iniciado: o programa (ou o que ele precisa para rodar) não foi encontrado (código 127)."
-            126 -> "O agente não pôde ser iniciado: sem permissão para executar (código 126)."
-            else -> "O agente fechou (código $code)."
-        }
-        val tail = synchronized(stderrTail) { stderrTail.joinToString("\n") }
-        return if (code != 0 && tail.isNotBlank()) "$reason\n\n$tail" else reason
-    }
-
-    private companion object {
-        const val TAG = "JangadaChat"
+    companion object {
+        private const val TAG = "JangadaChat"
         const val MAX_HISTORY = 300
     }
 }

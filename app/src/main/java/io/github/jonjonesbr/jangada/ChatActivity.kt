@@ -156,7 +156,8 @@ class ChatActivity : JangadaActivity() {
                 fresh -> ensureAdapter { attach(svc.openChat(agentId, restart = true)) }
                 current != null -> attach(current)
                 else -> ensureAdapter {
-                    attach(svc.openChat(agentId, continueLast = isClaude && hasPreviousClaudeConversation()))
+                    // No Claude, continua a conversa mais recente (se houver; o chat confere fora da thread principal).
+                    attach(svc.openChat(agentId, continueLast = isClaude))
                 }
             }
         }
@@ -303,7 +304,10 @@ class ChatActivity : JangadaActivity() {
     private fun showHistory() {
         val chat = engine
         if (isClaude) {
-            showHistoryDialog(ChatHistory.list(linux), canDelete = true)
+            thread(name = "chat-history") {
+                val found = ChatHistory.list(linux)
+                runOnUiThread { if (!isDestroyed) showHistoryDialog(found, canDelete = true) }
+            }
         } else if (chat is AcpChat && chat.supportsHistory) {
             chat.listSessions { sessions -> if (!isDestroyed) showHistoryDialog(sessions, chat.canDelete) }
         } else {
@@ -538,8 +542,6 @@ class ChatActivity : JangadaActivity() {
             finish()
         }
     }
-
-    private fun hasPreviousClaudeConversation(): Boolean = ChatHistory.list(linux, limit = 1).isNotEmpty()
 
     private fun goHome() {
         startActivity(Intent(this, HomeActivity::class.java))
