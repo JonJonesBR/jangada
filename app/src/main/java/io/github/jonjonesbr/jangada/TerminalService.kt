@@ -142,7 +142,9 @@ class TerminalService : Service() {
         resume: String?,
     ): io.github.jonjonesbr.jangada.chat.ChatEngine {
         val settings = AppSettings(this)
-        val engine = io.github.jonjonesbr.jangada.chat.ChatEngine(linux, settings.askPermissions, settings.chatModel)
+        val engine = io.github.jonjonesbr.jangada.chat.ChatEngine(
+            linux, settings.askPermissions, settings.chatModel, settings.chatEffort,
+        )
         previous?.stop()
         chat = engine
         chatAgentId = CLAUDE

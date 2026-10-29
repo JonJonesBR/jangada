@@ -24,6 +24,8 @@ class ChatEngine(
     private val askPermissions: Boolean,
     /** Apelido do modelo ("opus", "sonnet", "haiku") ou vazio para o padrão da conta. */
     private val modelAlias: String = "",
+    /** Esforço ("low" ... "max") ou vazio para o padrão. */
+    private val effort: String = "",
 ) : AgentChat {
     override val items = mutableListOf<ChatItem>()
 
@@ -73,6 +75,7 @@ class ChatEngine(
             args.append(" --permission-prompt-tool stdio --permission-mode auto")
         }
         if (modelAlias.isNotEmpty()) args.append(" --model ").append(modelAlias)
+        if (effort.isNotEmpty()) args.append(" --effort ").append(effort)
         when {
             resume != null -> args.append(" --resume=").append(resume)
             continueLast -> args.append(" --continue")

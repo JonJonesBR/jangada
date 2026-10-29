@@ -35,5 +35,13 @@ class SettingsActivity : ComponentActivity() {
         val model = findViewById<RadioGroup>(R.id.settings_model_group)
         model.check(models.entries.firstOrNull { it.value == settings.chatModel }?.key ?: R.id.model_default)
         model.setOnCheckedChangeListener { _, id -> settings.chatModel = models[id] ?: "" }
+
+        val efforts = mapOf(
+            R.id.effort_default to "", R.id.effort_low to "low", R.id.effort_medium to "medium",
+            R.id.effort_high to "high", R.id.effort_xhigh to "xhigh", R.id.effort_max to "max",
+        )
+        val effort = findViewById<RadioGroup>(R.id.settings_effort_group)
+        effort.check(efforts.entries.firstOrNull { it.value == settings.chatEffort }?.key ?: R.id.effort_default)
+        effort.setOnCheckedChangeListener { _, id -> settings.chatEffort = efforts[id] ?: "" }
     }
 }

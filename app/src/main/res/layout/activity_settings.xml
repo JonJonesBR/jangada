@@ -117,6 +117,31 @@
             </RadioGroup>
 
             <TextView
+                style="@style/HomeSection"
+                android:text="@string/settings_effort" />
+
+            <RadioGroup
+                android:id="@+id/settings_effort_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <RadioButton android:id="@+id/effort_default" style="@style/SettingsOption" android:text="@string/chat_model_default" />
+                <RadioButton android:id="@+id/effort_low" style="@style/SettingsOption" android:text="@string/effort_low" />
+                <RadioButton android:id="@+id/effort_medium" style="@style/SettingsOption" android:text="@string/effort_medium" />
+                <RadioButton android:id="@+id/effort_high" style="@style/SettingsOption" android:text="@string/effort_high" />
+                <RadioButton android:id="@+id/effort_xhigh" style="@style/SettingsOption" android:text="@string/effort_xhigh" />
+                <RadioButton android:id="@+id/effort_max" style="@style/SettingsOption" android:text="@string/effort_max" />
+            </RadioGroup>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/settings_other_agents"
+                android:textColor="@color/setup_muted"
+                android:textSize="13sp" />
+
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"

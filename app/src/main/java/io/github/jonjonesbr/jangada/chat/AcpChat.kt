@@ -29,7 +29,9 @@ class AcpChat(
     override val items = mutableListOf<ChatItem>()
     @Volatile override var sessionId: String? = null
         private set
-    override val model: String? get() = agentTitle
+    /** Nome do modelo atual (quando o agente informa); senão, o nome do agente. */
+    override val model: String?
+        get() = configOptions.firstOrNull { it.category == "model" }?.currentName ?: agentTitle
     @Volatile override var busy = false
         private set
     @Volatile override var running = false
@@ -38,6 +40,26 @@ class AcpChat(
         private set
     override val supportsHistory: Boolean get() = canList
     override var onChanged: (() -> Unit)? = null
+
+    /**
+     * Ajuste da conversa que o agente oferece (modelo, nível de raciocínio,
+     * modo...). Vem do "configOptions" do ACP ou, em agentes mais antigos,
+     * de "models" e "modes".
+     */
+    class ConfigOption(
+        val id: String,
+        val name: String,
+        val category: String,
+        var current: String,
+        val choices: List<Pair<String, String>>,
+        val source: Source,
+    ) {
+        enum class Source { CONFIG, MODEL, MODE }
+        val currentName get() = choices.firstOrNull { it.first == current }?.second ?: current
+    }
+
+    @Volatile var configOptions: List<ConfigOption> = emptyList()
+        private set
 
     /** Título da conversa informado pelo agente. */
     @Volatile var title: String? = null
@@ -116,8 +138,9 @@ class AcpChat(
         if (resume != null && canLoad) {
             loadingHistory = true
             sessionId = resume
-            request("session/load", params.put("sessionId", resume)) { _, error ->
+            request("session/load", params.put("sessionId", resume)) { result, error ->
                 loadingHistory = false
+                result?.let { parseConfig(it) }
                 finishDrafts()
                 if (error != null) {
                     add(ChatItem.Info("Não consegui reabrir essa conversa: ${error.optString("message")}", isError = true))
@@ -141,6 +164,7 @@ class AcpChat(
                 return@request
             }
             sessionId = result.optString("sessionId")
+            parseConfig(result)
             becomeReady()
         }
     }
@@ -203,6 +227,80 @@ class AcpChat(
             JSONObject().put("outcome", JSONObject().put("outcome", "selected").put("optionId", option.id)),
         )
         changed()
+    }
+
+    /** Muda um ajuste da conversa (modelo, raciocínio, modo...). */
+    fun setOption(option: ConfigOption, value: String) {
+        val id = sessionId ?: return
+        when (option.source) {
+            ConfigOption.Source.CONFIG -> request(
+                "session/set_config_option",
+                JSONObject().put("sessionId", id).put("configId", option.id).put("value", value),
+            ) { result, error ->
+                if (result != null && result.has("configOptions")) parseConfig(result)
+                else if (error == null) option.current = value
+                else add(ChatItem.Info("Não consegui mudar ${option.name}: ${error.optString("message")}", isError = true))
+                changed()
+            }
+            ConfigOption.Source.MODEL -> request("session/set_model", JSONObject().put("sessionId", id).put("modelId", value)) { _, error ->
+                if (error == null) option.current = value
+                else add(ChatItem.Info("Não consegui mudar o modelo: ${error.optString("message")}", isError = true))
+                changed()
+            }
+            ConfigOption.Source.MODE -> request("session/set_mode", JSONObject().put("sessionId", id).put("modeId", value)) { _, error ->
+                if (error == null) option.current = value
+                changed()
+            }
+        }
+    }
+
+    /** Lê os ajustes que o agente oferece numa resposta (session/new, load, set...). */
+    private fun parseConfig(result: JSONObject) {
+        val config = result.optJSONArray("configOptions")
+        if (config != null) {
+            configOptions = (0 until config.length()).mapNotNull { i ->
+                val o = config.optJSONObject(i) ?: return@mapNotNull null
+                if (o.optString("type", "select") != "select") return@mapNotNull null
+                ConfigOption(
+                    o.optString("id"), o.optString("name"), o.optString("category"),
+                    o.optString("currentValue"), selectChoices(o.optJSONArray("options")), ConfigOption.Source.CONFIG,
+                )
+            }
+            changed()
+            return
+        }
+        val list = mutableListOf<ConfigOption>()
+        result.optJSONObject("models")?.let { models ->
+            val available = models.optJSONArray("availableModels") ?: JSONArray()
+            val choices = (0 until available.length()).mapNotNull { i ->
+                available.optJSONObject(i)?.let { it.optString("modelId") to it.optString("name").ifEmpty { it.optString("modelId") } }
+            }
+            if (choices.isNotEmpty()) list += ConfigOption("model", "Modelo", "model", models.optString("currentModelId"), choices, ConfigOption.Source.MODEL)
+        }
+        result.optJSONObject("modes")?.let { modes ->
+            val available = modes.optJSONArray("availableModes") ?: JSONArray()
+            val choices = (0 until available.length()).mapNotNull { i ->
+                available.optJSONObject(i)?.let { it.optString("id") to it.optString("name").ifEmpty { it.optString("id") } }
+            }
+            if (choices.isNotEmpty()) list += ConfigOption("mode", "Modo", "mode", modes.optString("currentModeId"), choices, ConfigOption.Source.MODE)
+        }
+        if (list.isNotEmpty()) {
+            configOptions = list
+            changed()
+        }
+    }
+
+    /** Opções de um seletor; grupos (ex.: "Recomendados") viram uma lista só. */
+    private fun selectChoices(options: JSONArray?): List<Pair<String, String>> {
+        options ?: return emptyList()
+        val out = mutableListOf<Pair<String, String>>()
+        for (i in 0 until options.length()) {
+            val o = options.optJSONObject(i) ?: continue
+            val group = o.optJSONArray("options")
+            if (group != null) out += selectChoices(group)
+            else out += o.optString("value") to o.optString("name").ifEmpty { o.optString("value") }
+        }
+        return out
     }
 
     /** Conversas anteriores na pasta de projetos (se o agente oferecer). */
@@ -374,6 +472,11 @@ class AcpChat(
                 changed()
             }
             "session_info_update" -> update.optString("title").takeIf { it.isNotEmpty() }?.let { title = it; changed() }
+            "config_option_update" -> parseConfig(update)
+            "current_mode_update" -> {
+                val mode = configOptions.firstOrNull { it.source == ConfigOption.Source.MODE || it.category == "mode" }
+                update.optString("currentModeId").takeIf { it.isNotEmpty() }?.let { mode?.current = it; changed() }
+            }
             "notice" -> add(ChatItem.Info(listOf(update.optString("title"), update.optString("description"))
                 .filter { it.isNotEmpty() }.joinToString(": ")))
         }

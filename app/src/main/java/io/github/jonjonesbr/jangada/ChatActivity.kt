@@ -102,7 +102,7 @@ class ChatActivity : ComponentActivity() {
         findViewById<View>(R.id.chat_new).setOnClickListener { newConversation() }
         findViewById<View>(R.id.chat_history).setOnClickListener { showHistory() }
         continueChip.setOnClickListener { engine?.sendMessage(getString(R.string.chat_continue_prompt)) }
-        if (isClaude) subtitle.setOnClickListener { chooseModel() }
+        subtitle.setOnClickListener { showChatSettings() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
 
         // "Enter envia" (configurações): o Enter do teclado manda a mensagem.
@@ -214,9 +214,13 @@ class ChatActivity : ComponentActivity() {
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
         continueChip.visibility = if (chat.interrupted && !chat.busy) View.VISIBLE else View.GONE
         subtitle.text = if (isClaude) {
-            (friendlyModel(chat.model) ?: getString(R.string.chat_model_default)) + " ▾"
+            val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { " · " + effortLabel(it) } ?: ""
+            (friendlyModel(chat.model) ?: getString(R.string.chat_model_default)) + effort + " ▾"
         } else {
-            listOfNotNull((chat as? AcpChat)?.title, chat.model).joinToString(" · ").ifEmpty { "~/${LinuxEnv.WORKSPACE}" }
+            val acp = chat as? AcpChat
+            val options = acp?.configOptions.orEmpty()
+            val effort = options.firstOrNull { it.category == "thought_level" }?.let { " · " + it.currentName } ?: ""
+            (chat.model ?: "~/${LinuxEnv.WORKSPACE}") + effort + if (options.isNotEmpty()) " ▾" else ""
         }
     }
 
@@ -392,17 +396,55 @@ class ChatActivity : ComponentActivity() {
             .show()
     }
 
-    /** Troca o modelo do Claude e continua a mesma conversa com ele. */
-    private fun chooseModel() {
-        val aliases = arrayOf("", "opus", "sonnet", "haiku")
-        val labels = arrayOf(getString(R.string.chat_model_default), "Opus", "Sonnet", "Haiku")
-        val current = aliases.indexOf(settings.chatModel).coerceAtLeast(0)
+    /**
+     * Ajustes da conversa (toque no nome do modelo): modelo e esforço do
+     * Claude; nos agentes ACP, os ajustes que cada um oferece (modelo,
+     * nível de raciocínio, modo...).
+     */
+    private fun showChatSettings() {
+        if (isClaude) {
+            val rows = arrayOf(
+                getString(R.string.chat_setting_model) + ": " + modelLabel(settings.chatModel),
+                getString(R.string.chat_setting_effort) + ": " + effortLabel(settings.chatEffort),
+            )
+            AlertDialog.Builder(this)
+                .setTitle(R.string.chat_settings_title)
+                .setItems(rows) { _, which -> if (which == 0) chooseClaude(MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it } else chooseClaude(EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it } }
+                .show()
+            return
+        }
+        val acp = engine as? AcpChat
+        val options = acp?.configOptions.orEmpty()
+        if (acp == null || options.isEmpty()) {
+            Toast.makeText(this, getString(R.string.chat_settings_unsupported, agentName), Toast.LENGTH_LONG).show()
+            return
+        }
+        val rows = options.map { "${it.name}: ${it.currentName}" }.toTypedArray()
         AlertDialog.Builder(this)
-            .setTitle(R.string.chat_model_title)
-            .setSingleChoiceItems(labels, current) { dialog, which ->
+            .setTitle(R.string.chat_settings_title)
+            .setItems(rows) { _, which ->
+                val option = options[which]
+                val labels = option.choices.map { it.second }.toTypedArray()
+                val current = option.choices.indexOfFirst { it.first == option.current }
+                AlertDialog.Builder(this)
+                    .setTitle(option.name)
+                    .setSingleChoiceItems(labels, current) { dialog, choice ->
+                        dialog.dismiss()
+                        acp.setOption(option, option.choices[choice].first)
+                    }
+                    .show()
+            }
+            .show()
+    }
+
+    /** Escolha de modelo/esforço do Claude: reabre a mesma conversa com o novo ajuste. */
+    private fun chooseClaude(values: Array<String>, current: String, label: (String) -> String, save: (String) -> Unit) {
+        val labels = values.map(label).toTypedArray()
+        AlertDialog.Builder(this)
+            .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
                 dialog.dismiss()
-                if (aliases[which] == settings.chatModel) return@setSingleChoiceItems
-                settings.chatModel = aliases[which]
+                if (values[which] == current) return@setSingleChoiceItems
+                save(values[which])
                 val svc = service ?: return@setSingleChoiceItems
                 val id = engine?.sessionId
                 svc.closeChat {
@@ -411,6 +453,22 @@ class ChatActivity : ComponentActivity() {
             }
             .show()
     }
+
+    private fun modelLabel(alias: String) = when (alias) {
+        "" -> getString(R.string.chat_model_default)
+        else -> alias.replaceFirstChar { it.uppercase() }
+    }
+
+    private fun effortLabel(value: String) = getString(
+        when (value) {
+            "low" -> R.string.effort_low
+            "medium" -> R.string.effort_medium
+            "high" -> R.string.effort_high
+            "xhigh" -> R.string.effort_xhigh
+            "max" -> R.string.effort_max
+            else -> R.string.chat_model_default
+        },
+    )
 
     /**
      * Mesma conversa na tela de terminal (Claude Code). Para os agentes
@@ -432,7 +490,8 @@ class ChatActivity : ComponentActivity() {
                 else -> "--resume $id"
             }
             val model = settings.chatModel.takeIf { it.isNotEmpty() }?.let { " --model $it" } ?: ""
-            script = "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude$model $resume"
+            val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { " --effort $it" } ?: ""
+            script = "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude$model$effort $resume"
         } else {
             script = recipe?.launchScript() ?: return
             Toast.makeText(this, getString(R.string.chat_terminal_note, agentName), Toast.LENGTH_LONG).show()
@@ -664,15 +723,28 @@ class ChatActivity : ComponentActivity() {
         }
     }
 
-    /** Pedaço de uma resposta: texto comum ou bloco de código (```). */
-    private class Part(val text: String, val isCode: Boolean, val language: String = "")
+    /** Pedaço de uma resposta: texto comum, bloco de código (```) ou tabela. */
+    private class Part(val text: String, val isCode: Boolean, val language: String = "", val isTable: Boolean = false)
 
     private fun splitCode(text: String): List<Part> {
         val parts = mutableListOf<Part>()
         val buffer = StringBuilder()
+        val table = StringBuilder()
         var inCode = false
         var language = ""
+        fun flushTable() {
+            if (table.isEmpty()) return
+            if (buffer.isNotBlank()) parts += Part(buffer.toString(), isCode = false)
+            buffer.clear()
+            parts += Part(formatTable(table.toString()), isCode = true, language = "", isTable = true)
+            table.clear()
+        }
         for (line in text.split('\n')) {
+            if (!inCode && line.trimStart().startsWith("|")) {
+                table.append(line).append('\n')
+                continue
+            }
+            flushTable()
             if (line.trimStart().startsWith("```")) {
                 if (inCode) {
                     parts += Part(buffer.toString(), isCode = true, language = language)
@@ -686,8 +758,26 @@ class ChatActivity : ComponentActivity() {
             }
             buffer.append(line).append('\n')
         }
+        flushTable()
         if (buffer.isNotBlank() || parts.isEmpty()) parts += Part(buffer.toString(), isCode = inCode, language = language)
         return parts
+    }
+
+    /** Tabela Markdown alinhada em colunas (fonte de terminal, com rolagem lateral). */
+    private fun formatTable(source: String): String {
+        val rows = source.lines().filter { it.isNotBlank() }
+            .filterNot { row -> row.all { it == '|' || it == '-' || it == ':' || it == ' ' } }
+            .map { row ->
+                row.trim().removePrefix("|").removeSuffix("|").split('|')
+                    .map { it.trim().replace("**", "").replace("`", "") }
+            }
+        if (rows.isEmpty()) return source
+        val columns = rows.maxOf { it.size }
+        val widths = (0 until columns).map { c -> rows.maxOf { it.getOrNull(c)?.length ?: 0 }.coerceAtMost(40) }
+        return rows.mapIndexed { index, row ->
+            val line = (0 until columns).joinToString(" │ ") { c -> (row.getOrNull(c) ?: "").take(40).padEnd(widths[c]) }
+            if (index == 0 && rows.size > 1) line + "\n" + widths.joinToString("─┼─") { "─".repeat(it) } else line
+        }.joinToString("\n")
     }
 
     companion object {
@@ -696,5 +786,7 @@ class ChatActivity : ComponentActivity() {
         const val EXTRA_NEW = "new"
         const val CLAUDE_AGENT_ID = TerminalService.CLAUDE
         private const val REQUEST_ATTACH = 7
+        private val MODELS = arrayOf("", "opus", "sonnet", "haiku")
+        private val EFFORTS = arrayOf("", "low", "medium", "high", "xhigh", "max")
     }
 }

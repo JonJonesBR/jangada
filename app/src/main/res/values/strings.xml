@@ -102,7 +102,7 @@
 
     <string name="chat_model_title">Chat model</string>
     <string name="chat_model_default">Account default</string>
-    <string name="settings_model">Chat model</string>
+    <string name="settings_model">Claude chat model</string>
 
     <string name="chat_history">Conversations</string>
     <string name="chat_history_empty">No previous conversations yet</string>
@@ -126,4 +126,16 @@
     <string name="chat_allow_always">Always allow in this conversation</string>
     <string name="chat_deny_always">Always deny</string>
     <string name="chat_wants_agent">%1$s wants to: %2$s</string>
+
+    <string name="chat_settings_title">Conversation settings</string>
+    <string name="chat_setting_model">Model</string>
+    <string name="chat_setting_effort">Effort</string>
+    <string name="chat_settings_unsupported">%s doesn’t offer settings through the chat</string>
+    <string name="effort_low">Low</string>
+    <string name="effort_medium">Medium</string>
+    <string name="effort_high">High</string>
+    <string name="effort_xhigh">Extra high</string>
+    <string name="effort_max">Maximum</string>
+    <string name="settings_effort">Claude chat effort</string>
+    <string name="settings_other_agents">For the other agents, tap the model name at the top of the chat to change model, effort and mode.</string>
 </resources>

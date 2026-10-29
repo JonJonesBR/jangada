@@ -26,7 +26,13 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_CHAT_MODEL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CHAT_MODEL, value).apply()
 
+    /** Esforço do Claude no chat: "" = padrão, ou low, medium, high, xhigh, max. */
+    var chatEffort: String
+        get() = prefs.getString(KEY_CHAT_EFFORT, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_CHAT_EFFORT, value).apply()
+
     private companion object {
+        const val KEY_CHAT_EFFORT = "chat_effort"
         const val KEY_CHAT_MODEL = "chat_model"
         const val KEY_MODE = "mode"
         const val MODE_SIMPLE = "simple"
