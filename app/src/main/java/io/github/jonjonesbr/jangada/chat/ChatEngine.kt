@@ -9,21 +9,6 @@ import org.json.JSONObject
 import java.io.OutputStream
 import kotlin.concurrent.thread
 
-/** Um item da conversa mostrada no chat. */
-sealed class ChatItem {
-    class User(val text: String) : ChatItem()
-    class Assistant(var text: String, var streaming: Boolean) : ChatItem()
-    class Tool(val id: String, val name: String, val summary: String) : ChatItem() {
-        var done = false
-        var failed = false
-    }
-    class Permission(val requestId: String, val toolName: String, val summary: String, val input: JSONObject) : ChatItem() {
-        /** null = esperando resposta; true = permitido; false = recusado. */
-        var allowed: Boolean? = null
-    }
-    class Info(val text: String, val isError: Boolean = false) : ChatItem()
-}
-
 /**
  * Conversa com o Claude Code sem a tela de terminal: roda o `claude` no
  * modo de integração (JSON por linha, o mesmo protocolo do Claude Agent
@@ -39,27 +24,31 @@ class ChatEngine(
     private val askPermissions: Boolean,
     /** Apelido do modelo ("opus", "sonnet", "haiku") ou vazio para o padrão da conta. */
     private val modelAlias: String = "",
-) {
-    val items = mutableListOf<ChatItem>()
+) : AgentChat {
+    override val items = mutableListOf<ChatItem>()
 
-    @Volatile var sessionId: String? = null
+    @Volatile override var sessionId: String? = null
         private set
-    @Volatile var model: String? = null
+    @Volatile override var model: String? = null
         private set
     /** O Claude está trabalhando num pedido. */
-    @Volatile var busy = false
+    @Volatile override var busy = false
         private set
-    @Volatile var running = false
+    @Volatile override var running = false
         private set
+    override val supportsHistory = true
+
+    /** Ferramentas liberadas com "Sempre nesta conversa". */
+    private val alwaysAllowed = HashSet<String>()
     /**
      * A última resposta foi cortada no meio (por exemplo, ao trocar entre
      * chat e terminal enquanto o agente trabalhava). A tela oferece "Continuar".
      */
-    @Volatile var interrupted = false
+    @Volatile override var interrupted = false
         private set
 
     /** Chamado (na thread principal) sempre que a conversa muda. */
-    var onChanged: (() -> Unit)? = null
+    override var onChanged: (() -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
     private var process: Process? = null
@@ -112,16 +101,36 @@ class ChatEngine(
             .put("request", JSONObject().put("subtype", "initialize").put("hooks", JSONObject.NULL)))
     }
 
-    /** Envia uma mensagem do usuário. */
-    fun sendMessage(text: String) {
+    /**
+     * Envia uma mensagem do usuário. Fotos vão como imagem; outros arquivos
+     * vão como caminho (o Claude lê com as ferramentas dele).
+     */
+    override fun sendMessage(text: String, attachments: List<Attachment>) {
         if (!running) start(resume = sessionId)
-        add(ChatItem.User(text))
+        add(ChatItem.User(text, attachments.map { it.name }))
         busy = true
         interrupted = false
+        val fullText = text + Attachments.filesNote(attachments)
+        val content: Any = if (attachments.none { it.imageBase64 != null }) {
+            fullText
+        } else {
+            JSONArray().apply {
+                for (image in attachments.filter { it.imageBase64 != null }) {
+                    put(
+                        JSONObject().put("type", "image").put(
+                            "source",
+                            JSONObject().put("type", "base64").put("media_type", image.mimeType)
+                                .put("data", image.imageBase64),
+                        ),
+                    )
+                }
+                put(JSONObject().put("type", "text").put("text", fullText.ifBlank { " " }))
+            }
+        }
         send(
             JSONObject()
                 .put("type", "user")
-                .put("message", JSONObject().put("role", "user").put("content", text))
+                .put("message", JSONObject().put("role", "user").put("content", content))
                 .put("parent_tool_use_id", JSONObject.NULL)
                 .put("session_id", "default"),
         )
@@ -129,28 +138,34 @@ class ChatEngine(
     }
 
     /** Interrompe o que o Claude está fazendo (como o Esc no terminal). */
-    fun interrupt() {
+    override fun interrupt() {
         if (!running) return
         send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
             .put("request", JSONObject().put("subtype", "interrupt")))
     }
 
     /** Responde a um pedido de permissão. */
-    fun answer(item: ChatItem.Permission, allow: Boolean) {
-        if (item.allowed != null) return
-        item.allowed = allow
+    override fun answer(item: ChatItem.Permission, option: PermissionOption) {
+        if (item.chosen != null) return
+        item.chosen = option
+        val allow = option.allows
+        if (option.kind == PermissionOption.Kind.ALLOW_ALWAYS) alwaysAllowed += item.toolName
+        respondPermission(item.requestId as String, allow, item.input)
+        changed()
+    }
+
+    private fun respondPermission(requestId: String, allow: Boolean, input: JSONObject) {
         val response = if (allow) {
-            JSONObject().put("behavior", "allow").put("updatedInput", item.input)
+            JSONObject().put("behavior", "allow").put("updatedInput", input)
         } else {
             JSONObject().put("behavior", "deny").put("message", "O usuário recusou esta ação.")
         }
         send(
             JSONObject().put("type", "control_response").put(
                 "response",
-                JSONObject().put("subtype", "success").put("request_id", item.requestId).put("response", response),
+                JSONObject().put("subtype", "success").put("request_id", requestId).put("response", response),
             ),
         )
-        changed()
     }
 
     /**
@@ -158,7 +173,7 @@ class ChatEngine(
      * processo terminou de fato — importante antes de abrir a mesma
      * conversa no terminal, para os dois não gravarem ao mesmo tempo.
      */
-    fun stop(then: (() -> Unit)? = null) {
+    override fun stop(then: (() -> Unit)?) {
         running = false
         busy = false
         val proc = process
@@ -364,8 +379,22 @@ class ChatEngine(
         }
         val toolName = request.optString("tool_name")
         val input = request.optJSONObject("input") ?: JSONObject()
+        if (toolName in alwaysAllowed) {
+            respondPermission(requestId, allow = true, input = input)
+            return
+        }
         val summary = request.optString("description").ifEmpty { ToolText.summary(toolName, input) }
-        add(ChatItem.Permission(requestId, toolName, summary, input))
+        add(
+            ChatItem.Permission(
+                requestId, ToolText.label(toolName), summary,
+                listOf(
+                    PermissionOption("allow", "", PermissionOption.Kind.ALLOW_ONCE),
+                    PermissionOption("always", "", PermissionOption.Kind.ALLOW_ALWAYS),
+                    PermissionOption("deny", "", PermissionOption.Kind.REJECT_ONCE),
+                ),
+                input, toolName,
+            ),
+        )
     }
 
     private fun friendlyError(text: String): String = when {

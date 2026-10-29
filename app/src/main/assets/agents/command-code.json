@@ -19,5 +19,8 @@
   "note": {
     "pt": "Na primeira vez, entre com: cmd login",
     "en": "First time, sign in with: cmd login"
+  },
+  "acp": {
+    "command": "cmd acp"
   }
 }

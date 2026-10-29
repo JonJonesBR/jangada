@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private var typing = false
     private var enterAt = -1
     private val appSettings by lazy { AppSettings(this) }
+    private val agents by lazy { io.github.jonjonesbr.jangada.agents.AgentCatalog.load(this) }
 
     private var service: TerminalService? = null
     private var terminalTypeface: Typeface = Typeface.MONOSPACE
@@ -150,11 +151,25 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this) { goHome() }
     }
 
-    /** Fecha esta sessão do Claude Code e continua a mesma conversa no chat. */
+    /**
+     * Fecha esta sessão e abre o chat do mesmo agente. Para o Claude Code,
+     * continua a mesma conversa: a que foi usada nesta sessão; se ela era
+     * nova e ficou sem mensagens, o chat também abre numa conversa nova.
+     */
     private fun switchToChat() {
         val svc = service ?: return
-        session?.let { svc.closeSession(it.mHandle) }
-        startActivity(Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_CONTINUE, true))
+        val current = session ?: return
+        val agent = svc.sessionAgent[current.mHandle] ?: return
+        val intent = Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_AGENT_ID, agent)
+        if (agent == TerminalService.CLAUDE) {
+            val conversation = svc.claudeConversationOf(current.mHandle)
+            if (conversation != null) intent.putExtra(ChatActivity.EXTRA_RESUME, conversation)
+            else intent.putExtra(ChatActivity.EXTRA_NEW, true)
+        } else {
+            intent.putExtra(ChatActivity.EXTRA_NEW, true)
+        }
+        svc.closeSession(current.mHandle)
+        startActivity(intent)
         finish()
     }
 
@@ -227,10 +242,13 @@ class MainActivity : ComponentActivity() {
         intent.removeExtra(EXTRA_NEW_SHELL)
 
         val agent = intent.getStringExtra(EXTRA_AGENT)
+        val conversation = intent.getStringExtra(EXTRA_CONVERSATION)
         intent.removeExtra(EXTRA_AGENT)
+        intent.removeExtra(EXTRA_CONVERSATION)
         val target = when {
             script != null -> svc.createSession(title, script).also { created ->
                 if (agent != null) svc.sessionAgent[created.mHandle] = agent
+                if (conversation != null) svc.sessionConversation[created.mHandle] = conversation
             }
             newShell -> svc.createSession()
             handle != null -> svc.session(handle)
@@ -242,8 +260,9 @@ class MainActivity : ComponentActivity() {
     private fun show(newSession: TerminalSession) {
         session = newSession
         findViewById<TextView>(R.id.session_title_bar).text = newSession.mSessionName ?: TerminalService.DEFAULT_TITLE
-        val isClaude = service?.sessionAgent?.get(newSession.mHandle) == ChatActivity.CLAUDE_AGENT_ID
-        findViewById<View>(R.id.terminal_chat).visibility = if (isClaude) View.VISIBLE else View.GONE
+        val agent = service?.sessionAgent?.get(newSession.mHandle)
+        val hasChat = agent != null && agents.firstOrNull { it.id == agent }?.hasChat == true
+        findViewById<View>(R.id.terminal_chat).visibility = if (hasChat) View.VISIBLE else View.GONE
         terminalView.attachSession(newSession)
         terminalView.onScreenUpdated()
     }
@@ -431,5 +450,6 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SESSION = "session"
         const val EXTRA_NEW_SHELL = "new_shell"
         const val EXTRA_AGENT = "agent"
+        const val EXTRA_CONVERSATION = "conversation"
     }
 }

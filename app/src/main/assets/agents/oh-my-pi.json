@@ -10,5 +10,8 @@
   "description": {
     "pt": "Derivado do Pi, com mais recursos prontos.",
     "en": "A Pi derivative with more built-in features."
+  },
+  "acp": {
+    "command": "omp acp"
   }
 }

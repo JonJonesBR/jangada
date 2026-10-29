@@ -29,6 +29,7 @@ O app terá dois modos:
 - [x] **4. Catálogo de agentes** — instalar e atualizar na própria tela, com progresso; "Atualizar" só aparece quando há versão nova: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw.
 - [x] **Extras** — caixa de texto com corretor e ditado por voz (✎); comandos com `/` ou `!` vão sem corretor e como digitação; agentes trabalham em `~/projetos`, arquivos do celular em `~/celular`.
 - [x] **5. Modo Simples** — chat nativo para o Claude Code (balões, permissões com botões, respostas em tempo real, histórico de conversas, escolha do modelo) alternando com o terminal na mesma conversa; configurações (Simples/Pro, Enter envia, permissões).
+- [x] **Chat para todos os agentes** — via [Agent Client Protocol](https://agentclientprotocol.com) para OpenCode, Codex, Pi, oh-my-pi, Qwen Code, Hermes e Command Code; anexos de fotos e arquivos; "Permitir sempre nesta conversa"; copiar blocos de código.
 - [ ] **6. Modo Pro** — abas, chaves de API cifradas, pastas do celular, configurações avançadas.
 - [ ] **7. Lançamento** — temas, backup do ambiente, releases para Obtainium/F-Droid.
 
@@ -58,6 +59,9 @@ um novo, copie um dos existentes e mande um pull request:
 - `install` roda dentro do Debian do app; `requires` instala pacotes do Debian antes.
 - `update` é opcional; sem ele, o botão Atualizar repete a instalação.
 - `npm` é opcional: o nome do pacote no npm, usado só para descobrir a versão mais nova.
+- `acp` é opcional: como abrir o agente no modo [ACP](https://agentclientprotocol.com) para ter chat no app.
+  Ex.: `{ "command": "opencode acp" }`, ou com adaptador separado:
+  `{ "command": "pi-acp", "bin": "pi-acp", "install": "npm i -g pi-acp", "requires": ["nodejs", "npm"] }`.
   Com ele, "Atualizar" só aparece quando existe versão mais nova que a instalada.
 
 ## Baixar

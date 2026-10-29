@@ -77,7 +77,7 @@
     <string name="chat_working">Working…</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_hint">Message Claude</string>
-    <string name="chat_empty">Talk to Claude here. It works in the ~/projetos folder and asks before acting.\n\nTap Terminal at the top to switch to the full screen of the same conversation.</string>
+    <string name="chat_empty">Talk to %1$s here. It works in the ~/projetos folder and asks before acting.\n\nTap &gt;_ at the top to open the agent’s full screen.</string>
     <string name="chat_wants">Claude wants to: %s</string>
     <string name="chat_allow">Allow</string>
     <string name="chat_deny">Deny</string>
@@ -114,4 +114,16 @@
     <string name="chat_continue_prompt">Continue from where you stopped.</string>
     <string name="chat_delete">Delete</string>
     <string name="chat_delete_title">Delete this conversation?</string>
+    <string name="chat_hint_agent">Message %s</string>
+    <string name="chat_preparing">Preparing the %s chat (first time only)…</string>
+    <string name="chat_prepare_failed">Couldn’t prepare the %s chat. Check your connection and open it again.</string>
+    <string name="chat_attach">Attach</string>
+    <string name="chat_attach_failed">Some files couldn’t be attached</string>
+    <string name="chat_history_unsupported">%s doesn’t share its past conversations with the app</string>
+    <string name="chat_terminal_note">In the terminal, %s opens its own screen in a new conversation</string>
+    <string name="chat_copy_code">Copy</string>
+    <string name="chat_plan">Plan</string>
+    <string name="chat_allow_always">Always allow in this conversation</string>
+    <string name="chat_deny_always">Always deny</string>
+    <string name="chat_wants_agent">%1$s wants to: %2$s</string>
 </resources>

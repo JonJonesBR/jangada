@@ -10,5 +10,8 @@
   "description": {
     "pt": "Agente de código aberto que funciona com vários provedores de IA.",
     "en": "Open-source agent that works with many AI providers."
+  },
+  "acp": {
+    "command": "opencode acp"
   }
 }

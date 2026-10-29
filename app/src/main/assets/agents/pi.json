@@ -11,5 +11,14 @@
   "description": {
     "pt": "Agente minimalista que você adapta com extensões.",
     "en": "Minimal agent you adapt with extensions."
+  },
+  "acp": {
+    "command": "pi-acp",
+    "bin": "pi-acp",
+    "install": "npm i -g pi-acp",
+    "requires": [
+      "nodejs",
+      "npm"
+    ]
   }
 }

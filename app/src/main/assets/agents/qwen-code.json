@@ -10,5 +10,8 @@
   "description": {
     "pt": "Agente de programação da equipe Qwen.",
     "en": "The Qwen team's coding agent."
+  },
+  "acp": {
+    "command": "qwen --acp"
   }
 }

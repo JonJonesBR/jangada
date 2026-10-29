@@ -311,7 +311,7 @@ class HomeActivity : ComponentActivity() {
         } else {
             // Agentes com chat: no Modo Simples o botão principal é "Conversar" (chat)
             // e o terminal fica como alternativa; no Modo Pro, o contrário.
-            val chatFirst = recipe.chat && simpleMode
+            val chatFirst = recipe.hasChat && simpleMode
             primary.setText(
                 when {
                     !isInstalled -> R.string.agent_install
@@ -324,15 +324,15 @@ class HomeActivity : ComponentActivity() {
             primary.setOnClickListener {
                 when {
                     !isInstalled -> startTask(recipe, updating = false)
-                    chatFirst -> openChat()
+                    chatFirst -> openChat(recipe.id)
                     else -> openAgent(recipe)
                 }
             }
             val alternative = card.findViewById<Button>(R.id.alternative)
-            if (isInstalled && recipe.chat) {
+            if (isInstalled && recipe.hasChat) {
                 alternative.visibility = View.VISIBLE
                 alternative.setText(if (chatFirst) R.string.agent_terminal else R.string.agent_chat)
-                alternative.setOnClickListener { if (chatFirst) openAgent(recipe) else openChat() }
+                alternative.setOnClickListener { if (chatFirst) openAgent(recipe) else openChat(recipe.id) }
             }
 
             val updateLabel = updateLabel(recipe, isInstalled, version, latest)
@@ -413,10 +413,11 @@ class HomeActivity : ComponentActivity() {
         runningTitle.visibility = if (sessions.isEmpty() && chat == null) View.GONE else View.VISIBLE
         val inflater = LayoutInflater.from(this)
         if (chat != null) {
+            val chatAgent = service?.chatAgentId ?: TerminalService.CLAUDE
+            val name = recipes.firstOrNull { it.id == chatAgent }?.name ?: getString(R.string.chat_title)
             val row = inflater.inflate(R.layout.item_session, sessionsList, false)
-            row.findViewById<TextView>(R.id.session_title).text =
-                getString(R.string.chat_title) + " · " + getString(R.string.chat_session)
-            row.setOnClickListener { openChat() }
+            row.findViewById<TextView>(R.id.session_title).text = name + " · " + getString(R.string.chat_session)
+            row.setOnClickListener { openChat(chatAgent) }
             row.findViewById<Button>(R.id.session_close).setOnClickListener { service?.closeChat() }
             sessionsList.addView(row)
         }
@@ -438,8 +439,8 @@ class HomeActivity : ComponentActivity() {
         else openTerminal(recipe.name, recipe.launchScript(), agent = recipe.id)
     }
 
-    private fun openChat() {
-        startActivity(Intent(this, ChatActivity::class.java))
+    private fun openChat(agentId: String) {
+        startActivity(Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_AGENT_ID, agentId))
     }
 
     private fun showSession(handle: String) {

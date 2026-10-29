@@ -27,9 +27,14 @@ data class AgentRecipe(
     private val note: Map<String, String>,
     /** Pacote no npm usado só para saber qual é a versão mais nova. */
     val npm: String? = null,
-    /** O agente tem chat nativo no app (hoje, só o Claude Code). */
+    /** O agente tem chat próprio no app (o Claude Code, pelo protocolo dele). */
     val chat: Boolean = false,
+    /** Como abrir o agente no modo ACP, para o chat dos demais agentes. */
+    val acp: AcpSpec? = null,
 ) {
+    /** Tem chat no app (próprio ou via ACP). */
+    val hasChat: Boolean get() = chat || acp != null
+
     fun description(): String = localized(description)
     fun note(): String? = localized(note).ifEmpty { null }
 
@@ -104,8 +109,37 @@ data class AgentRecipe(
                 note = strings("note"),
                 npm = json.optString("npm").ifEmpty { null },
                 chat = json.optBoolean("chat", false),
+                acp = json.optJSONObject("acp")?.let { spec ->
+                    val requires = spec.optJSONArray("requires")
+                    AcpSpec(
+                        command = spec.getString("command"),
+                        bin = spec.optString("bin").ifEmpty { null },
+                        install = spec.optString("install").ifEmpty { null },
+                        requires = requires?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
+                    )
+                },
             )
         }
+    }
+}
+
+/**
+ * Modo ACP de um agente: [command] o inicia; quando ele depende de um
+ * adaptador separado ([bin], instalado por [install]), o app instala na
+ * primeira vez que o chat abre.
+ */
+data class AcpSpec(
+    val command: String,
+    val bin: String? = null,
+    val install: String? = null,
+    val requires: List<String> = emptyList(),
+) {
+    /** Script para instalar o adaptador (em segundo plano, sem terminal). */
+    fun installScript(): String? {
+        val steps = install ?: return null
+        val apt = if (requires.isEmpty()) "" else
+            "apt-get update && apt-get install -y --no-install-recommends ${requires.joinToString(" ")} && "
+        return "export DEBIAN_FRONTEND=noninteractive; set -e; $apt$steps"
     }
 }
 

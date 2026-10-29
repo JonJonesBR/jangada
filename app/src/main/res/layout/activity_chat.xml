@@ -139,16 +139,42 @@
             android:textColor="@color/setup_error" />
     </LinearLayout>
 
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/keys_bg"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/chat_attachments"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/keys_bg"
         android:gravity="bottom"
         android:orientation="horizontal"
-        android:paddingStart="8dp"
+        android:paddingStart="2dp"
         android:paddingTop="6dp"
         android:paddingEnd="4dp"
         android:paddingBottom="6dp">
+
+        <TextView
+            android:id="@+id/chat_attach"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/chat_attach"
+            android:gravity="center"
+            android:text="📎"
+            android:textSize="22sp" />
 
         <EditText
             android:id="@+id/chat_input"

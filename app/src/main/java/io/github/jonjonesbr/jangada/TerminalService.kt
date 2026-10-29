@@ -85,31 +85,67 @@ class TerminalService : Service() {
 
     private var lastTaskPost = 0L
 
-    /** Conversa do chat (Claude Code sem terminal), quando aberta. */
-    var chat: io.github.jonjonesbr.jangada.chat.ChatEngine? = null
+    /** Conversa do chat aberta (uma por vez) e de qual agente ela é. */
+    var chat: io.github.jonjonesbr.jangada.chat.AgentChat? = null
+        private set
+    var chatAgentId: String? = null
         private set
 
     /** Agente de cada sessão de terminal (id da receita), para a troca Chat ⇄ Terminal. */
     val sessionAgent = HashMap<String, String>()
+    /** Quando cada sessão de terminal começou (para achar a conversa criada nela). */
+    val sessionStartedAt = HashMap<String, Long>()
+    /** Conversa que a sessão de terminal retomou (claude --resume), se houver. */
+    val sessionConversation = HashMap<String, String>()
 
     /**
-     * Abre (ou devolve) a conversa do chat. [continueLast] retoma a conversa
-     * mais recente da pasta de projetos — a mesma que estava no terminal.
+     * Abre (ou devolve) o chat do agente [agentId]. [continueLast] retoma a
+     * conversa mais recente; [resume] uma conversa específica; [restart]
+     * força reabrir mesmo com o chat rodando.
      */
     fun openChat(
-        continueLast: Boolean,
+        agentId: String = CLAUDE,
+        continueLast: Boolean = false,
         resume: String? = null,
         restart: Boolean = false,
-    ): io.github.jonjonesbr.jangada.chat.ChatEngine {
-        if (!restart) chat?.let { if (it.running || resume == null && !continueLast) return it }
+    ): io.github.jonjonesbr.jangada.chat.AgentChat {
+        val current = chat
+        if (!restart && current != null && chatAgentId == agentId &&
+            (current.running || resume == null && !continueLast)
+        ) return current
         val linux = LinuxEnv(this)
         runCatching { linux.refreshIntegration() }
         startLinkWatcher(linux)
+        if (chatAgentId != agentId) current?.stop()
+
+        val engine = if (agentId == CLAUDE) {
+            openClaudeChat(linux, if (chatAgentId == agentId) current as? io.github.jonjonesbr.jangada.chat.ChatEngine else null, continueLast, resume)
+        } else {
+            val recipe = io.github.jonjonesbr.jangada.agents.AgentCatalog.load(this).first { it.id == agentId }
+            if (chatAgentId == agentId) current?.stop()
+            val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
+            io.github.jonjonesbr.jangada.chat.AcpChat(linux, recipe.acp!!.command, version).also {
+                chat = it
+                chatAgentId = agentId
+                goForeground()
+                it.start(resume = resume)
+            }
+        }
+        sessionsChanged()
+        return engine
+    }
+
+    private fun openClaudeChat(
+        linux: LinuxEnv,
+        previous: io.github.jonjonesbr.jangada.chat.ChatEngine?,
+        continueLast: Boolean,
+        resume: String?,
+    ): io.github.jonjonesbr.jangada.chat.ChatEngine {
         val settings = AppSettings(this)
         val engine = io.github.jonjonesbr.jangada.chat.ChatEngine(linux, settings.askPermissions, settings.chatModel)
-        val previous = chat
         previous?.stop()
         chat = engine
+        chatAgentId = CLAUDE
         // "Continuar a última" vira o id da conversa mais recente: mais seguro que
         // o --continue do Claude, que nem sempre enxerga conversas do outro modo.
         val resumeId = resume ?: if (continueLast) sessionFile(linux, null)?.name?.removeSuffix(".jsonl") else null
@@ -123,8 +159,21 @@ class TerminalService : Service() {
         }
         goForeground()
         engine.start(resume = resumeId)
-        sessionsChanged()
         return engine
+    }
+
+    /**
+     * Conversa do Claude Code usada numa sessão de terminal: a criada ou
+     * alterada desde que a sessão começou; senão, a que ela retomou; senão,
+     * nenhuma (era uma conversa nova, ainda sem mensagens).
+     */
+    fun claudeConversationOf(handle: String): String? {
+        val started = sessionStartedAt[handle] ?: 0L
+        val dir = File(LinuxEnv(this).rootfs, "root/.claude/projects/-root-${LinuxEnv.WORKSPACE}")
+        val touched = dir.listFiles()
+            ?.filter { it.name.endsWith(".jsonl") && it.lastModified() >= started - 2_000 }
+            ?.maxByOrNull { it.lastModified() }
+        return touched?.name?.removeSuffix(".jsonl") ?: sessionConversation[handle]
     }
 
     /** Arquivo da conversa do Claude Code: a [id] pedida ou a mais recente. */
@@ -134,10 +183,11 @@ class TerminalService : Service() {
         return dir.listFiles()?.filter { it.name.endsWith(".jsonl") }?.maxByOrNull { it.lastModified() }
     }
 
-    /** Fecha o chat; [then] roda depois que o Claude terminou de sair. */
+    /** Fecha o chat; [then] roda depois que o agente terminou de sair. */
     fun closeChat(then: (() -> Unit)? = null) {
         val current = chat
         chat = null
+        chatAgentId = null
         sessionsChanged()
         if (current == null) {
             then?.invoke()
@@ -188,6 +238,7 @@ class TerminalService : Service() {
             androidSession()
         }
         session.mSessionName = title
+        sessionStartedAt[session.mHandle] = System.currentTimeMillis()
         sessions += session
         sessionsChanged()
         return session
@@ -208,6 +259,8 @@ class TerminalService : Service() {
         session.finishIfRunning()
         sessions.remove(session)
         sessionAgent.remove(handle)
+        sessionStartedAt.remove(handle)
+        sessionConversation.remove(handle)
         sessionsChanged()
         leaveForegroundIfIdle()
     }
@@ -439,6 +492,7 @@ class TerminalService : Service() {
         private const val NOTIFICATION_LINK = 2
         private const val TRANSCRIPT_ROWS = 5000
         const val DEFAULT_TITLE = "Terminal"
+        const val CLAUDE = "claude-code"
         private val ANSI = Regex("""\u001B(\[[0-9;?]*[ -/]*[@-~]|\][^\u0007]*\u0007|[()][A-Z0-9])""")
     }
 }

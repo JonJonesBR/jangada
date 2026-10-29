@@ -144,8 +144,11 @@ class LinuxEnv(context: Context) {
      * Inicia [script] num bash de login dentro do Debian e devolve o processo
      * (para conversar com ele por stdin/stdout, como faz o chat).
      */
-    fun startProcess(script: String): Process {
-        val builder = ProcessBuilder(*prootArgv(guestEnv() + listOf("/bin/bash", "--login", "-c", script)))
+    fun startProcess(script: String, interactive: Boolean = false): Process {
+        // interactive: lê o ~/.bashrc inteiro, onde alguns instaladores põem o PATH.
+        val bash = if (interactive) listOf("/bin/bash", "--login", "-i", "-c", script)
+        else listOf("/bin/bash", "--login", "-c", script)
+        val builder = ProcessBuilder(*prootArgv(guestEnv() + bash))
             .directory(files)
         builder.environment().apply {
             clear()

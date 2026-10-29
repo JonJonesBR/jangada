@@ -10,5 +10,14 @@
   "description": {
     "pt": "Agente de programação da OpenAI.",
     "en": "OpenAI's coding agent."
+  },
+  "acp": {
+    "command": "codex-acp",
+    "bin": "codex-acp",
+    "install": "npm i -g @agentclientprotocol/codex-acp",
+    "requires": [
+      "nodejs",
+      "npm"
+    ]
   }
 }
