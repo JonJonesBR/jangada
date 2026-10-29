@@ -232,4 +232,36 @@
     <string name="chat_exit_not_found">The agent couldn’t start: the program (or something it needs) wasn’t found (code 127).</string>
     <string name="chat_exit_no_permission">The agent couldn’t start: no permission to run it (code 126).</string>
     <string name="chat_exit_code">The agent closed (code %1$d).</string>
+
+    <!-- Chat: mensagens e nomes das ferramentas -->
+    <string name="chat_denied_message">The user denied this action.</string>
+    <string name="chat_claude_login_hint">%1$s\n\nLog in from the Terminal (button at the top) and come back to the chat.</string>
+    <string name="chat_acp_no_init">The agent didn’t answer the start request: %1$s</string>
+    <string name="chat_acp_reopen_failed">Couldn’t reopen this conversation: %1$s</string>
+    <string name="chat_acp_refused">The agent refused the request.</string>
+    <string name="chat_acp_option_failed">Couldn’t change %1$s: %2$s</string>
+    <string name="chat_acp_model_failed">Couldn’t change the model: %1$s</string>
+    <string name="chat_acp_login_hint">The agent needs you to log in. Tap &gt;_ at the top, log in on the agent’s screen and come back to the chat.</string>
+    <string name="chat_acp_error">Agent error.</string>
+    <string name="chat_setting_mode">Mode</string>
+    <string name="chat_action">Action</string>
+    <string name="tool_bash">Run command</string>
+    <string name="tool_read">Read file</string>
+    <string name="tool_write">Create file</string>
+    <string name="tool_edit">Edit file</string>
+    <string name="tool_notebook">Edit notebook</string>
+    <string name="tool_glob">Find files</string>
+    <string name="tool_grep">Search text</string>
+    <string name="tool_web_fetch">Open page</string>
+    <string name="tool_web_search">Search the web</string>
+    <string name="tool_todo">Task list</string>
+    <string name="tool_agent">Subagent</string>
+
+    <!-- Instalação de agentes e créditos -->
+    <string name="task_error">ERROR: %1$s</string>
+    <string name="install_heading_install">Installing %1$s</string>
+    <string name="install_heading_update">Updating %1$s</string>
+    <string name="install_ready">✓ %1$s is ready. Opening…</string>
+    <string name="install_failed">✕ Didn’t finish (code %1$s). See the messages above.</string>
+    <string name="about_credits">Jangada — GPL-3.0\nTerminal: Termux terminal-emulator and terminal-view (Apache 2.0)\nLinux: Debian, via proot (GPL-2.0), talloc (LGPL/GPL v3) and libandroid-shmem (BSD 3-Clause), from Termux\nFonts: JetBrains Mono, Noto Sans Symbols and Noto Sans Symbols 2 (SIL OFL 1.1)\nChat with agents: Agent Client Protocol (ACP)</string>
 </resources>

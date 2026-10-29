@@ -30,7 +30,7 @@ class AboutActivity : JangadaActivity() {
         content.addView(text(getString(R.string.about_privacy), 14f, R.color.setup_muted, top = 12))
         content.addView(link(getString(R.string.about_repo), REPO))
         content.addView(link(getString(R.string.about_licenses), "$REPO/blob/main/THIRD_PARTY_NOTICES.md"))
-        content.addView(text(CREDITS, 12f, R.color.setup_muted, top = 20, center = false))
+        content.addView(text(getString(R.string.about_credits), 12f, R.color.setup_muted, top = 20, center = false))
 
         val back = TextView(this).apply {
             setText(R.string.terminal_home_arrow)
@@ -71,10 +71,5 @@ class AboutActivity : JangadaActivity() {
 
     private companion object {
         const val REPO = "https://github.com/JonJonesBR/jangada"
-        const val CREDITS = "Jangada — GPL-3.0\n" +
-            "Terminal: Termux terminal-emulator e terminal-view (Apache 2.0)\n" +
-            "Linux: Debian, via proot (GPL-2.0), talloc (LGPL/GPL v3) e libandroid-shmem (BSD 3-Clause), do Termux\n" +
-            "Fontes: JetBrains Mono, Noto Sans Symbols e Noto Sans Symbols 2 (SIL OFL 1.1)\n" +
-            "Chat com agentes: Agent Client Protocol (ACP)"
     }
 }

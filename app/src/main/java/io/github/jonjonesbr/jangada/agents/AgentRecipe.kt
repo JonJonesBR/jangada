@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada.agents
 
 import android.content.Context
+import io.github.jonjonesbr.jangada.R
 import io.github.jonjonesbr.jangada.linux.LinuxEnv.Companion.WORKSPACE
 import org.json.JSONObject
 import java.util.Locale
@@ -40,21 +41,31 @@ data class AgentRecipe(
     fun description(): String = localized(description)
     fun note(): String? = localized(note).ifEmpty { null }
 
-    /** Instala (ou atualiza) e, dando certo, já abre o agente. */
-    fun installScript(updating: Boolean): String {
+    /** Instala (ou atualiza) e, dando certo, já abre o agente. Os avisos saem no idioma do app. */
+    fun installScript(context: Context, updating: Boolean): String =
+        installScript(
+            updating,
+            heading = context.getString(if (updating) R.string.install_heading_update else R.string.install_heading_install, name),
+            ready = context.getString(R.string.install_ready, name),
+            failed = context.getString(R.string.install_failed, "%s"),
+        )
+
+    /** [failed] leva um "%s" no lugar do código de saída. */
+    fun installScript(updating: Boolean, heading: String, ready: String, failed: String): String {
         val steps = if (updating) update ?: install else install
         val apt = if (requires.isEmpty()) "" else
             "apt-get update && apt-get install -y --no-install-recommends ${requires.joinToString(" ")} && "
-        val title = if (updating) "Atualizando" else "Instalando"
+        // printf com o texto como argumento, nunca como formato (exceto o "%s" do código).
+        val failedFormat = failed.replace("%", "%%").replace("%%s", "%s")
         return """
-            printf '\n== %s %s ==\n\n' ${q(title)} ${q(name)}
+            printf '\n== %s ==\n\n' ${q(heading)}
             ( set -e; $apt$steps )
             status=${'$'}?
             for f in /etc/profile ~/.profile ~/.bashrc; do [ -f "${'$'}f" ] && . "${'$'}f"; done 2>/dev/null; hash -r
             if [ "${'$'}status" -eq 0 ] && command -v ${q(command)} >/dev/null 2>&1; then
-              printf '\n✓ %s pronto. Abrindo...\n\n' ${q(name)}; sleep 1; ${launchScript()}
+              printf '\n%s\n\n' ${q(ready)}; sleep 1; ${launchScript()}
             else
-              printf '\n✕ Não terminou (código %s). Veja as mensagens acima.\n' "${'$'}status"
+              printf '\n'; printf ${q(failedFormat)} "${'$'}status"; printf '\n'
             fi
         """.trimIndent()
     }

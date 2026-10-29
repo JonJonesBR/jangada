@@ -674,7 +674,7 @@ class ChatActivity : JangadaActivity() {
                 item.failed -> "✕"
                 else -> "✓"
             }
-            text = "$mark ${ToolText.label(item.name)}  ${item.summary}"
+            text = "$mark ${ToolText.label(this@ChatActivity, item.name)}  ${item.summary}"
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE

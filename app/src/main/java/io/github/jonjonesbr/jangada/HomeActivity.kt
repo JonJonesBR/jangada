@@ -376,7 +376,7 @@ class HomeActivity : JangadaActivity() {
                 if (task.uninstalling) startUninstall(recipe) else startTask(recipe, task.updating)
             }
             card.findViewById<Button>(R.id.task_terminal).setOnClickListener {
-                openTerminal(recipe.name, if (task.uninstalling) recipe.uninstallScript() else recipe.installScript(task.updating))
+                openTerminal(recipe.name, if (task.uninstalling) recipe.uninstallScript() else recipe.installScript(this, task.updating))
             }
             card.findViewById<Button>(R.id.task_details).setOnClickListener { showLog(recipe, task) }
         }

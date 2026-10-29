@@ -230,4 +230,36 @@
     <string name="chat_exit_not_found">O agente não pôde ser iniciado: o programa (ou o que ele precisa para rodar) não foi encontrado (código 127).</string>
     <string name="chat_exit_no_permission">O agente não pôde ser iniciado: sem permissão para executar (código 126).</string>
     <string name="chat_exit_code">O agente fechou (código %1$d).</string>
+
+    <!-- Chat: mensagens e nomes das ferramentas -->
+    <string name="chat_denied_message">O usuário recusou esta ação.</string>
+    <string name="chat_claude_login_hint">%1$s\n\nFaça login pelo Terminal (botão no topo) e volte para o chat.</string>
+    <string name="chat_acp_no_init">O agente não respondeu ao início: %1$s</string>
+    <string name="chat_acp_reopen_failed">Não consegui reabrir essa conversa: %1$s</string>
+    <string name="chat_acp_refused">O agente recusou o pedido.</string>
+    <string name="chat_acp_option_failed">Não consegui mudar %1$s: %2$s</string>
+    <string name="chat_acp_model_failed">Não consegui mudar o modelo: %1$s</string>
+    <string name="chat_acp_login_hint">O agente precisa de login. Toque em &gt;_ no topo, entre pela tela do agente e volte ao chat.</string>
+    <string name="chat_acp_error">Erro do agente.</string>
+    <string name="chat_setting_mode">Modo</string>
+    <string name="chat_action">Ação</string>
+    <string name="tool_bash">Rodar comando</string>
+    <string name="tool_read">Ler arquivo</string>
+    <string name="tool_write">Criar arquivo</string>
+    <string name="tool_edit">Editar arquivo</string>
+    <string name="tool_notebook">Editar notebook</string>
+    <string name="tool_glob">Procurar arquivos</string>
+    <string name="tool_grep">Procurar no texto</string>
+    <string name="tool_web_fetch">Abrir página</string>
+    <string name="tool_web_search">Pesquisar na web</string>
+    <string name="tool_todo">Lista de tarefas</string>
+    <string name="tool_agent">Subagente</string>
+
+    <!-- Instalação de agentes e créditos -->
+    <string name="task_error">ERRO: %1$s</string>
+    <string name="install_heading_install">Instalando %1$s</string>
+    <string name="install_heading_update">Atualizando %1$s</string>
+    <string name="install_ready">✓ %1$s pronto. Abrindo…</string>
+    <string name="install_failed">✕ Não terminou (código %1$s). Veja as mensagens acima.</string>
+    <string name="about_credits">Jangada — GPL-3.0\nTerminal: Termux terminal-emulator e terminal-view (Apache 2.0)\nLinux: Debian, via proot (GPL-2.0), talloc (LGPL/GPL v3) e libandroid-shmem (BSD 3-Clause), do Termux\nFontes: JetBrains Mono, Noto Sans Symbols e Noto Sans Symbols 2 (SIL OFL 1.1)\nChat com agentes: Agent Client Protocol (ACP)</string>
 </resources>

@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada.chat
 
 import android.util.Log
+import io.github.jonjonesbr.jangada.R
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import org.json.JSONArray
 import org.json.JSONObject
@@ -93,7 +94,7 @@ class AcpChat(
                 .put("clientInfo", JSONObject().put("name", "jangada").put("title", "Jangada").put("version", appVersion)),
         ) { result, error ->
             if (result == null) {
-                add(ChatItem.Info("O agente não respondeu ao início: ${error?.optString("message")}", isError = true))
+                add(ChatItem.Info(context.getString(R.string.chat_acp_no_init, error?.optString("message").orEmpty()), isError = true))
                 return@request
             }
             val caps = result.optJSONObject("agentCapabilities") ?: JSONObject()
@@ -175,7 +176,7 @@ class AcpChat(
                         requireLogin(resume)
                         return@request
                     }
-                    add(ChatItem.Info("Não consegui reabrir essa conversa: ${error.optString("message")}", isError = true))
+                    add(ChatItem.Info(context.getString(R.string.chat_acp_reopen_failed, error.optString("message")), isError = true))
                     sessionId = null
                     newSession()
                     return@request
@@ -236,7 +237,7 @@ class AcpChat(
             if (error != null) {
                 if (isAuthError(error)) requireLogin(sessionId) else add(ChatItem.Info(friendlyError(error), isError = true))
             }
-            else if (result?.optString("stopReason") == "refusal") add(ChatItem.Info("O agente recusou o pedido.", isError = true))
+            else if (result?.optString("stopReason") == "refusal") add(ChatItem.Info(context.getString(R.string.chat_acp_refused), isError = true))
             changed()
         }
     }
@@ -274,12 +275,12 @@ class AcpChat(
             ) { result, error ->
                 if (result != null && result.has("configOptions")) parseConfig(result)
                 else if (error == null) option.current = value
-                else add(ChatItem.Info("Não consegui mudar ${option.name}: ${error.optString("message")}", isError = true))
+                else add(ChatItem.Info(context.getString(R.string.chat_acp_option_failed, option.name, error.optString("message")), isError = true))
                 changed()
             }
             ConfigOption.Source.MODEL -> request("session/set_model", JSONObject().put("sessionId", id).put("modelId", value)) { _, error ->
                 if (error == null) option.current = value
-                else add(ChatItem.Info("Não consegui mudar o modelo: ${error.optString("message")}", isError = true))
+                else add(ChatItem.Info(context.getString(R.string.chat_acp_model_failed, error.optString("message")), isError = true))
                 changed()
             }
             ConfigOption.Source.MODE -> request("session/set_mode", JSONObject().put("sessionId", id).put("modeId", value)) { _, error ->
@@ -310,14 +311,14 @@ class AcpChat(
             val choices = (0 until available.length()).mapNotNull { i ->
                 available.optJSONObject(i)?.let { it.optString("modelId") to it.optString("name").ifEmpty { it.optString("modelId") } }
             }
-            if (choices.isNotEmpty()) list += ConfigOption("model", "Modelo", "model", models.optString("currentModelId"), choices, ConfigOption.Source.MODEL)
+            if (choices.isNotEmpty()) list += ConfigOption("model", context.getString(R.string.chat_setting_model), "model", models.optString("currentModelId"), choices, ConfigOption.Source.MODEL)
         }
         result.optJSONObject("modes")?.let { modes ->
             val available = modes.optJSONArray("availableModes") ?: JSONArray()
             val choices = (0 until available.length()).mapNotNull { i ->
                 available.optJSONObject(i)?.let { it.optString("id") to it.optString("name").ifEmpty { it.optString("id") } }
             }
-            if (choices.isNotEmpty()) list += ConfigOption("mode", "Modo", "mode", modes.optString("currentModeId"), choices, ConfigOption.Source.MODE)
+            if (choices.isNotEmpty()) list += ConfigOption("mode", context.getString(R.string.chat_setting_mode), "mode", modes.optString("currentModeId"), choices, ConfigOption.Source.MODE)
         }
         if (list.isNotEmpty()) {
             configOptions = list
@@ -399,7 +400,7 @@ class AcpChat(
         }
         val toolCall = params.optJSONObject("toolCall") ?: JSONObject()
         val known = tools[toolCall.optString("toolCallId")]
-        val title = toolCall.optString("title").ifEmpty { known?.name ?: "Ação" }
+        val title = toolCall.optString("title").ifEmpty { known?.name ?: context.getString(R.string.chat_action) }
         val summary = summaryOf(toolCall).ifEmpty { known?.summary.orEmpty() }
         val options = params.optJSONArray("options") ?: JSONArray()
         val parsed = (0 until options.length()).mapNotNull { i ->
@@ -522,8 +523,9 @@ class AcpChat(
         val message = error?.optString("message").orEmpty()
         val data = error?.opt("data")?.toString().orEmpty()
         val auth = error?.optInt("code") == -32000 || message.contains("auth", true) || data.contains("auth", true)
-        return if (auth) "O agente precisa de login. Toque em >_ no topo, entre pela tela do agente e volte ao chat."
-        else listOf(message, data).filter { it.isNotEmpty() && it != "null" }.joinToString("\n").ifEmpty { "Erro do agente." }
+        return if (auth) context.getString(R.string.chat_acp_login_hint)
+        else listOf(message, data).filter { it.isNotEmpty() && it != "null" }.joinToString("\n")
+            .ifEmpty { context.getString(R.string.chat_acp_error) }
     }
 
     // ---- JSON-RPC ----

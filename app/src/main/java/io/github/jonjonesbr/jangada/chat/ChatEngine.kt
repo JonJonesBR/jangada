@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada.chat
 
 import android.util.Log
+import io.github.jonjonesbr.jangada.R
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import org.json.JSONArray
@@ -157,7 +158,7 @@ class ChatEngine(
         val response = if (allow) {
             JSONObject().put("behavior", "allow").put("updatedInput", input)
         } else {
-            JSONObject().put("behavior", "deny").put("message", "O usuário recusou esta ação.")
+            JSONObject().put("behavior", "deny").put("message", context.getString(R.string.chat_denied_message))
         }
         send(
             JSONObject().put("type", "control_response").put(
@@ -279,7 +280,7 @@ class ChatEngine(
         val summary = request.optString("description").ifEmpty { ToolText.summary(toolName, input) }
         add(
             ChatItem.Permission(
-                requestId, ToolText.label(toolName), summary,
+                requestId, ToolText.label(context, toolName), summary,
                 listOf(
                     PermissionOption("allow", "", PermissionOption.Kind.ALLOW_ONCE),
                     PermissionOption("always", "", PermissionOption.Kind.ALLOW_ALWAYS),
@@ -292,7 +293,7 @@ class ChatEngine(
 
     private fun friendlyError(text: String): String = when {
         text.contains("login", ignoreCase = true) || text.contains("auth", ignoreCase = true) ->
-            "$text\n\nFaça login pelo Terminal (botão no topo) e volte para o chat."
+            context.getString(R.string.chat_claude_login_hint, text)
         else -> text
     }
 
@@ -315,21 +316,25 @@ fun friendlyModel(id: String?): String? {
     return if (version.isEmpty()) name else "$name ${version.joinToString(".")}"
 }
 
-/** Textos curtos e em português para as ferramentas do agente. */
+/** Textos curtos (traduzidos) para as ferramentas do agente. */
 object ToolText {
-    fun label(name: String): String = when (name) {
-        "Bash" -> "Rodar comando"
-        "Read" -> "Ler arquivo"
-        "Write" -> "Criar arquivo"
-        "Edit", "MultiEdit" -> "Editar arquivo"
-        "NotebookEdit" -> "Editar notebook"
-        "Glob" -> "Procurar arquivos"
-        "Grep" -> "Procurar no texto"
-        "WebFetch" -> "Abrir página"
-        "WebSearch" -> "Pesquisar na web"
-        "TodoWrite" -> "Lista de tarefas"
-        "Task", "Agent" -> "Subagente"
-        else -> name
+    fun label(context: android.content.Context, name: String): String =
+        labelRes(name)?.let { context.getString(it) } ?: name
+
+    /** Texto de cada ferramenta conhecida do Claude Code; null mantém o nome original. */
+    fun labelRes(name: String): Int? = when (name) {
+        "Bash" -> R.string.tool_bash
+        "Read" -> R.string.tool_read
+        "Write" -> R.string.tool_write
+        "Edit", "MultiEdit" -> R.string.tool_edit
+        "NotebookEdit" -> R.string.tool_notebook
+        "Glob" -> R.string.tool_glob
+        "Grep" -> R.string.tool_grep
+        "WebFetch" -> R.string.tool_web_fetch
+        "WebSearch" -> R.string.tool_web_search
+        "TodoWrite" -> R.string.tool_todo
+        "Task", "Agent" -> R.string.tool_agent
+        else -> null
     }
 
     fun summary(name: String, input: JSONObject?): String {

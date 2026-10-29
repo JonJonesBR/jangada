@@ -269,7 +269,7 @@ class TerminalService : Service() {
                     postTasksChanged(throttle = true)
                 }
             }.getOrElse { e ->
-                task.append("ERRO: ${e.message}")
+                task.append(getString(R.string.task_error, e.message.orEmpty()))
                 -1
             }
             task.state = if (exit == 0) AgentTask.State.OK else AgentTask.State.FAILED
