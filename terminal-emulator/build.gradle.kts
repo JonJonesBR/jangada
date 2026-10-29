@@ -9,7 +9,15 @@ android {
     compileSdk = 35
 
     // No GitHub Actions o NDK já vem instalado; usar o que está lá evita download.
-    System.getenv("ANDROID_NDK_HOME")?.let { if (file(it).isDirectory) ndkPath = it }
+    // A versão declarada precisa ser a mesma da pasta, senão o Gradle recusa.
+    System.getenv("ANDROID_NDK_HOME")?.let { file(it) }?.takeIf { it.isDirectory }?.let { ndkDir ->
+        ndkPath = ndkDir.absolutePath
+        ndkVersion = ndkDir.resolve("source.properties").takeIf { it.isFile }
+            ?.readLines()
+            ?.firstOrNull { it.startsWith("Pkg.Revision") }
+            ?.substringAfter("=")?.trim()
+            ?: ndkDir.name
+    }
 
     defaultConfig {
         minSdk = 26
