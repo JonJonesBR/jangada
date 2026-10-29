@@ -57,7 +57,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:textColor="@color/key_active"
+        android:textColor="@color/accent_text"
         android:textSize="13sp"
         android:visibility="gone" />
 
@@ -101,16 +101,25 @@
         <Button
             android:id="@+id/task_retry"
             style="@style/CardTextButton"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:textColor="@color/accent_text"
             android:text="@string/task_retry" />
 
         <Button
             android:id="@+id/task_terminal"
             style="@style/CardTextButton"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:textColor="@color/accent_text"
             android:text="@string/task_terminal" />
 
         <Button
             android:id="@+id/task_details"
             style="@style/CardTextButton"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:textColor="@color/accent_text"
             android:text="@string/task_details" />
     </LinearLayout>
 
@@ -124,7 +133,8 @@
         <Button
             android:id="@+id/primary"
             android:layout_width="wrap_content"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:backgroundTint="@color/key_active"
             android:minWidth="112dp"
             android:textAllCaps="false"
@@ -136,21 +146,23 @@
             android:id="@+id/alternative"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="wrap_content"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:layout_marginStart="4dp"
             android:textAllCaps="false"
-            android:textColor="@color/key_active"
+            android:textColor="@color/accent_text"
             android:visibility="gone" />
 
         <Button
             android:id="@+id/update"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="wrap_content"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:layout_marginStart="4dp"
             android:text="@string/agent_update"
             android:textAllCaps="false"
-            android:textColor="@color/key_active"
+            android:textColor="@color/accent_text"
             android:visibility="gone" />
 
         <View
@@ -161,7 +173,8 @@
         <TextView
             android:id="@+id/site"
             android:layout_width="wrap_content"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:background="?android:attr/selectableItemBackground"
             android:gravity="center"
             android:paddingStart="8dp"

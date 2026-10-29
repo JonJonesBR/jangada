@@ -16,6 +16,7 @@ import android.text.InputType
 import android.text.TextWatcher
 import android.util.Log
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
@@ -51,6 +52,8 @@ class MainActivity : ComponentActivity() {
     lateinit var extraKeys: ExtraKeysBar
         private set
 
+    /** Faixa "já entrou? toque em Chat" que aparece ao voltar do login guiado. */
+    private lateinit var loginBanner: View
     private lateinit var composeBar: View
     private lateinit var composeText: EditText
     /** Texto começando com / ou !: sem corretor e enviado como digitação. */
@@ -150,6 +153,10 @@ class MainActivity : ComponentActivity() {
         // Sessão do Claude Code: botão para ver a mesma conversa no chat.
         findViewById<View>(R.id.terminal_chat).setOnClickListener { switchToChat() }
 
+        loginBanner = findViewById(R.id.login_banner)
+        findViewById<View>(R.id.login_banner_close).setOnClickListener { loginBanner.visibility = View.GONE }
+        showLoginBanner()
+
         // Voltar (ou o botão Início) leva à tela inicial; as sessões continuam rodando.
         findViewById<View>(R.id.home_button).setOnClickListener { goHome() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
@@ -161,6 +168,7 @@ class MainActivity : ComponentActivity() {
      * nova e ficou sem mensagens, o chat também abre numa conversa nova.
      */
     private fun switchToChat() {
+        loginBanner.visibility = View.GONE
         val svc = service ?: return
         val current = session ?: return
         val agent = svc.sessionAgent[current.mHandle] ?: return
@@ -185,7 +193,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        showLoginBanner()
         service?.let { handleIntent(it) }
+    }
+
+    /** Mostra a faixa de volta quando a tela abre vinda do login guiado. O pedido é consumido, como os outros extras. */
+    private fun showLoginBanner() {
+        if (!::loginBanner.isInitialized) return
+        if (intent.getBooleanExtra(EXTRA_LOGIN, false)) {
+            intent.removeExtra(EXTRA_LOGIN)
+            loginBanner.visibility = View.VISIBLE
+        }
     }
 
     override fun onStart() {
@@ -277,7 +295,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Abas das sessões abertas. No Modo Pro aparecem sempre; no Simples,
-     * só quando há mais de uma. Toque troca; segurar fecha; ＋ abre outra.
+     * só quando há mais de uma. Toque troca; segurar ou o ✕ fecha; ＋ abre outra.
      */
     private fun renderTabs() {
         val svc = service ?: return
@@ -288,24 +306,45 @@ class MainActivity : ComponentActivity() {
         tabs.removeAllViews()
         for (item in sessions) {
             val selected = item == session
-            tabs.addView(TextView(this).apply {
-                text = item.mSessionName ?: TerminalService.DEFAULT_TITLE
-                textSize = 13f
-                maxLines = 1
-                setTextColor(getColor(if (selected) R.color.key_text else R.color.term_muted))
+            val name = item.mSessionName ?: TerminalService.DEFAULT_TITLE
+            val color = getColor(if (selected) R.color.key_text else R.color.term_muted)
+            val tab = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
                 setBackgroundResource(if (selected) R.drawable.tab_bg_selected else R.drawable.tab_bg)
-                setPadding(sp(12f), sp(5f), sp(12f), sp(5f))
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                ).apply { marginEnd = sp(6f) }
+                isClickable = true
                 setOnClickListener { show(item) }
                 setOnLongClickListener { confirmClose(item); true }
+            }
+            tab.addView(TextView(this).apply {
+                text = name
+                textSize = 13f
+                maxLines = 1
+                setTextColor(color)
+                setPadding(sp(12f), 0, sp(4f), 0)
             })
+            // ✕ com área de toque de 44dp; pede a mesma confirmação do toque longo.
+            tab.addView(TextView(this).apply {
+                text = "✕"
+                contentDescription = getString(R.string.tab_close, name)
+                textSize = 13f
+                gravity = Gravity.CENTER
+                minWidth = dp(44f)
+                minHeight = dp(44f)
+                setTextColor(color)
+                setOnClickListener { confirmClose(item) }
+            })
+            tabs.addView(tab, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT,
+            ).apply { marginEnd = sp(6f) })
         }
         tabs.addView(TextView(this).apply {
             text = "＋"
             contentDescription = getString(R.string.tab_new)
             textSize = 16f
+            gravity = Gravity.CENTER
+            minWidth = dp(44f)
+            minHeight = dp(44f)
             setTextColor(getColor(R.color.key_active))
             setPadding(sp(12f), sp(2f), sp(12f), sp(2f))
             setOnClickListener { show(svc.createSession()) }
@@ -474,6 +513,9 @@ class MainActivity : ComponentActivity() {
     private fun sp(value: Float): Int =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics).toInt()
 
+    private fun dp(value: Float): Int =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, resources.displayMetrics).toInt()
+
     private val sessionClient = object : TerminalSessionClient {
         override fun onTextChanged(changedSession: TerminalSession) {
             if (changedSession == session) terminalView.onScreenUpdated()
@@ -524,5 +566,6 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_NEW_SHELL = "new_shell"
         const val EXTRA_AGENT = "agent"
         const val EXTRA_CONVERSATION = "conversation"
+        const val EXTRA_LOGIN = "io.github.jonjonesbr.jangada.LOGIN"
     }
 }

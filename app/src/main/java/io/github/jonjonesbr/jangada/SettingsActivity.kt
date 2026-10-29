@@ -74,14 +74,16 @@ class SettingsActivity : JangadaActivity() {
         }
         val terminalTheme = findViewById<Button>(R.id.settings_terminal_theme)
         fun showTerminalTheme() {
-            terminalTheme.text = getString(R.string.terminal_theme_button, TerminalThemes.names[settings.terminalTheme] ?: "Jangada")
+            val nameRes = TerminalThemes.names[settings.terminalTheme] ?: R.string.theme_default
+            terminalTheme.text = getString(R.string.terminal_theme_button, getString(nameRes))
         }
         showTerminalTheme()
         terminalTheme.setOnClickListener {
             val ids = TerminalThemes.names.keys.toList()
+            val labels = TerminalThemes.names.values.map { getString(it) }.toTypedArray()
             AlertDialog.Builder(this)
                 .setTitle(R.string.terminal_theme_title)
-                .setSingleChoiceItems(TerminalThemes.names.values.toTypedArray(), ids.indexOf(settings.terminalTheme).coerceAtLeast(0)) { dialog, which ->
+                .setSingleChoiceItems(labels, ids.indexOf(settings.terminalTheme).coerceAtLeast(0)) { dialog, which ->
                     settings.terminalTheme = ids[which]
                     dialog.dismiss()
                     showTerminalTheme()

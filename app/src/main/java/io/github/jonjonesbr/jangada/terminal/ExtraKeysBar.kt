@@ -51,26 +51,26 @@ class ExtraKeysBar @JvmOverloads constructor(
         removeAllViews()
 
         val top = newRow()
-        key(top, "ESC") { sendKey(KeyEvent.KEYCODE_ESCAPE) }
-        key(top, "⇧⇥") { sendKey(KeyEvent.KEYCODE_TAB, shift = true) }
-        key(top, "/") { sendText("/") }
-        key(top, "-") { sendText("-") }
-        key(top, "↑") { sendKey(KeyEvent.KEYCODE_DPAD_UP) }
-        key(top, "@") { sendText("@") }
-        key(top, "|") { sendText("|") }
-        key(top, "✎") { onCompose() }
-        key(top, "⌨") { onKeyboard() }
+        key(top, "ESC", R.string.key_desc_esc) { sendKey(KeyEvent.KEYCODE_ESCAPE) }
+        key(top, "⇧⇥", R.string.key_desc_shift_tab) { sendKey(KeyEvent.KEYCODE_TAB, shift = true) }
+        key(top, "/", R.string.key_desc_slash) { sendText("/") }
+        key(top, "-", R.string.key_desc_hyphen) { sendText("-") }
+        key(top, "↑", R.string.key_desc_up) { sendKey(KeyEvent.KEYCODE_DPAD_UP) }
+        key(top, "@", R.string.key_desc_at) { sendText("@") }
+        key(top, "|", R.string.key_desc_pipe) { sendText("|") }
+        key(top, "✎", R.string.key_desc_compose) { onCompose() }
+        key(top, "⌨", R.string.key_desc_keyboard) { onKeyboard() }
 
         val bottom = newRow()
-        ctrlKey = key(bottom, "CTRL") { ctrlOn = !ctrlOn; refresh() }
-        altKey = key(bottom, "ALT") { altOn = !altOn; refresh() }
-        key(bottom, "⇥") { sendKey(KeyEvent.KEYCODE_TAB) }
-        key(bottom, "←") { sendKey(KeyEvent.KEYCODE_DPAD_LEFT) }
-        key(bottom, "↓") { sendKey(KeyEvent.KEYCODE_DPAD_DOWN) }
-        key(bottom, "→") { sendKey(KeyEvent.KEYCODE_DPAD_RIGHT) }
-        key(bottom, "!") { sendText("!") }
-        key(bottom, context.getString(R.string.key_paste)) { onPaste() }
-        key(bottom, context.getString(R.string.key_link)) { onOpenLink() }
+        ctrlKey = key(bottom, "CTRL", R.string.key_desc_ctrl) { ctrlOn = !ctrlOn; refresh() }
+        altKey = key(bottom, "ALT", R.string.key_desc_alt) { altOn = !altOn; refresh() }
+        key(bottom, "⇥", R.string.key_desc_tab) { sendKey(KeyEvent.KEYCODE_TAB) }
+        key(bottom, "←", R.string.key_desc_left) { sendKey(KeyEvent.KEYCODE_DPAD_LEFT) }
+        key(bottom, "↓", R.string.key_desc_down) { sendKey(KeyEvent.KEYCODE_DPAD_DOWN) }
+        key(bottom, "→", R.string.key_desc_right) { sendKey(KeyEvent.KEYCODE_DPAD_RIGHT) }
+        key(bottom, "!", R.string.key_desc_bang) { sendText("!") }
+        key(bottom, context.getString(R.string.key_paste), R.string.key_paste) { onPaste() }
+        key(bottom, context.getString(R.string.key_link), R.string.key_desc_link) { onOpenLink() }
 
         refresh()
     }
@@ -90,7 +90,9 @@ class ExtraKeysBar @JvmOverloads constructor(
 
     private fun refresh() {
         ctrlKey?.setTextColor(if (ctrlOn) activeColor else textColor)
+        ctrlKey?.isSelected = ctrlOn
         altKey?.setTextColor(if (altOn) activeColor else textColor)
+        altKey?.isSelected = altOn
     }
 
     private fun sendKey(keyCode: Int, shift: Boolean = false) {
@@ -113,9 +115,11 @@ class ExtraKeysBar @JvmOverloads constructor(
         return row
     }
 
-    private fun key(row: LinearLayout, label: String, onClick: () -> Unit): TextView {
+    /** Tecla com descrição para o leitor de tela (o rótulo pode ser só um símbolo). */
+    private fun key(row: LinearLayout, label: String, description: Int, onClick: () -> Unit): TextView {
         val tv = TextView(context).apply {
             text = label
+            contentDescription = context.getString(description)
             gravity = Gravity.CENTER
             maxLines = 1
             setTextColor(textColor)

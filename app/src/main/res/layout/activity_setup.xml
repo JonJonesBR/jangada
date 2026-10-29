@@ -137,9 +137,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end"
+                android:minHeight="48dp"
                 android:text="@string/setup_copy_log"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:textColor="@color/accent_text" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

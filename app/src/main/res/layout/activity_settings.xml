@@ -77,7 +77,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:minHeight="48dp"
+                android:textColor="@color/accent_text" />
 
             <TextView
                 style="@style/HomeSection"
@@ -198,7 +199,8 @@
                 android:layout_marginTop="8dp"
                 android:text="@string/keys_title"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:minHeight="48dp"
+                android:textColor="@color/accent_text" />
 
             <TextView
                 style="@style/HomeSection"
@@ -218,7 +220,8 @@
                 android:layout_height="wrap_content"
                 android:text="@string/settings_cleanup"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:minHeight="48dp"
+                android:textColor="@color/accent_text" />
 
             <Button
                 android:id="@+id/settings_repair"
@@ -227,7 +230,8 @@
                 android:layout_height="wrap_content"
                 android:text="@string/settings_repair"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:minHeight="48dp"
+                android:textColor="@color/accent_text" />
 
             <Button
                 android:id="@+id/settings_reinstall"
@@ -256,7 +260,8 @@
                 android:layout_height="wrap_content"
                 android:text="@string/backup_export"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:minHeight="48dp"
+                android:textColor="@color/accent_text" />
 
             <Button
                 android:id="@+id/settings_backup_import"
@@ -265,7 +270,8 @@
                 android:layout_height="wrap_content"
                 android:text="@string/backup_import"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:minHeight="48dp"
+                android:textColor="@color/accent_text" />
 
             <Button
                 android:id="@+id/settings_about"
@@ -275,7 +281,8 @@
                 android:layout_marginTop="16dp"
                 android:text="@string/about_title"
                 android:textAllCaps="false"
-                android:textColor="@color/key_active" />
+                android:minHeight="48dp"
+                android:textColor="@color/accent_text" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

@@ -32,10 +32,12 @@ class AboutActivity : JangadaActivity() {
         content.addView(link(getString(R.string.about_licenses), "$REPO/blob/main/THIRD_PARTY_NOTICES.md"))
         content.addView(text(getString(R.string.about_credits), 12f, R.color.setup_muted, top = 20, center = false))
 
+        // A Sobre só abre a partir dos Ajustes, então o botão volta para eles.
         val back = TextView(this).apply {
-            setText(R.string.terminal_home_arrow)
+            setText(R.string.about_back)
             setTextColor(getColor(R.color.bar_text))
             textSize = 15f
+            minHeight = dp(48)
             setPadding(dp(14), dp(12), dp(14), dp(12))
             setOnClickListener { finish() }
         }
@@ -62,7 +64,8 @@ class AboutActivity : JangadaActivity() {
     private fun link(label: String, url: String) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
         text = label
         isAllCaps = false
-        setTextColor(getColor(R.color.key_active))
+        minHeight = dp(48)
+        setTextColor(getColor(R.color.accent_text))
         setOnClickListener { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }
     }
 

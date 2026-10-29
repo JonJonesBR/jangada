@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada.terminal
 
 import com.termux.terminal.TerminalColors
+import io.github.jonjonesbr.jangada.R
 import java.util.Properties
 
 /** Esquemas de cores do terminal (configurações → Aparência). */
@@ -8,13 +9,13 @@ object TerminalThemes {
 
     const val DEFAULT = "default"
 
-    /** id → nome mostrado. */
-    val names = linkedMapOf(
-        DEFAULT to "Jangada",
-        "sea" to "Mar",
-        "dracula" to "Dracula",
-        "solarized_dark" to "Solarized escuro",
-        "solarized_light" to "Solarized claro",
+    /** id → recurso de texto com o nome mostrado (traduzido em strings.xml). */
+    val names: Map<String, Int> = linkedMapOf(
+        DEFAULT to R.string.theme_default,
+        "sea" to R.string.theme_sea,
+        "dracula" to R.string.theme_dracula,
+        "solarized_dark" to R.string.theme_solarized_dark,
+        "solarized_light" to R.string.theme_solarized_light,
     )
 
     private val solarizedAnsi = mapOf(
