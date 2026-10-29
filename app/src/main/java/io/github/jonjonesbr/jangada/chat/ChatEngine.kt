@@ -94,9 +94,13 @@ class ChatEngine(
         running = true
         changed()
 
+        if (resume != null) sessionId = resume
         thread(name = "chat-stdout") { readOutput(proc) }
         thread(name = "chat-stderr") {
-            proc.errorStream.bufferedReader().useLines { lines -> lines.forEach { Log.d(TAG, "stderr: $it") } }
+            // Ao fechar o chat, a leitura é interrompida de propósito: não é erro.
+            runCatching {
+                proc.errorStream.bufferedReader().useLines { lines -> lines.forEach { Log.d(TAG, "stderr: $it") } }
+            }
         }
         send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
             .put("request", JSONObject().put("subtype", "initialize").put("hooks", JSONObject.NULL)))
@@ -104,7 +108,7 @@ class ChatEngine(
 
     /** Envia uma mensagem do usuário. */
     fun sendMessage(text: String) {
-        if (!running) start(resume = sessionId, continueLast = sessionId == null)
+        if (!running) start(resume = sessionId)
         add(ChatItem.User(text))
         busy = true
         send(
@@ -160,9 +164,11 @@ class ChatEngine(
         }
         thread(name = "chat-stop") {
             // Fechar a entrada já faz o Claude sair; se demorar, força.
-            if (!proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
-                proc.destroy()
-                proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+            runCatching {
+                if (!proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                    proc.destroy()
+                    proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+                }
             }
             then?.let { main.post(it) }
         }
@@ -218,16 +224,9 @@ class ChatEngine(
 
     private fun readOutput(proc: Process) {
         try {
-            proc.inputStream.bufferedReader().useLines { lines ->
-                for (line in lines) {
-                    val json = runCatching { JSONObject(line) }.getOrNull()
-                    if (json == null) {
-                        Log.d(TAG, "stdout: $line")
-                        continue
-                    }
-                    main.post { handle(json) }
-                }
-            }
+            readLines(proc)
+        } catch (e: java.io.IOException) {
+            // Leitura interrompida porque o chat foi fechado: normal.
         } finally {
             val code = runCatching { proc.waitFor() }.getOrDefault(-1)
             main.post {
@@ -237,6 +236,21 @@ class ChatEngine(
                     process = null
                     if (code != 0) add(ChatItem.Info("O Claude Code fechou (código $code).", isError = true))
                     changed()
+                }
+            }
+        }
+    }
+
+    private fun readLines(proc: Process) {
+        run {
+            proc.inputStream.bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    val json = runCatching { JSONObject(line) }.getOrNull()
+                    if (json == null) {
+                        Log.d(TAG, "stdout: $line")
+                        continue
+                    }
+                    main.post { handle(json) }
                 }
             }
         }

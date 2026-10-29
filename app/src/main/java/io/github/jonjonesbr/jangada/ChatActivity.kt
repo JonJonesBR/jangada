@@ -211,7 +211,8 @@ class ChatActivity : ComponentActivity() {
     private fun switchToTerminal() {
         val svc = service ?: return
         val id = engine?.sessionId
-        val resume = if (id != null) "--resume $id" else if (hasPreviousConversation()) "--continue" else ""
+        // Sem id (conversa nova, ainda sem mensagens), abre o Claude numa conversa nova.
+        val resume = if (id != null) "--resume $id" else ""
         val model = settings.chatModel.takeIf { it.isNotEmpty() }?.let { " --model $it" } ?: ""
         svc.closeChat {
             startActivity(

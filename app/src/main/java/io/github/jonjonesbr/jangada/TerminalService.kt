@@ -110,17 +110,19 @@ class TerminalService : Service() {
         val previous = chat
         previous?.stop()
         chat = engine
-        // Ao continuar, mostra o que já foi conversado: do chat anterior (se for a
-        // mesma conversa) ou do arquivo que o Claude Code grava (terminal, histórico).
-        val sameConversation = previous != null && previous.items.isNotEmpty() &&
-            (if (resume != null) previous.sessionId == resume else continueLast)
+        // "Continuar a última" vira o id da conversa mais recente: mais seguro que
+        // o --continue do Claude, que nem sempre enxerga conversas do outro modo.
+        val resumeId = resume ?: if (continueLast) sessionFile(linux, null)?.name?.removeSuffix(".jsonl") else null
+        // Mostra o que já foi conversado: do chat anterior (se for a mesma
+        // conversa) ou do arquivo que o Claude Code grava (terminal, histórico).
+        val sameConversation = previous != null && previous.items.isNotEmpty() && previous.sessionId == resumeId
         if (sameConversation) {
             engine.items.addAll(previous!!.items)
-        } else if (resume != null || continueLast) {
-            sessionFile(linux, resume)?.let { engine.loadHistory(it) }
+        } else if (resumeId != null) {
+            sessionFile(linux, resumeId)?.let { engine.loadHistory(it) }
         }
         goForeground()
-        engine.start(resume = resume, continueLast = continueLast)
+        engine.start(resume = resumeId)
         sessionsChanged()
         return engine
     }
