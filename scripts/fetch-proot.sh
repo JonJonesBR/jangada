@@ -4,7 +4,7 @@
 # Roda no GitHub Actions antes do build; para compilar localmente, rode
 # este script uma vez antes do Gradle.
 #
-# Uso: scripts/fetch-proot.sh [aarch64]
+# Uso: scripts/fetch-proot.sh [aarch64]   (ou --latest para ver versões novas)
 set -euo pipefail
 
 ARCH="${1:-aarch64}"
@@ -13,35 +13,57 @@ DEST="app/src/main/assets/bootstrap/$ARCH"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-echo "Baixando índice de pacotes do Termux ($ARCH)..."
-curl -fsSL --retry 3 "$REPO/dists/stable/main/binary-$ARCH/Packages" -o "$WORK/Packages"
+# Versões fixas (arquivo e SHA-256 do repositório do Termux). Assim o mesmo
+# commit sempre gera o mesmo proot, e uma atualização do Termux não muda o
+# app sem ninguém ver. Para atualizar: rode "scripts/fetch-proot.sh --latest",
+# troque as linhas abaixo e faça um commit só disso.
+PINS_aarch64=(
+  "proot pool/main/p/proot/proot_5.1.107.101_aarch64.deb a28355e9be257e1f87f4e9294b3118470d4fd7a5442fed8b278f4443c83407d7"
+  "libtalloc pool/main/libt/libtalloc/libtalloc_2.5.0_aarch64.deb 556591f43bb773ad8777e1a29522640866a55f95dab71914418b94a8c58ad5a7"
+  "libandroid-shmem pool/main/liba/libandroid-shmem/libandroid-shmem_0.7_aarch64.deb 0da3a24d558b93c92bcf8d611e0826a99ff96e396b148e6cdf33b47c47c57ff6"
+)
 
-# Extrai do índice o campo $2 do pacote $1 (último registro, se houver mais de um).
-field() {
-  awk -v pkg="$1" -v key="$2" '
-    /^Package: / { cur = substr($0, 10) }
-    cur == pkg && index($0, key ": ") == 1 { val = substr($0, length(key) + 3) }
-    END { print val }
-  ' "$WORK/Packages"
+# Mostra as versões mais novas do índice, no formato das linhas acima.
+latest() {
+  curl -fsSL --retry 3 "$REPO/dists/stable/main/binary-$ARCH/Packages" -o "$WORK/Packages"
+  for pkg in proot libtalloc libandroid-shmem; do
+    awk -v pkg="$pkg" '
+      /^Package: / { cur = substr($0, 10) }
+      cur == pkg && /^Filename: / { file = substr($0, 11) }
+      cur == pkg && /^SHA256: / { sha = substr($0, 9) }
+      END { printf "  \"%s %s %s\"\n", pkg, file, sha }
+    ' "$WORK/Packages"
+  done
 }
 
 fetch() {
-  local pkg="$1" file sha
-  file="$(field "$pkg" Filename)"
-  sha="$(field "$pkg" SHA256)"
-  if [ -z "$file" ] || [ -z "$sha" ]; then
-    echo "ERRO: pacote '$pkg' não encontrado no índice do Termux" >&2
+  local pkg="$1" file="$2" sha="$3"
+  echo "-> $pkg (${file##*/})"
+  if ! curl -fsSL --retry 3 "$REPO/$file" -o "$WORK/$pkg.deb"; then
+    echo "ERRO: $file não está mais no repositório do Termux." >&2
+    echo "Versões atuais (troque os PINS deste script):" >&2
+    latest >&2
     exit 1
   fi
-  echo "-> $pkg ($(field "$pkg" Version))"
-  curl -fsSL --retry 3 "$REPO/$file" -o "$WORK/$pkg.deb"
   echo "$sha  $WORK/$pkg.deb" | sha256sum -c --quiet -
   dpkg-deb -x "$WORK/$pkg.deb" "$WORK/root"
 }
 
-fetch proot
-fetch libtalloc
-fetch libandroid-shmem
+if [ "$ARCH" = "--latest" ]; then
+  ARCH=aarch64
+  latest
+  exit 0
+fi
+
+pins="PINS_$ARCH[@]"
+if [ -z "${!pins+x}" ]; then
+  echo "ERRO: sem versões fixadas para $ARCH" >&2
+  exit 1
+fi
+for pin in "${!pins}"; do
+  # shellcheck disable=SC2086
+  fetch $pin
+done
 
 PREFIX="$WORK/root/data/data/com.termux/files/usr"
 rm -rf "$DEST"

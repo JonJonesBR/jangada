@@ -278,6 +278,13 @@ class LinuxEnv(context: Context) {
         const val IMAGE_REPOSITORY = "library/debian"
         const val IMAGE_TAG = "trixie-slim"
         const val IMAGE = "debian:$IMAGE_TAG"
+        /**
+         * Versão exata da imagem (o índice multiarquitetura de debian:trixie-slim).
+         * A tag muda toda semana; o digest garante que toda instalação nova
+         * recebe o mesmo Debian. Para atualizar, troque por um digest novo
+         * da mesma tag, num commit só disso.
+         */
+        const val IMAGE_DIGEST = "sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4"
         const val ARCHITECTURE = "arm64"
         const val BASE_PACKAGES = "ca-certificates curl git less nano procps unzip xz-utils"
         /** Pasta (dentro da home do Debian) onde os agentes trabalham. */

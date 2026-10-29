@@ -86,9 +86,9 @@ object Setup {
     }
 
     private fun download(context: Context, env: LinuxEnv): List<File> {
-        log("Imagem: ${LinuxEnv.IMAGE} (${LinuxEnv.ARCHITECTURE})")
+        log("Imagem: ${LinuxEnv.IMAGE}@${LinuxEnv.IMAGE_DIGEST} (${LinuxEnv.ARCHITECTURE})")
         val hub = DockerHub(LinuxEnv.IMAGE_REPOSITORY)
-        val layers = hub.layers(LinuxEnv.IMAGE_TAG, LinuxEnv.ARCHITECTURE)
+        val layers = hub.layers(LinuxEnv.IMAGE_DIGEST, LinuxEnv.ARCHITECTURE)
         layers.firstOrNull { !it.mediaType.contains("gzip") }?.let {
             throw IOException("formato de camada não suportado: ${it.mediaType}")
         }

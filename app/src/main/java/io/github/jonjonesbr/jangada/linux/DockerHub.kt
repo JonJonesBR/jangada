@@ -23,9 +23,12 @@ class DockerHub(private val repository: String) {
 
     private var token: String? = null
 
-    /** Lista as camadas da imagem [tag] para a arquitetura [architecture] (ex.: "arm64"). */
-    fun layers(tag: String, architecture: String): List<Layer> {
-        var manifest = manifest(tag)
+    /**
+     * Lista as camadas da imagem [reference] (tag ou digest "sha256:...") para
+     * a arquitetura [architecture] (ex.: "arm64").
+     */
+    fun layers(reference: String, architecture: String): List<Layer> {
+        var manifest = manifest(reference)
         val list = manifest.optJSONArray("manifests")
         if (list != null) {
             var digest: String? = null
@@ -68,20 +71,26 @@ class DockerHub(private val repository: String) {
         } finally {
             connection.disconnect()
         }
-        val actual = "sha256:" + digest.digest().joinToString("") { "%02x".format(it) }
+        val actual = hex(digest.digest())
         if (actual != layer.digest) {
             dest.delete()
             throw IOException("arquivo corrompido no download (esperado ${layer.digest}, veio $actual)")
         }
     }
 
+    /** Pedido por digest: confere se o conteúdo recebido é mesmo aquele. */
     private fun manifest(reference: String): JSONObject {
         val connection = request("$REGISTRY/v2/$repository/manifests/$reference", MANIFEST_TYPES)
-        try {
-            return JSONObject(connection.inputStream.bufferedReader().readText())
+        val bytes = try {
+            connection.inputStream.use { it.readBytes() }
         } finally {
             connection.disconnect()
         }
+        if (reference.startsWith("sha256:")) {
+            val actual = sha256(bytes)
+            if (actual != reference) throw IOException("manifesto diferente do esperado ($reference, veio $actual)")
+        }
+        return JSONObject(String(bytes, Charsets.UTF_8))
     }
 
     /**
@@ -143,6 +152,10 @@ class DockerHub(private val repository: String) {
     }
 
     companion object {
+        internal fun sha256(bytes: ByteArray): String = hex(MessageDigest.getInstance("SHA-256").digest(bytes))
+
+        private fun hex(digest: ByteArray) = "sha256:" + digest.joinToString("") { "%02x".format(it) }
+
         private const val REGISTRY_HOST = "registry-1.docker.io"
         private const val REGISTRY = "https://$REGISTRY_HOST"
         private const val AUTH_URL = "https://auth.docker.io/token"
