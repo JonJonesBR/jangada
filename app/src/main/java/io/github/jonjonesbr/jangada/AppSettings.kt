@@ -46,16 +46,31 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_EXTRA_KEYS, true)
         set(value) = prefs.edit().putBoolean(KEY_EXTRA_KEYS, value).apply()
 
-    private companion object {
-        const val KEY_CPU_AWAKE = "keep_cpu_awake"
-        const val KEY_SCREEN_ON = "keep_screen_on"
-        const val KEY_EXTRA_KEYS = "show_extra_keys"
-        const val KEY_CHAT_EFFORT = "chat_effort"
-        const val KEY_CHAT_MODEL = "chat_model"
-        const val KEY_MODE = "mode"
-        const val MODE_SIMPLE = "simple"
-        const val MODE_PRO = "pro"
-        const val KEY_ENTER_SENDS = "enter_sends"
-        const val KEY_ASK_PERMISSIONS = "ask_permissions"
+    /** Tema das telas do app: "system", "light" ou "dark". */
+    var appTheme: String
+        get() = prefs.getString(KEY_APP_THEME, THEME_SYSTEM) ?: THEME_SYSTEM
+        set(value) = prefs.edit().putString(KEY_APP_THEME, value).apply()
+
+    /** Esquema de cores do terminal (ver TerminalThemes). */
+    var terminalTheme: String
+        get() = prefs.getString(KEY_TERMINAL_THEME, "default") ?: "default"
+        set(value) = prefs.edit().putString(KEY_TERMINAL_THEME, value).apply()
+
+    companion object {
+        const val THEME_SYSTEM = "system"
+        const val THEME_LIGHT = "light"
+        const val THEME_DARK = "dark"
+        private const val KEY_APP_THEME = "app_theme"
+        private const val KEY_TERMINAL_THEME = "terminal_theme"
+        private const val KEY_CPU_AWAKE = "keep_cpu_awake"
+        private const val KEY_SCREEN_ON = "keep_screen_on"
+        private const val KEY_EXTRA_KEYS = "show_extra_keys"
+        private const val KEY_CHAT_EFFORT = "chat_effort"
+        private const val KEY_CHAT_MODEL = "chat_model"
+        private const val KEY_MODE = "mode"
+        private const val MODE_SIMPLE = "simple"
+        private const val MODE_PRO = "pro"
+        private const val KEY_ENTER_SENDS = "enter_sends"
+        private const val KEY_ASK_PERMISSIONS = "ask_permissions"
     }
 }

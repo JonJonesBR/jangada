@@ -8,7 +8,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:background="@color/keys_bg"
+        android:background="@color/bar_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -142,7 +142,7 @@
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/keys_bg"
+        android:background="@color/bar_bg"
         android:paddingStart="8dp"
         android:paddingTop="6dp"
         android:scrollbars="none"
@@ -158,7 +158,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/keys_bg"
+        android:background="@color/bar_bg"
         android:gravity="bottom"
         android:orientation="horizontal"
         android:paddingStart="2dp"
@@ -191,7 +191,7 @@
             android:paddingTop="8dp"
             android:paddingEnd="12dp"
             android:paddingBottom="8dp"
-            android:textColor="@color/key_text"
+            android:textColor="@color/setup_text"
             android:textColorHint="@color/setup_muted"
             android:textSize="16sp" />
 

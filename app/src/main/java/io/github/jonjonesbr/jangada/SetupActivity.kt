@@ -20,7 +20,7 @@ import io.github.jonjonesbr.jangada.linux.Setup
  * um toque, mostra o progresso em linguagem simples e guarda os detalhes
  * técnicos atrás de um botão.
  */
-class SetupActivity : ComponentActivity() {
+class SetupActivity : JangadaActivity() {
 
     private lateinit var steps: Map<Setup.Step, TextView>
     private lateinit var progress: ProgressBar

@@ -37,6 +37,7 @@ import io.github.jonjonesbr.jangada.terminal.ExtraKeysBar
 import io.github.jonjonesbr.jangada.terminal.JangadaViewClient
 import io.github.jonjonesbr.jangada.terminal.Links
 import io.github.jonjonesbr.jangada.terminal.TerminalFonts
+import io.github.jonjonesbr.jangada.terminal.TerminalThemes
 
 /**
  * A tela do terminal. As sessões moram no [TerminalService], então
@@ -198,6 +199,16 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         screenVisible = true
+        applyTerminalTheme()
+    }
+
+    /** Cores do terminal escolhidas nas configurações (vale para todas as abas). */
+    private fun applyTerminalTheme() {
+        if (!::terminalView.isInitialized) return
+        TerminalThemes.apply(appSettings.terminalTheme)
+        service?.sessions?.forEach { it.emulator?.mColors?.reset() }
+        session?.emulator?.mColors?.reset()
+        terminalView.invalidate()
     }
 
     override fun onPause() {
@@ -281,7 +292,7 @@ class MainActivity : ComponentActivity() {
                 text = item.mSessionName ?: TerminalService.DEFAULT_TITLE
                 textSize = 13f
                 maxLines = 1
-                setTextColor(getColor(if (selected) R.color.key_text else R.color.setup_muted))
+                setTextColor(getColor(if (selected) R.color.key_text else R.color.term_muted))
                 setBackgroundResource(if (selected) R.drawable.tab_bg_selected else R.drawable.tab_bg)
                 setPadding(sp(12f), sp(5f), sp(12f), sp(5f))
                 layoutParams = LinearLayout.LayoutParams(
@@ -319,6 +330,7 @@ class MainActivity : ComponentActivity() {
 
     private fun show(newSession: TerminalSession) {
         session = newSession
+        TerminalThemes.apply(appSettings.terminalTheme)
         findViewById<TextView>(R.id.session_title_bar).text = newSession.mSessionName ?: TerminalService.DEFAULT_TITLE
         val agent = service?.sessionAgent?.get(newSession.mHandle)
         val hasChat = agent != null && agents.firstOrNull { it.id == agent }?.hasChat == true

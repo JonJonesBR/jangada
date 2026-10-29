@@ -1,23 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Paleta da jangada: mar à noite, vela de algodão, madeira do casco, espuma. -->
+    <!-- Paleta da jangada: mar à noite, vela de algodão, madeira do casco, espuma.
+         Cores do terminal (sempre escuro). -->
     <color name="terminal_bg">#000000</color>
     <color name="keys_bg">#0E2A33</color>
     <color name="key_text">#F2EDE4</color>
     <color name="key_active">#E9A23B</color>
     <color name="icon_bg">#0E3A4A</color>
-
-    <color name="setup_bg">#0E2A33</color>
-    <color name="setup_text">#F2EDE4</color>
-    <color name="setup_muted">#A9BEC3</color>
-    <color name="setup_done">#7FD1C7</color>
-    <color name="setup_error">#FF9E8A</color>
-    <color name="setup_on_accent">#10232A</color>
-
-    <color name="card_bg">#123844</color>
-    <color name="card_stroke">#1E4D5B</color>
-    <color name="chip_bg">#0B2129</color>
-
     <color name="bubble_user">#1E5566</color>
     <color name="code_bg">#22000000</color>
+    <color name="setup_on_accent">#10232A</color>
+    <color name="term_muted">#A9BEC3</color>
+    <color name="term_card">#123844</color>
+
+    <!-- Telas do app: tema claro (areia e vela). O escuro fica em values-night. -->
+    <color name="setup_bg">#F4F0E7</color>
+    <color name="setup_text">#12303A</color>
+    <color name="setup_muted">#5C6F75</color>
+    <color name="setup_done">#1C8576</color>
+    <color name="setup_error">#C2412B</color>
+    <color name="card_bg">#FFFFFF</color>
+    <color name="card_stroke">#DDD5C5</color>
+    <color name="chip_bg">#EEE8DC</color>
+    <color name="bar_bg">#E7E0D2</color>
+    <color name="bar_text">#12303A</color>
+    <color name="input_bg">#FFFFFF</color>
 </resources>

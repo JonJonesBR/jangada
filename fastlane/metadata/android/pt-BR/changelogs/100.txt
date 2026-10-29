@@ -1,0 +1,1 @@
+Primeira versão pública: Linux Debian no app, catálogo com 10 agentes de IA, chat (Claude Code e agentes ACP) com permissões, anexos e histórico, terminal com abas e temas, login guiado, segundo plano, arquivos do celular, chaves de API com criptografia, backup e limpeza de espaço.

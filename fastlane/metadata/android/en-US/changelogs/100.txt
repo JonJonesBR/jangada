@@ -1,0 +1,1 @@
+First public release: Debian Linux inside the app, catalog with 10 AI agents, chat (Claude Code and ACP agents) with permissions, attachments and history, terminal with tabs and themes, guided login, background work, phone files, encrypted API keys, backup and cleanup.

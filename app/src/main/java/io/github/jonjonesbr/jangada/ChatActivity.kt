@@ -52,7 +52,7 @@ import kotlin.concurrent.thread
  * anexos e a troca para a tela de terminal pelo botão do topo.
  * O Claude Code usa o protocolo dele; os outros agentes, o ACP.
  */
-class ChatActivity : ComponentActivity() {
+class ChatActivity : JangadaActivity() {
 
     private lateinit var list: ListView
     private lateinit var empty: TextView

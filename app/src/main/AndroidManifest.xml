@@ -46,6 +46,11 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".AboutActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Jangada.Setup" />
+
+        <activity
             android:name=".ApiKeysActivity"
             android:exported="false"
             android:theme="@style/Theme.Jangada.Setup" />

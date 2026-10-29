@@ -19,7 +19,7 @@ import androidx.activity.ComponentActivity
  * Chaves de API (Modo Pro): para quem usa os agentes com chave em vez de
  * assinatura. Cada chave vira uma variável de ambiente no Linux do app.
  */
-class ApiKeysActivity : ComponentActivity() {
+class ApiKeysActivity : JangadaActivity() {
 
     private lateinit var store: SecretStore
     private lateinit var list: LinearLayout
@@ -49,11 +49,11 @@ class ApiKeysActivity : ComponentActivity() {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(getColor(R.color.keys_bg))
+            setBackgroundColor(getColor(R.color.bar_bg))
         }
         bar.addView(TextView(this).apply {
             setText(R.string.terminal_home_arrow)
-            setTextColor(getColor(R.color.key_text))
+            setTextColor(getColor(R.color.bar_text))
             textSize = 15f
             setPadding(dp(14), dp(12), dp(14), dp(12))
             setOnClickListener { finish() }

@@ -195,4 +195,34 @@
     <string name="settings_cleanup">Free up space (caches and old versions)</string>
     <string name="settings_cleaning">Freeing up space…</string>
     <string name="settings_cleaned">Done: %1$s MB freed. Agents, logins, conversations and projects were not touched.</string>
+
+    <string name="settings_appearance">Appearance</string>
+    <string name="theme_system">Follow the system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="terminal_theme_button">Terminal colors: %s</string>
+    <string name="terminal_theme_title">Terminal colors</string>
+    <string name="terminal_theme_note">With a light terminal, use a light theme inside the agents too (in Claude Code: /theme).</string>
+    <string name="settings_nothing_to_clean">There was nothing to clean: caches are already empty.</string>
+    <string name="settings_backup">Backup</string>
+    <string name="backup_intro">Save your projects (and, if you want, the agents’ settings and logins) to a file on your phone, to restore after reinstalling Linux or switching phones. Agents themselves are reinstalled from the catalog.</string>
+    <string name="backup_export">Make a backup</string>
+    <string name="backup_import">Restore a backup</string>
+    <string name="backup_choose_title">What goes into the backup?</string>
+    <string name="backup_projects">Only projects (~/projetos)</string>
+    <string name="backup_everything">Projects + agents’ settings and logins</string>
+    <string name="backup_logins_warning">This backup contains your agents’ logins. Keep it in a safe place and don’t share it.</string>
+    <string name="backup_working">Making the backup…</string>
+    <string name="backup_restoring">Restoring…</string>
+    <string name="backup_done">Backup saved (%1$s MB).</string>
+    <string name="backup_restored">Backup restored. If an agent appears as not installed, install it again from the catalog: its settings and login are back.</string>
+    <string name="backup_failed">It didn’t work: %1$s</string>
+    <string name="backup_restore_title">Restore this backup?</string>
+    <string name="backup_restore_message">Files in the backup replace files with the same name inside Linux. Open sessions are closed first.</string>
+    <string name="about_title">About Jangada</string>
+    <string name="about_tagline">AI command-line agents on your Android.</string>
+    <string name="about_version">Version %s</string>
+    <string name="about_repo">Source code on GitHub</string>
+    <string name="about_licenses">Licenses and credits</string>
+    <string name="about_privacy">No ads, no tracking: Jangada sends nothing anywhere. Your conversations go only to the AI services you choose to use.</string>
 </resources>

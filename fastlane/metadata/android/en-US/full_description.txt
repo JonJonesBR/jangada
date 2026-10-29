@@ -1,0 +1,13 @@
+Jangada brings a full Debian Linux inside the app and lets you install, open and talk to the main AI coding agents — Claude Code, Codex, OpenCode, Qwen Code and more — with no root, no computer and no server.
+
+<b>Features</b>
+<ul>
+<li>Agent catalog: install, update and uninstall with one tap.</li>
+<li>Chat with live answers, permission buttons, attachments and history.</li>
+<li>Full terminal with tabs, extra keys and a text box with autocorrect and voice typing.</li>
+<li>Agents keep working in the background.</li>
+<li>Access to your phone files, encrypted API keys and backup.</li>
+<li>Simple and Pro modes, light or dark theme.</li>
+</ul>
+
+No ads, no tracking. Each agent uses your own account or API key with its AI provider.

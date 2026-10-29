@@ -36,7 +36,7 @@ import kotlin.concurrent.thread
  * Instalar e atualizar acontecem aqui mesmo, em segundo plano, com
  * progresso no cartão; o terminal só abre quando você toca em Abrir.
  */
-class HomeActivity : ComponentActivity() {
+class HomeActivity : JangadaActivity() {
 
     private lateinit var linux: LinuxEnv
     private lateinit var recipes: List<AgentRecipe>

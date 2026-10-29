@@ -193,4 +193,34 @@
     <string name="settings_cleanup">Liberar espaço (caches e versões antigas)</string>
     <string name="settings_cleaning">Liberando espaço…</string>
     <string name="settings_cleaned">Pronto: %1$s MB liberados. Agentes, logins, conversas e projetos não foram tocados.</string>
+
+    <string name="settings_appearance">Aparência</string>
+    <string name="theme_system">Seguir o sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Escuro</string>
+    <string name="terminal_theme_button">Cores do terminal: %s</string>
+    <string name="terminal_theme_title">Cores do terminal</string>
+    <string name="terminal_theme_note">Com o terminal claro, use também um tema claro dentro dos agentes (no Claude Code: /theme).</string>
+    <string name="settings_nothing_to_clean">Não havia nada para limpar: os caches já estão vazios.</string>
+    <string name="settings_backup">Backup</string>
+    <string name="backup_intro">Guarde seus projetos (e, se quiser, as configurações e logins dos agentes) num arquivo no celular, para restaurar depois de reinstalar o Linux ou trocar de aparelho. Os agentes em si são reinstalados pelo catálogo.</string>
+    <string name="backup_export">Fazer backup</string>
+    <string name="backup_import">Restaurar backup</string>
+    <string name="backup_choose_title">O que vai no backup?</string>
+    <string name="backup_projects">Só os projetos (~/projetos)</string>
+    <string name="backup_everything">Projetos + configurações e logins dos agentes</string>
+    <string name="backup_logins_warning">Este backup contém os logins dos seus agentes. Guarde num lugar seguro e não compartilhe.</string>
+    <string name="backup_working">Fazendo o backup…</string>
+    <string name="backup_restoring">Restaurando…</string>
+    <string name="backup_done">Backup salvo (%1$s MB).</string>
+    <string name="backup_restored">Backup restaurado. Se algum agente aparecer como não instalado, instale de novo pelo catálogo: as configurações e o login dele já voltaram.</string>
+    <string name="backup_failed">Não deu certo: %1$s</string>
+    <string name="backup_restore_title">Restaurar este backup?</string>
+    <string name="backup_restore_message">Os arquivos do backup substituem os de mesmo nome dentro do Linux. As sessões abertas são fechadas antes.</string>
+    <string name="about_title">Sobre o Jangada</string>
+    <string name="about_tagline">Agentes de IA de linha de comando no seu Android.</string>
+    <string name="about_version">Versão %s</string>
+    <string name="about_repo">Código-fonte no GitHub</string>
+    <string name="about_licenses">Licenças e créditos</string>
+    <string name="about_privacy">Sem anúncios e sem rastreamento: o Jangada não envia nada para lugar nenhum. Suas conversas vão só para os serviços de IA que você escolher usar.</string>
 </resources>

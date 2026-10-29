@@ -66,8 +66,18 @@ jobs:
           prerelease: true
           files: Jangada.apk
 
+      # As novidades da versão vêm do changelog do fastlane (usado também por lojas como o IzzyOnDroid).
+      - name: Novidades da versão
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          code=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | grep -oE '[0-9]+')
+          notes="fastlane/metadata/android/pt-BR/changelogs/$code.txt"
+          [ -f "$notes" ] || notes=CHANGELOG.md
+          echo "RELEASE_NOTES=$notes" >> "$GITHUB_ENV"
+
       - name: Publicar versão (tag v*)
         if: startsWith(github.ref, 'refs/tags/v') && env.HAS_KEYSTORE == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: Jangada.apk
+          body_path: ${{ env.RELEASE_NOTES }}

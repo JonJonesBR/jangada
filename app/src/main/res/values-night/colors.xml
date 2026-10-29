@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Telas do app: tema escuro (mar à noite). -->
+    <color name="setup_bg">#0E2A33</color>
+    <color name="setup_text">#F2EDE4</color>
+    <color name="setup_muted">#A9BEC3</color>
+    <color name="setup_done">#7FD1C7</color>
+    <color name="setup_error">#FF9E8A</color>
+    <color name="card_bg">#123844</color>
+    <color name="card_stroke">#1E4D5B</color>
+    <color name="chip_bg">#0B2129</color>
+    <color name="bar_bg">#0E2A33</color>
+    <color name="bar_text">#F2EDE4</color>
+    <color name="input_bg">#000000</color>
+</resources>

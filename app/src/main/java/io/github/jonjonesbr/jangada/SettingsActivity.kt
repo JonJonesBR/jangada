@@ -4,22 +4,24 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.Button
+import android.widget.RadioGroup
+import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import io.github.jonjonesbr.jangada.linux.Fs
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Setup
+import io.github.jonjonesbr.jangada.terminal.TerminalThemes
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.concurrent.thread
-import android.widget.RadioGroup
-import android.widget.Switch
-import androidx.activity.ComponentActivity
 
 /** Configurações: modo Simples/Pro, Enter envia e permissões do chat. */
-class SettingsActivity : ComponentActivity() {
+class SettingsActivity : JangadaActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +57,45 @@ class SettingsActivity : ComponentActivity() {
         val effort = findViewById<RadioGroup>(R.id.settings_effort_group)
         effort.check(efforts.entries.firstOrNull { it.value == settings.chatEffort }?.key ?: R.id.effort_default)
         effort.setOnCheckedChangeListener { _, id -> settings.chatEffort = efforts[id] ?: "" }
+
+        // ---- Aparência ----
+        val themes = mapOf(
+            R.id.theme_system to AppSettings.THEME_SYSTEM, R.id.theme_light to AppSettings.THEME_LIGHT,
+            R.id.theme_dark to AppSettings.THEME_DARK,
+        )
+        val appTheme = findViewById<RadioGroup>(R.id.settings_app_theme)
+        appTheme.check(themes.entries.firstOrNull { it.value == settings.appTheme }?.key ?: R.id.theme_system)
+        appTheme.setOnCheckedChangeListener { _, id ->
+            val chosen = themes[id] ?: AppSettings.THEME_SYSTEM
+            if (chosen == settings.appTheme) return@setOnCheckedChangeListener
+            settings.appTheme = chosen
+            JangadaActivity.themeGeneration++
+            recreate()
+        }
+        val terminalTheme = findViewById<Button>(R.id.settings_terminal_theme)
+        fun showTerminalTheme() {
+            terminalTheme.text = getString(R.string.terminal_theme_button, TerminalThemes.names[settings.terminalTheme] ?: "Jangada")
+        }
+        showTerminalTheme()
+        terminalTheme.setOnClickListener {
+            val ids = TerminalThemes.names.keys.toList()
+            AlertDialog.Builder(this)
+                .setTitle(R.string.terminal_theme_title)
+                .setSingleChoiceItems(TerminalThemes.names.values.toTypedArray(), ids.indexOf(settings.terminalTheme).coerceAtLeast(0)) { dialog, which ->
+                    settings.terminalTheme = ids[which]
+                    dialog.dismiss()
+                    showTerminalTheme()
+                    if (ids[which] == "solarized_light") Toast.makeText(this, R.string.terminal_theme_note, Toast.LENGTH_LONG).show()
+                }
+                .show()
+        }
+
+        // ---- Backup e Sobre ----
+        findViewById<View>(R.id.settings_backup_export).setOnClickListener { chooseBackup() }
+        findViewById<View>(R.id.settings_backup_import).setOnClickListener { pickBackup() }
+        findViewById<View>(R.id.settings_about).setOnClickListener {
+            startActivity(Intent(this, AboutActivity::class.java))
+        }
 
         // ---- Avançado (Pro) ----
         bindSwitch(R.id.settings_cpu_awake, settings.keepCpuAwake) { settings.keepCpuAwake = it }
@@ -110,10 +151,78 @@ class SettingsActivity : ComponentActivity() {
             runOnUiThread {
                 progress.dismiss()
                 if (isDestroyed) return@runOnUiThread
+                val message = if (freed < 1_048_576) getString(R.string.settings_nothing_to_clean)
+                else getString(R.string.settings_cleaned, (freed / 1_048_576).toString())
                 AlertDialog.Builder(this)
-                    .setMessage(getString(R.string.settings_cleaned, (freed / 1_048_576).toString()))
+                    .setMessage(message)
                     .setPositiveButton(android.R.string.ok, null)
                     .show()
+                showLinuxSize()
+            }
+        }
+    }
+
+    // ---- Backup ----
+
+    private var backupEverything = false
+
+    private fun chooseBackup() {
+        val options = arrayOf(getString(R.string.backup_projects), getString(R.string.backup_everything))
+        AlertDialog.Builder(this)
+            .setTitle(R.string.backup_choose_title)
+            .setItems(options) { _, which ->
+                backupEverything = which == 1
+                val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date())
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("application/gzip")
+                    .putExtra(Intent.EXTRA_TITLE, "jangada-backup-$stamp.tar.gz")
+                runCatching { startActivityForResult(intent, REQUEST_EXPORT) }
+            }
+            .show()
+    }
+
+    private fun pickBackup() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        runCatching { startActivityForResult(intent, REQUEST_IMPORT) }
+    }
+
+    @Deprecated("Resposta do seletor de arquivos do Android.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data ?: return
+        if (resultCode != RESULT_OK) return
+        when (requestCode) {
+            REQUEST_EXPORT -> runBackupTask(R.string.backup_working, {
+                val bytes = Backup.export(this, uri, backupEverything)
+                getString(R.string.backup_done, String.format(java.util.Locale.getDefault(), "%.1f", bytes / 1_048_576.0)) +
+                    if (backupEverything) "\n\n" + getString(R.string.backup_logins_warning) else ""
+            })
+            REQUEST_IMPORT -> AlertDialog.Builder(this)
+                .setTitle(R.string.backup_restore_title)
+                .setMessage(R.string.backup_restore_message)
+                .setPositiveButton(R.string.backup_import) { _, _ ->
+                    startService(Intent(this, TerminalService::class.java).setAction(TerminalService.ACTION_EXIT))
+                    runBackupTask(R.string.backup_restoring, {
+                        Thread.sleep(1500)
+                        Backup.restore(this, uri)
+                        getString(R.string.backup_restored)
+                    })
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+    }
+
+    /** Roda backup/restauração em segundo plano com um aviso de progresso. */
+    private fun runBackupTask(workingText: Int, work: () -> String) {
+        val progress = AlertDialog.Builder(this).setMessage(workingText).setCancelable(false).show()
+        thread(name = "backup") {
+            val message = runCatching(work).getOrElse { getString(R.string.backup_failed, it.message ?: it.javaClass.simpleName) }
+            runOnUiThread {
+                progress.dismiss()
+                if (isDestroyed) return@runOnUiThread
+                AlertDialog.Builder(this).setMessage(message).setPositiveButton(android.R.string.ok, null).show()
                 showLinuxSize()
             }
         }
@@ -152,5 +261,10 @@ class SettingsActivity : ComponentActivity() {
                 finish()
             }
         }
+    }
+
+    private companion object {
+        const val REQUEST_EXPORT = 21
+        const val REQUEST_IMPORT = 22
     }
 }

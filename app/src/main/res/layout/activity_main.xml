@@ -33,7 +33,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:paddingEnd="14dp"
-            android:textColor="@color/setup_muted"
+            android:textColor="@color/term_muted"
             android:textSize="14sp" />
 
         <TextView
@@ -91,7 +91,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:background="@drawable/compose_bg"
+            android:background="@drawable/compose_terminal_bg"
             android:hint="@string/compose_hint"
             android:importantForAutofill="no"
             android:inputType="textMultiLine|textCapSentences|textAutoCorrect"
@@ -102,7 +102,7 @@
             android:paddingEnd="12dp"
             android:paddingBottom="8dp"
             android:textColor="@color/key_text"
-            android:textColorHint="@color/setup_muted"
+            android:textColorHint="@color/term_muted"
             android:textSize="16sp" />
 
         <TextView
