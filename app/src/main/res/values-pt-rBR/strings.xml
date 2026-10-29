@@ -22,4 +22,14 @@
     <string name="setup_error_download">O download falhou. Confira sua conexão e tente de novo.</string>
     <string name="setup_error_packages">Não consegui instalar as ferramentas básicas. Confira sua conexão e tente de novo; o Debian já está instalado.</string>
     <string name="setup_error_generic">Algo deu errado. Tente de novo. Se continuar, copie os detalhes técnicos e abra uma issue no GitHub.</string>
+
+    <string name="service_title">Linux rodando</string>
+    <plurals name="service_sessions">
+        <item quantity="one">%d sessão · toque para voltar</item>
+        <item quantity="other">%d sessões · toque para voltar</item>
+    </plurals>
+    <string name="service_exit">Encerrar tudo</string>
+    <string name="channel_sessions">Sessões em andamento</string>
+    <string name="channel_links">Links do terminal</string>
+    <string name="link_notification_title">O terminal quer abrir um link</string>
 </resources>

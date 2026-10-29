@@ -118,7 +118,8 @@ class ExtraKeysBar @JvmOverloads constructor(
             maxLines = 1
             setTextColor(textColor)
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-            setAutoSizeTextTypeUniformWithConfiguration(8, 15, 1, TypedValue.COMPLEX_UNIT_SP)
+            // Mesmo tamanho para todas; só encolhe o que não cabe (ex.: "Colar").
+            setAutoSizeTextTypeUniformWithConfiguration(8, 14, 1, TypedValue.COMPLEX_UNIT_SP)
             isFocusable = false
             setBackgroundResource(rippleRes)
             setOnClickListener {

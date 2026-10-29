@@ -3,10 +3,13 @@ package io.github.jonjonesbr.jangada
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
-import android.graphics.Typeface
+import android.content.ServiceConnection
 import android.net.Uri
 import android.os.Bundle
+import android.os.IBinder
 import android.util.Log
 import android.util.TypedValue
 import android.view.HapticFeedbackConstants
@@ -18,15 +21,16 @@ import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalView
+import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.terminal.ExtraKeysBar
 import io.github.jonjonesbr.jangada.terminal.JangadaViewClient
 import io.github.jonjonesbr.jangada.terminal.Links
-import io.github.jonjonesbr.jangada.linux.LinuxEnv
-import java.io.File
+import io.github.jonjonesbr.jangada.terminal.TerminalFonts
 
 /**
- * O terminal. Quando o Linux já está instalado, abre direto no Debian;
- * se ainda não está, manda para a tela de preparação.
+ * A tela do terminal. As sessões moram no [TerminalService], então
+ * continuam rodando quando a tela fecha; aqui só mostramos a atual.
+ * Se o Linux ainda não está instalado, manda para a tela de preparação.
  */
 class MainActivity : ComponentActivity() {
 
@@ -35,8 +39,9 @@ class MainActivity : ComponentActivity() {
     lateinit var extraKeys: ExtraKeysBar
         private set
 
+    private var service: TerminalService? = null
     private var session: TerminalSession? = null
-    private lateinit var linux: LinuxEnv
+    private var screenVisible = false
     private var fontSizePx = 0
     private var minFontPx = 0
     private var maxFontPx = 0
@@ -46,7 +51,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        linux = LinuxEnv(this)
+        val linux = LinuxEnv(this)
         if (linux.isDeviceSupported && !linux.isReady) {
             startActivity(Intent(this, SetupActivity::class.java))
             finish()
@@ -56,7 +61,6 @@ class MainActivity : ComponentActivity() {
         if (linux.isReady) runCatching { linux.installBootstrap() }
 
         setContentView(R.layout.activity_main)
-
         terminalView = findViewById(R.id.terminal_view)
         extraKeys = findViewById(R.id.extra_keys)
 
@@ -66,7 +70,7 @@ class MainActivity : ComponentActivity() {
 
         terminalView.setTerminalViewClient(JangadaViewClient(this))
         terminalView.setTextSize(fontSizePx) // precisa vir antes de setTypeface()
-        terminalView.setTypeface(Typeface.MONOSPACE)
+        terminalView.setTypeface(TerminalFonts.load(this))
         terminalView.keepScreenOn = true
 
         extraKeys.attach(
@@ -76,44 +80,67 @@ class MainActivity : ComponentActivity() {
             onKeyboard = ::showKeyboard,
         )
 
-        // Voltar não encerra o shell: só manda o app para o fundo.
+        // Voltar não encerra nada: só manda o app para o fundo.
         onBackPressedDispatcher.addCallback(this) { moveTaskToBack(true) }
-
-        startSession()
-        terminalView.post { showKeyboard() }
     }
 
-    override fun onDestroy() {
-        session?.finishIfRunning()
-        super.onDestroy()
+    override fun onStart() {
+        super.onStart()
+        if (!::terminalView.isInitialized) return
+        val intent = Intent(this, TerminalService::class.java)
+        startService(intent)
+        bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
-    /** Cria (ou recria) a sessão: Debian quando instalado, shell do Android como reserva. */
-    fun startSession() {
-        session?.finishIfRunning()
-        val newSession = if (linux.isReady) debianSession() else androidSession()
+    override fun onResume() {
+        super.onResume()
+        screenVisible = true
+    }
+
+    override fun onPause() {
+        screenVisible = false
+        super.onPause()
+    }
+
+    override fun onStop() {
+        service?.let {
+            it.screenClient = null
+            it.screenLinkOpener = null
+            it.onExit = null
+            unbindService(connection)
+        }
+        service = null
+        super.onStop()
+    }
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            val svc = (binder as TerminalService.LocalBinder).service
+            service = svc
+            svc.screenClient = sessionClient
+            svc.screenLinkOpener = { url -> if (screenVisible) { openUrl(url); true } else false }
+            svc.onExit = { finishAndRemoveTask() }
+            val current = svc.sessions.lastOrNull() ?: svc.createSession()
+            show(current)
+            terminalView.post { showKeyboard() }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            service = null
+        }
+    }
+
+    private fun show(newSession: TerminalSession) {
         session = newSession
         terminalView.attachSession(newSession)
+        terminalView.onScreenUpdated()
     }
 
-    private fun debianSession(): TerminalSession {
-        val argv = linux.prootArgv(linux.loginCommand())
-        return TerminalSession(argv[0], filesDir.absolutePath, argv, linux.hostEnv(), TRANSCRIPT_ROWS, sessionClient)
-    }
-
-    private fun androidSession(): TerminalSession {
-        val home = File(filesDir, "home").apply { mkdirs() }
-        val env = arrayOf(
-            "TERM=xterm-256color",
-            "COLORTERM=truecolor",
-            "HOME=${home.absolutePath}",
-            "TMPDIR=${cacheDir.absolutePath}",
-            "PATH=/system/bin:/system/xbin",
-            "LANG=en_US.UTF-8",
-            "ANDROID_DATA=/data",
-            "ANDROID_ROOT=/system",
-        )
-        return TerminalSession("/system/bin/sh", home.absolutePath, arrayOf("-sh"), env, TRANSCRIPT_ROWS, sessionClient)
+    /** Recria a sessão depois de um "exit" (Enter na tela de processo encerrado). */
+    fun startSession() {
+        val svc = service ?: return
+        val old = session
+        show(if (old != null) svc.replaceSession(old) else svc.createSession())
     }
 
     fun showKeyboard() {
@@ -138,8 +165,7 @@ class MainActivity : ComponentActivity() {
 
     /** Abre o link mais recente da tela — útil no login dos agentes (OAuth). */
     fun openLastLink() {
-        val transcript = session?.emulator?.screen?.transcriptTextWithFullLinesJoined
-        val url = Links.last(transcript)
+        val url = session?.emulator?.let { Links.lastOnScreen(it) }
         if (url == null) toast(R.string.no_link_found) else openUrl(url)
     }
 
@@ -169,7 +195,7 @@ class MainActivity : ComponentActivity() {
         override fun onTitleChanged(changedSession: TerminalSession) {}
 
         // O próprio emulador escreve "[Process completed - press Enter]";
-        // o Enter é tratado em JangadaViewClient e reinicia o shell.
+        // o Enter é tratado em JangadaViewClient e recria a sessão.
         override fun onSessionFinished(finishedSession: TerminalSession) {}
 
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) = copyToClipboard(text)
@@ -200,7 +226,6 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val TRANSCRIPT_ROWS = 5000
         private const val PREF_FONT_SIZE = "font_size_px"
     }
 }

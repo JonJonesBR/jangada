@@ -25,6 +25,9 @@ class LinuxEnv(context: Context) {
 
     val proot = File(bootstrapDir, "proot")
 
+    /** Pasta (dentro do Debian: /var/lib/jangada/open) onde chegam os links a abrir. */
+    val linkInbox = File(rootfs, "var/lib/jangada/open")
+
     /** Por enquanto o ambiente Linux existe só para celulares ARM de 64 bits. */
     val isDeviceSupported: Boolean
         get() = Build.SUPPORTED_ABIS.contains("arm64-v8a") &&
@@ -108,6 +111,7 @@ class LinuxEnv(context: Context) {
         "HOME=/root", "USER=root", "LOGNAME=root",
         "LANG=C.UTF-8", "TERM=xterm-256color", "COLORTERM=truecolor", "TMPDIR=/tmp",
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "BROWSER=/usr/local/bin/jangada-open",
     )
 
     /** Roda um script dentro do Debian e entrega a saída linha a linha. */
@@ -141,13 +145,37 @@ class LinuxEnv(context: Context) {
         // O apt tenta trocar para o usuário _apt, o que o proot não emula bem.
         val aptConf = File(etc, "apt/apt.conf.d").apply { mkdirs() }
         writeReplacing(File(aptConf, "99jangada"), "APT::Sandbox::User \"root\";\n")
-        // Instaladores como o do Claude Code colocam o programa em ~/.local/bin.
+        refreshIntegration()
+    }
+
+    /**
+     * Peças que ligam o Debian ao app. Reescritas a cada sessão, então
+     * versões novas do app atualizam instalações antigas sem reinstalar.
+     */
+    fun refreshIntegration() {
+        val etc = File(rootfs, "etc")
+        // Instaladores como o do Claude Code colocam o programa em ~/.local/bin;
+        // BROWSER faz os agentes abrirem links pelo app.
         val profileD = File(etc, "profile.d").apply { mkdirs() }
-        writeReplacing(
-            File(profileD, "jangada.sh"),
-            "case \":${'$'}PATH:\" in *\":${'$'}HOME/.local/bin:\"*) ;; " +
-                "*) PATH=\"${'$'}HOME/.local/bin:${'$'}PATH\" ;; esac\nexport PATH\n",
-        )
+        writeReplacing(File(profileD, "jangada.sh"), PROFILE_SCRIPT)
+
+        // jangada-open: entrega um link ao app. Também atende como xdg-open etc.
+        val bin = File(rootfs, "usr/local/bin").apply { mkdirs() }
+        val opener = File(bin, "jangada-open")
+        writeReplacing(opener, OPEN_SCRIPT)
+        Fs.setMode(opener.toPath(), "755".toInt(8))
+        for (alias in listOf("xdg-open", "sensible-browser", "x-www-browser", "www-browser")) {
+            val link = File(bin, alias).toPath()
+            Fs.deleteTree(link)
+            java.nio.file.Files.createSymbolicLink(link, java.nio.file.Paths.get("jangada-open"))
+        }
+        linkInbox.mkdirs()
+
+        // /tmp precisa do "sticky bit" (1777); sem ele o Claude Code desliga recursos.
+        for (tmp in listOf(File(rootfs, "tmp"), File(rootfs, "var/tmp"))) {
+            tmp.mkdirs()
+            runCatching { android.system.Os.chmod(tmp.absolutePath, "1777".toInt(8)) }
+        }
     }
 
     /** Apaga links antes de escrever, para nunca escrever "através" deles. */
@@ -163,5 +191,22 @@ class LinuxEnv(context: Context) {
         const val IMAGE = "debian:$IMAGE_TAG"
         const val ARCHITECTURE = "arm64"
         const val BASE_PACKAGES = "ca-certificates curl git less nano procps unzip xz-utils"
+
+        private const val PROFILE_SCRIPT =
+            "# Gerado pelo Jangada a cada sessão.\n" +
+                "case \":\$PATH:\" in *\":\$HOME/.local/bin:\"*) ;; *) PATH=\"\$HOME/.local/bin:\$PATH\" ;; esac\n" +
+                "export PATH\n" +
+                "export BROWSER=/usr/local/bin/jangada-open\n"
+
+        private const val OPEN_SCRIPT =
+            "#!/bin/sh\n" +
+                "# Abre um link no Android, pelo app Jangada. Gerado pelo Jangada.\n" +
+                "url=\"\$1\"\n" +
+                "if [ -z \"\$url\" ]; then echo \"uso: jangada-open URL\" >&2; exit 1; fi\n" +
+                "dir=/var/lib/jangada/open\n" +
+                "mkdir -p \"\$dir\"\n" +
+                "tmp=\$(mktemp \"\$dir/.link.XXXXXX\") || exit 1\n" +
+                "printf '%s' \"\$url\" > \"\$tmp\"\n" +
+                "mv \"\$tmp\" \"\$dir/link-\$\$-\$(date +%s%N)\"\n"
     }
 }

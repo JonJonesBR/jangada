@@ -4,7 +4,7 @@
 
 *AI command-line agents on Android — Claude Code, Gemini CLI, Codex, OpenCode and more. No root, no PC, no server.*
 
-> Projeto em construção. Status: **Etapa 2 de 7** — Linux dentro do app.
+> Projeto em construção. Status: **Etapa 3 de 7** — segundo plano e login fácil.
 
 ## Como funciona
 
@@ -25,8 +25,8 @@ O app terá dois modos:
 
 - [x] **1. Terminal base** — teclas extras pensadas para agentes, links clicáveis, pinça para a fonte, copiar e colar, APK assinado.
 - [x] **2. Linux dentro do app** — Debian instalado com um toque, com progresso, mensagens claras e retomada se a internet cair.
-- [ ] **3. Catálogo de agentes** — instalar, atualizar e abrir com um toque. Cada agente é uma receita em JSON; adicionar um novo é um pull request.
-- [ ] **4. Sessões que não morrem** — serviço em primeiro plano, várias abas, notificação.
+- [x] **3. Segundo plano e login fácil** — sessões continuam rodando fora da tela; os agentes abrem o navegador sozinhos (login sem copiar e colar); fonte com os símbolos que os agentes usam.
+- [ ] **4. Catálogo de agentes** — instalar, atualizar e abrir com um toque. Cada agente é uma receita em JSON; adicionar um novo é um pull request.
 - [ ] **5. Modo Simples** — chat nativo e tela do agente adaptada, alternando na mesma conversa.
 - [ ] **6. Modo Pro** — abas, chaves de API cifradas, pastas do celular, configurações avançadas.
 - [ ] **7. Lançamento** — temas, backup do ambiente, releases para Obtainium/F-Droid.

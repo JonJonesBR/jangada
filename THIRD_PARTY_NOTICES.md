@@ -10,6 +10,16 @@ mesmo nome do [Termux](https://github.com/termux/termux-app) (commit
 de Jack Palevich. O código-fonte Java/C dessas pastas não foi modificado; apenas
 os arquivos de build (`build.gradle.kts`) foram reescritos para este projeto.
 
+## Fontes
+
+Em `app/src/main/res/font/`, sob a SIL Open Font License 1.1 (textos em `licenses/`):
+
+| Fonte | Origem |
+| --- | --- |
+| JetBrains Mono | https://github.com/JetBrains/JetBrainsMono |
+| Noto Sans Symbols 2 | https://github.com/notofonts/symbols |
+| Noto Sans Symbols | https://github.com/notofonts/symbols |
+
 ## Distribuídos dentro do APK (baixados do Termux na hora do build)
 
 O script `scripts/fetch-proot.sh` baixa os pacotes compilados pelo Termux,

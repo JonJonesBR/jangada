@@ -25,7 +25,7 @@ class JangadaViewClient(private val activity: MainActivity) : TerminalViewClient
         val view = activity.terminalView
         val emulator = view.currentSession?.emulator ?: return
         val pos = view.getColumnAndRow(event, true)
-        val url = Links.first(emulator.screen.getWordAtLocation(pos[0], pos[1]))
+        val url = Links.atLocation(emulator, pos[0], pos[1])
         if (url != null) {
             activity.openUrl(url)
             return
