@@ -80,8 +80,8 @@ class MainActivity : ComponentActivity() {
             finish()
             return
         }
-        // Atualiza o proot que veio com esta versão do app.
-        if (linux.isReady) runCatching { linux.installBootstrap() }
+        // Atualiza o proot que veio com esta versão do app (só depois de instalar ou atualizar).
+        if (linux.isReady) runCatching { linux.installBootstrapIfChanged() }
 
         setContentView(R.layout.activity_main)
         terminalView = findViewById(R.id.terminal_view)

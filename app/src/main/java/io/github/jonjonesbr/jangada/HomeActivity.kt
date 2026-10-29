@@ -156,7 +156,7 @@ class HomeActivity : JangadaActivity() {
     private fun afterStorageRequest() {
         if (linux.hasStorageAccess) {
             askedStorage = false
-            runCatching { linux.refreshIntegration() }
+            thread(name = "jangada-integration") { runCatching { linux.refreshIntegration() } }
             if (service?.sessions?.isNotEmpty() == true) {
                 Toast.makeText(this, R.string.storage_new_sessions, Toast.LENGTH_LONG).show()
             }

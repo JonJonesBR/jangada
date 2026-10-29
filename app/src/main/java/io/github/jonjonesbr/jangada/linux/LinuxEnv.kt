@@ -55,6 +55,23 @@ class LinuxEnv(context: Context) {
         baseMarker.delete()
     }
 
+    /**
+     * Como [installBootstrap], mas só quando o app foi instalado ou atualizado
+     * desde a última cópia. Abrir o terminal não copia tudo de novo.
+     */
+    fun installBootstrapIfChanged() {
+        val installed = appInstalledAt()
+        if (installed.isNotEmpty() && proot.exists() && runCatching { bootstrapStamp.readText() }.getOrNull() == installed) return
+        installBootstrap()
+    }
+
+    /** Quando esta versão do app foi instalada (muda a cada atualização, até nos builds de teste). */
+    private fun appInstalledAt(): String = runCatching {
+        app.packageManager.getPackageInfo(app.packageName, 0).lastUpdateTime.toString()
+    }.getOrDefault("")
+
+    private val bootstrapStamp get() = File(bootstrapDir, ".installed")
+
     /** Copia proot e bibliotecas dos assets para uma pasta de onde podem ser executados. */
     fun installBootstrap() {
         val names = app.assets.list(ASSET_DIR) ?: return
@@ -70,6 +87,7 @@ class LinuxEnv(context: Context) {
             // rename por cima funciona mesmo com o proot antigo em execução.
             if (!temp.renameTo(target)) throw java.io.IOException("não consegui instalar $name")
         }
+        appInstalledAt().takeIf { it.isNotEmpty() }?.let { bootstrapStamp.writeText(it) }
     }
 
     /** Variáveis de ambiente do lado Android, para o próprio proot. */
@@ -259,15 +277,20 @@ class LinuxEnv(context: Context) {
     private fun trustWorkspaceInClaude() {
         val file = File(rootfs, "root/.claude.json")
         if (!file.isFile) return
+        // O arquivo pode ser grande: só lê de novo quando ele mudou desde a última conferência.
+        val seen = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
+        if (seen == claudeJsonChecked) return
         val json = runCatching { org.json.JSONObject(file.readText()) }.getOrNull() ?: return
         val projects = json.optJSONObject("projects") ?: org.json.JSONObject().also { json.put("projects", it) }
         val key = "/root/$WORKSPACE"
         val project = projects.optJSONObject(key) ?: org.json.JSONObject().also { projects.put(key, it) }
-        if (project.optBoolean("hasTrustDialogAccepted")) return
-        project.put("hasTrustDialogAccepted", true)
-        val temp = File(file.parentFile, ".claude.json.jangada")
-        temp.writeText(json.toString(2))
-        if (!temp.renameTo(file)) temp.delete()
+        if (!project.optBoolean("hasTrustDialogAccepted")) {
+            project.put("hasTrustDialogAccepted", true)
+            val temp = File(file.parentFile, ".claude.json.jangada")
+            temp.writeText(json.toString(2))
+            if (!temp.renameTo(file)) temp.delete()
+        }
+        claudeJsonChecked = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
     }
 
     /** Apaga links antes de escrever, para nunca escrever "através" deles. */
@@ -277,6 +300,9 @@ class LinuxEnv(context: Context) {
     }
 
     companion object {
+        /** Tamanho e data do ~/.claude.json na última conferência da pasta confiável. */
+        @Volatile private var claudeJsonChecked: String? = null
+
         private const val ASSET_DIR = "bootstrap/aarch64"
         const val IMAGE_REPOSITORY = "library/debian"
         const val IMAGE_TAG = "trixie-slim"
