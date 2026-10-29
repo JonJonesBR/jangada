@@ -35,6 +35,7 @@ import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.chat.AcpChat
 import io.github.jonjonesbr.jangada.chat.AgentChat
 import io.github.jonjonesbr.jangada.chat.Attachment
+import io.github.jonjonesbr.jangada.chat.AuthOption
 import io.github.jonjonesbr.jangada.chat.Attachments
 import io.github.jonjonesbr.jangada.chat.ChatHistory
 import io.github.jonjonesbr.jangada.chat.ChatItem
@@ -510,6 +511,34 @@ class ChatActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Login: pelo navegador (o agente faz e o app só espera) ou pela tela
+     * do agente no terminal. Neste caso, o chat fecha; depois do login, o
+     * botão Chat no topo do terminal traz de volta para cá.
+     */
+    private fun startLogin(card: ChatItem.Login, option: AuthOption) {
+        if (option.kind == AuthOption.Kind.AGENT) {
+            (engine as? AcpChat)?.login(card, option)
+            return
+        }
+        val svc = service ?: return
+        val script = when {
+            option.kind == AuthOption.Kind.TERMINAL -> (engine as? AcpChat)?.terminalLoginScript(option)
+            isClaude -> "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude"
+            else -> recipe?.launchScript()
+        } ?: return
+        Toast.makeText(this, getString(R.string.login_come_back), Toast.LENGTH_LONG).show()
+        svc.closeChat {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_TITLE, agentName)
+                    .putExtra(MainActivity.EXTRA_AGENT, agentId)
+                    .putExtra(MainActivity.EXTRA_SCRIPT, script),
+            )
+            finish()
+        }
+    }
+
     private fun hasPreviousClaudeConversation(): Boolean = ChatHistory.list(linux, limit = 1).isNotEmpty()
 
     private fun goHome() {
@@ -554,6 +583,7 @@ class ChatActivity : ComponentActivity() {
                 is ChatItem.Tool -> row.addView(toolLine(item))
                 is ChatItem.Permission -> row.addView(permissionCard(item))
                 is ChatItem.Plan -> row.addView(planView(item))
+                is ChatItem.Login -> row.addView(loginCard(item))
                 is ChatItem.Info -> row.addView(infoText(item))
             }
             return row
@@ -700,6 +730,70 @@ class ChatActivity : ComponentActivity() {
                     textSize = 13f
                     setPadding(0, dp(4), 0, 0)
                 })
+            }
+            return card
+        }
+
+        /** Cartão que guia o primeiro login do agente. */
+        private fun loginCard(item: ChatItem.Login): View {
+            val card = LinearLayout(this@ChatActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundResource(R.drawable.card_bg)
+                setPadding(dp(16), dp(14), dp(16), dp(12))
+            }
+            card.addView(TextView(this@ChatActivity).apply {
+                text = getString(R.string.login_title, agentName)
+                setTextColor(getColor(R.color.setup_text))
+                textSize = 16f
+                setTypeface(typeface, Typeface.BOLD)
+            })
+            val viaBrowser = item.options.any { it.kind == AuthOption.Kind.AGENT }
+            card.addView(TextView(this@ChatActivity).apply {
+                text = getString(if (viaBrowser) R.string.login_browser_hint else R.string.login_screen_hint)
+                setTextColor(getColor(R.color.setup_muted))
+                textSize = 14f
+                setLineSpacing(0f, 1.15f)
+                setPadding(0, dp(6), 0, dp(8))
+            })
+            when (item.state) {
+                ChatItem.Login.State.WORKING -> card.addView(TextView(this@ChatActivity).apply {
+                    setText(R.string.login_waiting)
+                    setTextColor(getColor(R.color.key_active))
+                    textSize = 14f
+                })
+                ChatItem.Login.State.DONE -> card.addView(TextView(this@ChatActivity).apply {
+                    setText(R.string.login_done)
+                    setTextColor(getColor(R.color.setup_done))
+                    textSize = 14f
+                })
+                else -> {
+                    item.message?.let { message ->
+                        card.addView(TextView(this@ChatActivity).apply {
+                            text = message
+                            setTextColor(getColor(R.color.setup_error))
+                            textSize = 13f
+                            setPadding(0, 0, 0, dp(6))
+                        })
+                    }
+                    for ((index, option) in item.options.withIndex()) {
+                        val primary = index == 0
+                        val button = if (primary) Button(this@ChatActivity) else Button(this@ChatActivity, null, android.R.attr.borderlessButtonStyle)
+                        button.text = when (option.kind) {
+                            AuthOption.Kind.AGENT -> option.name
+                            AuthOption.Kind.TERMINAL -> getString(R.string.login_in_terminal, option.name)
+                            AuthOption.Kind.AGENT_SCREEN -> getString(R.string.login_open_screen, agentName)
+                        }
+                        button.isAllCaps = false
+                        if (primary) {
+                            button.backgroundTintList = ColorStateList.valueOf(getColor(R.color.key_active))
+                            button.setTextColor(getColor(R.color.setup_on_accent))
+                        } else {
+                            button.setTextColor(getColor(R.color.key_active))
+                        }
+                        button.setOnClickListener { startLogin(item, option) }
+                        card.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                    }
+                }
             }
             return card
         }

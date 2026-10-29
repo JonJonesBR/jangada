@@ -171,4 +171,13 @@
 
     <string name="tab_close_title">Fechar esta sessão?</string>
     <string name="tab_new">Novo terminal</string>
+
+    <string name="login_title">Entre na sua conta do %s</string>
+    <string name="login_browser_hint">Só na primeira vez. Toque abaixo: o navegador abre sozinho; autorize e volte para cá.</string>
+    <string name="login_screen_hint">Só na primeira vez. A tela do próprio agente vai abrir: entre por lá e depois toque em Chat, no topo, para voltar para cá.</string>
+    <string name="login_waiting">Esperando você autorizar no navegador…</string>
+    <string name="login_done">✓ Conta conectada. Pode conversar.</string>
+    <string name="login_in_terminal">%s (tela do agente)</string>
+    <string name="login_open_screen">Entrar pela tela do %s</string>
+    <string name="login_come_back">Depois de entrar, toque em Chat no topo para voltar</string>
 </resources>

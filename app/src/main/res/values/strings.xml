@@ -173,4 +173,13 @@
 
     <string name="tab_close_title">Close this session?</string>
     <string name="tab_new">New terminal</string>
+
+    <string name="login_title">Sign in to %s</string>
+    <string name="login_browser_hint">Only the first time. Tap below: the browser opens by itself; authorize and come back here.</string>
+    <string name="login_screen_hint">Only the first time. The agent’s own screen will open: sign in there, then tap Chat at the top to come back here.</string>
+    <string name="login_waiting">Waiting for you to authorize in the browser…</string>
+    <string name="login_done">✓ Signed in. You can talk now.</string>
+    <string name="login_in_terminal">%s (agent screen)</string>
+    <string name="login_open_screen">Sign in on the %s screen</string>
+    <string name="login_come_back">After signing in, tap Chat at the top to come back</string>
 </resources>

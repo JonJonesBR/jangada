@@ -85,7 +85,14 @@ class AcpChat(
     private var canList = false
     private var imageSupport = false
     private var agentTitle: String? = null
+    /** Jeitos de entrar na conta que o agente informou no início. */
+    private var authOptions: List<AuthOption> = emptyList()
+    /** Conversa a reabrir depois do login. */
+    private var resumeAfterLogin: String? = null
+    private var loginCard: ChatItem.Login? = null
     private var lastPost = 0L
+    /** Últimas linhas de erro do agente, mostradas se ele fechar sozinho. */
+    private val stderrTail = ArrayDeque<String>()
 
     /** Inicia o agente; com [resume], recarrega essa conversa (se o agente suportar). */
     fun start(resume: String? = null) {
@@ -103,13 +110,23 @@ class AcpChat(
         thread(name = "acp-stdout") { readOutput(proc) }
         thread(name = "acp-stderr") {
             runCatching {
-                proc.errorStream.bufferedReader().useLines { lines -> lines.forEach { Log.d(TAG, "stderr: $it") } }
+                proc.errorStream.bufferedReader().useLines { lines ->
+                    lines.forEach {
+                        Log.d(TAG, "stderr: $it")
+                        synchronized(stderrTail) {
+                            stderrTail.addLast(it)
+                            while (stderrTail.size > 12) stderrTail.removeFirst()
+                        }
+                    }
+                }
             }
         }
 
         val capabilities = JSONObject()
             .put("fs", JSONObject().put("readTextFile", false).put("writeTextFile", false))
             .put("terminal", false)
+            // O app sabe abrir o agente num terminal para o login (tela de terminal do Jangada).
+            .put("auth", JSONObject().put("terminal", true))
         request(
             "initialize",
             JSONObject().put("protocolVersion", 1).put("clientCapabilities", capabilities)
@@ -129,8 +146,59 @@ class AcpChat(
                 listOf(info.optString("title").ifEmpty { info.optString("name") }, info.optString("version"))
                     .filter { it.isNotEmpty() }.joinToString(" ")
             }
+            authOptions = parseAuth(result.optJSONArray("authMethods"))
             openSession(resume)
         }
+    }
+
+    private fun parseAuth(methods: JSONArray?): List<AuthOption> {
+        methods ?: return emptyList()
+        return (0 until methods.length()).mapNotNull { i ->
+            val m = methods.optJSONObject(i) ?: return@mapNotNull null
+            val terminal = m.optString("type") == "terminal"
+            val args = m.optJSONArray("args")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
+            val env = m.optJSONObject("env")?.let { e -> e.keys().asSequence().associateWith { e.optString(it) } } ?: emptyMap()
+            AuthOption(
+                m.optString("id"), m.optString("name").ifEmpty { m.optString("id") }, m.optString("description"),
+                if (terminal) AuthOption.Kind.TERMINAL else AuthOption.Kind.AGENT, args, env,
+            )
+        }
+    }
+
+    /** Mostra o cartão de login (uma vez) com os jeitos de entrar. */
+    private fun requireLogin(resume: String?) {
+        resumeAfterLogin = resume
+        if (loginCard?.state == ChatItem.Login.State.WAITING) return
+        val options = authOptions.ifEmpty {
+            listOf(AuthOption("screen", "", "", AuthOption.Kind.AGENT_SCREEN))
+        }
+        loginCard = ChatItem.Login(options).also { add(it) }
+    }
+
+    /** Login pedido pelo app ao agente (ele abre o navegador; o app abre o link). */
+    fun login(card: ChatItem.Login, option: AuthOption) {
+        if (option.kind != AuthOption.Kind.AGENT) return
+        card.state = ChatItem.Login.State.WORKING
+        card.message = null
+        changed()
+        request("authenticate", JSONObject().put("methodId", option.id)) { _, error ->
+            if (error != null) {
+                card.state = ChatItem.Login.State.FAILED
+                card.message = error.optString("message")
+                changed()
+                return@request
+            }
+            card.state = ChatItem.Login.State.DONE
+            changed()
+            openSession(resumeAfterLogin)
+        }
+    }
+
+    /** Comando para entrar pela tela de terminal (método "terminal" do agente). */
+    fun terminalLoginScript(option: AuthOption): String {
+        val exports = option.env.entries.joinToString("") { (k, v) -> "export $k=${io.github.jonjonesbr.jangada.agents.AgentRecipe.q(v)}; " }
+        val args = option.args.joinToString(" ") { io.github.jonjonesbr.jangada.agents.AgentRecipe.q(it) }
+        return "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && $exports$command $args"
     }
 
     private fun openSession(resume: String?) {
@@ -143,6 +211,10 @@ class AcpChat(
                 result?.let { parseConfig(it) }
                 finishDrafts()
                 if (error != null) {
+                    if (isAuthError(error)) {
+                        requireLogin(resume)
+                        return@request
+                    }
                     add(ChatItem.Info("Não consegui reabrir essa conversa: ${error.optString("message")}", isError = true))
                     sessionId = null
                     newSession()
@@ -160,7 +232,8 @@ class AcpChat(
         val params = JSONObject().put("cwd", "/root/${LinuxEnv.WORKSPACE}").put("mcpServers", JSONArray())
         request("session/new", params) { result, error ->
             if (result == null) {
-                add(ChatItem.Info(friendlyError(error), isError = true))
+                if (isAuthError(error)) requireLogin(null)
+                else add(ChatItem.Info(friendlyError(error), isError = true))
                 return@request
             }
             sessionId = result.optString("sessionId")
@@ -200,7 +273,9 @@ class AcpChat(
         request("session/prompt", JSONObject().put("sessionId", id).put("prompt", blocks)) { result, error ->
             busy = false
             finishDrafts()
-            if (error != null) add(ChatItem.Info(friendlyError(error), isError = true))
+            if (error != null) {
+                if (isAuthError(error)) requireLogin(sessionId) else add(ChatItem.Info(friendlyError(error), isError = true))
+            }
             else if (result?.optString("stopReason") == "refusal") add(ChatItem.Info("O agente recusou o pedido.", isError = true))
             changed()
         }
@@ -367,8 +442,15 @@ class AcpChat(
                     running = false
                     busy = false
                     process = null
+                    val wasReady = ready
                     ready = false
-                    add(ChatItem.Info("O agente fechou (código $code).", isError = code != 0))
+                    val tail = synchronized(stderrTail) { stderrTail.joinToString("\n") }
+                    // Agente que fecha logo no início reclamando de login: mostra o cartão de login.
+                    if (!wasReady && code != 0 && Regex("auth|login|sign.?in|credential", RegexOption.IGNORE_CASE).containsMatchIn(tail)) {
+                        requireLogin(sessionId)
+                    } else {
+                        add(ChatItem.Info(exitMessage(code), isError = code != 0))
+                    }
                 }
             }
         }
@@ -508,6 +590,12 @@ class AcpChat(
         return ""
     }
 
+    private fun isAuthError(error: JSONObject?): Boolean {
+        error ?: return false
+        val text = error.optString("message") + " " + error.opt("data")?.toString().orEmpty()
+        return error.optInt("code") == -32000 || Regex("auth|login|sign.?in|credential|api.?key", RegexOption.IGNORE_CASE).containsMatchIn(text)
+    }
+
     private fun friendlyError(error: JSONObject?): String {
         val message = error?.optString("message").orEmpty()
         val data = error?.opt("data")?.toString().orEmpty()
@@ -559,6 +647,18 @@ class AcpChat(
     private val notifyRunnable = Runnable {
         lastPost = System.currentTimeMillis()
         onChanged?.invoke()
+    }
+
+    /** Explica o código de saída e junta as últimas linhas de erro do agente. */
+    private fun exitMessage(code: Int): String {
+        val reason = when (code) {
+            0 -> "O agente encerrou a conversa."
+            127 -> "O agente não pôde ser iniciado: o programa (ou o que ele precisa para rodar) não foi encontrado (código 127)."
+            126 -> "O agente não pôde ser iniciado: sem permissão para executar (código 126)."
+            else -> "O agente fechou (código $code)."
+        }
+        val tail = synchronized(stderrTail) { stderrTail.joinToString("\n") }
+        return if (code != 0 && tail.isNotBlank()) "$reason\n\n$tail" else reason
     }
 
     private companion object {

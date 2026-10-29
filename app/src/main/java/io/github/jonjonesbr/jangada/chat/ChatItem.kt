@@ -23,6 +23,16 @@ sealed class ChatItem {
         var chosen: PermissionOption? = null
     }
 
+    /**
+     * Cartão de login: o agente precisa que o usuário entre na conta.
+     * Cada opção é um jeito de entrar (pelo navegador, ou pela tela do agente).
+     */
+    class Login(val options: List<AuthOption>) : ChatItem() {
+        enum class State { WAITING, WORKING, DONE, FAILED }
+        var state = State.WAITING
+        var message: String? = null
+    }
+
     /** Plano de trabalho do agente (lista de tarefas que ele vai atualizando). */
     class Plan(var entries: List<PlanEntry>) : ChatItem()
     class Info(val text: String, val isError: Boolean = false) : ChatItem()
@@ -34,6 +44,26 @@ class PermissionOption(val id: String, val label: String, val kind: Kind) {
 }
 
 class PlanEntry(val text: String, val status: String)
+
+/** Um jeito de entrar na conta do agente. */
+class AuthOption(
+    val id: String,
+    val name: String,
+    val description: String,
+    val kind: Kind,
+    /** Para TERMINAL: argumentos extras e variáveis para rodar o agente no modo de login. */
+    val args: List<String> = emptyList(),
+    val env: Map<String, String> = emptyMap(),
+) {
+    enum class Kind {
+        /** O próprio agente faz o login (abre o navegador) a pedido do app. */
+        AGENT,
+        /** O app abre o agente num terminal, no modo de login dele. */
+        TERMINAL,
+        /** Sem instruções do agente: abre a tela normal dele, onde o login acontece. */
+        AGENT_SCREEN,
+    }
+}
 
 /** Arquivo anexado a uma mensagem. Imagens vão como imagem; o resto, como caminho no Linux. */
 class Attachment(

@@ -59,6 +59,8 @@ class ChatEngine(
     private val tools = HashMap<String, ChatItem.Tool>()
     private var requestCounter = 0
     private var lastPost = 0L
+    /** Últimas linhas de erro do Claude, mostradas se ele fechar sozinho. */
+    private val stderrTail = ArrayDeque<String>()
 
     /**
      * Inicia o Claude. [resume] continua uma conversa específica;
@@ -97,7 +99,15 @@ class ChatEngine(
         thread(name = "chat-stderr") {
             // Ao fechar o chat, a leitura é interrompida de propósito: não é erro.
             runCatching {
-                proc.errorStream.bufferedReader().useLines { lines -> lines.forEach { Log.d(TAG, "stderr: $it") } }
+                proc.errorStream.bufferedReader().useLines { lines ->
+                    lines.forEach {
+                        Log.d(TAG, "stderr: $it")
+                        synchronized(stderrTail) {
+                            stderrTail.addLast(it)
+                            while (stderrTail.size > 12) stderrTail.removeFirst()
+                        }
+                    }
+                }
             }
         }
         send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
@@ -261,7 +271,7 @@ class ChatEngine(
                     running = false
                     busy = false
                     process = null
-                    if (code != 0) add(ChatItem.Info("O Claude Code fechou (código $code).", isError = true))
+                    if (code != 0) add(ChatItem.Info(exitMessage(code), isError = true))
                     changed()
                 }
             }
@@ -300,7 +310,14 @@ class ChatEngine(
                 draft = null
                 if (json.optBoolean("is_error")) {
                     val text = json.optString("result").ifEmpty { json.optString("subtype") }
-                    add(ChatItem.Info(friendlyError(text), isError = true))
+                    if (Regex("login|log in|auth|api key|credential", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+                        // Sem login: o cartão leva à tela do Claude, onde o login acontece.
+                        if (items.none { it is ChatItem.Login && it.state == ChatItem.Login.State.WAITING }) {
+                            add(ChatItem.Login(listOf(AuthOption("screen", "", "", AuthOption.Kind.AGENT_SCREEN))))
+                        }
+                    } else {
+                        add(ChatItem.Info(friendlyError(text), isError = true))
+                    }
                 }
                 changed()
             }
@@ -443,6 +460,18 @@ class ChatEngine(
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private fun nextRequestId() = "req_${++requestCounter}_${System.nanoTime().toString(16)}"
+
+    /** Explica o código de saída e junta as últimas linhas de erro do agente. */
+    private fun exitMessage(code: Int): String {
+        val reason = when (code) {
+            0 -> "O agente encerrou a conversa."
+            127 -> "O agente não pôde ser iniciado: o programa (ou o que ele precisa para rodar) não foi encontrado (código 127)."
+            126 -> "O agente não pôde ser iniciado: sem permissão para executar (código 126)."
+            else -> "O agente fechou (código $code)."
+        }
+        val tail = synchronized(stderrTail) { stderrTail.joinToString("\n") }
+        return if (code != 0 && tail.isNotBlank()) "$reason\n\n$tail" else reason
+    }
 
     private companion object {
         const val TAG = "JangadaChat"
