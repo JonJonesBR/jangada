@@ -10,7 +10,9 @@ import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.text.Editable
 import android.text.SpannableStringBuilder
 import android.text.TextUtils
@@ -26,6 +28,7 @@ import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -61,16 +64,22 @@ class ChatActivity : JangadaActivity() {
     private lateinit var subtitle: TextView
     private lateinit var continueChip: TextView
     private lateinit var attachmentsRow: LinearLayout
+    private lateinit var prepareActions: LinearLayout
+    private lateinit var sendButton: View
     private lateinit var settings: AppSettings
     private lateinit var linux: LinuxEnv
     private lateinit var agentId: String
     private var recipe: AgentRecipe? = null
     private val adapter = ChatAdapter()
+    private val handler = Handler(Looper.getMainLooper())
 
     private var service: TerminalService? = null
     private var engine: AgentChat? = null
     private var enterAt = -1
     private val pendingAttachments = mutableListOf<Attachment>()
+
+    /** Adaptador ACP ainda não pronto (instalando, ou falhou): campo de texto e Enviar desligados. */
+    private var preparing = false
 
     private val isClaude get() = agentId == TerminalService.CLAUDE
     private val agentName get() = recipe?.name ?: getString(R.string.chat_title)
@@ -90,13 +99,15 @@ class ChatActivity : JangadaActivity() {
         subtitle = findViewById(R.id.chat_subtitle)
         continueChip = findViewById(R.id.chat_continue)
         attachmentsRow = findViewById(R.id.chat_attachments)
+        prepareActions = findViewById(R.id.chat_prepare_actions)
+        sendButton = findViewById(R.id.chat_send)
         list.adapter = adapter
         findViewById<TextView>(R.id.chat_title).text = agentName
         empty.text = getString(R.string.chat_empty, agentName)
         input.hint = getString(R.string.chat_hint_agent, agentName)
 
         findViewById<View>(R.id.chat_home).setOnClickListener { goHome() }
-        findViewById<View>(R.id.chat_send).setOnClickListener { send() }
+        sendButton.setOnClickListener { send() }
         findViewById<View>(R.id.chat_attach).setOnClickListener { pickAttachment() }
         findViewById<View>(R.id.chat_stop).setOnClickListener { engine?.interrupt() }
         findViewById<View>(R.id.chat_terminal).setOnClickListener { switchToTerminal() }
@@ -169,7 +180,8 @@ class ChatActivity : JangadaActivity() {
 
     /**
      * Alguns agentes falam ACP por um adaptador separado (Codex, Pi). Na
-     * primeira vez, ele é instalado aqui mesmo, com aviso na tela.
+     * primeira vez, ele é instalado aqui mesmo, com aviso na tela. Se outra
+     * tela já estiver instalando o mesmo adaptador, esta só espera o fim.
      */
     private fun ensureAdapter(then: () -> Unit) {
         val spec = recipe?.acp
@@ -181,22 +193,102 @@ class ChatActivity : JangadaActivity() {
             then()
             return
         }
-        empty.visibility = View.VISIBLE
-        list.visibility = View.GONE
-        empty.text = getString(R.string.chat_preparing, agentName)
+        showPreparing()
+        if (!startInstall()) {
+            waitForInstall {
+                showReady()
+                ensureAdapter(then)
+            }
+            return
+        }
+        val id = agentId
         thread(name = "acp-adapter") {
             val log = StringBuilder()
-            val code = runCatching { linux.runBash(script) { line -> log.append(line).append('\n') } }.getOrDefault(-1)
+            val code = try {
+                runCatching { linux.runBash(script) { line -> log.append(line).append('\n') } }.getOrDefault(-1)
+            } finally {
+                finishInstall(id)
+            }
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 if (code == 0) {
-                    empty.text = getString(R.string.chat_empty, agentName)
+                    showReady()
                     then()
                 } else {
-                    empty.text = getString(R.string.chat_prepare_failed, agentName) + "\n\n" + log.lines().takeLast(6).joinToString("\n")
+                    showPrepareFailure(log.toString(), then)
                 }
             }
         }
+    }
+
+    /** Adaptador em instalação: texto de "preparando" e campo de texto desligado. */
+    private fun showPreparing() {
+        setPreparing(true)
+        empty.visibility = View.VISIBLE
+        list.visibility = View.GONE
+        prepareActions.visibility = View.GONE
+        empty.text = getString(R.string.chat_preparing, agentName)
+    }
+
+    /** Adaptador pronto (ou já instalado): volta ao estado normal da tela. */
+    private fun showReady() {
+        setPreparing(false)
+        prepareActions.visibility = View.GONE
+        empty.text = getString(R.string.chat_empty, agentName)
+    }
+
+    /** Falha: últimas linhas do log, com Tentar de novo e Detalhes. O campo segue desligado até dar certo. */
+    private fun showPrepareFailure(log: String, then: () -> Unit) {
+        setPreparing(true)
+        empty.visibility = View.VISIBLE
+        list.visibility = View.GONE
+        empty.text = getString(R.string.chat_prepare_failed, agentName) + "\n\n" + log.lines().takeLast(6).joinToString("\n")
+        prepareActions.visibility = View.VISIBLE
+        findViewById<Button>(R.id.chat_prepare_retry).setOnClickListener { ensureAdapter(then) }
+        findViewById<Button>(R.id.chat_prepare_details).setOnClickListener { showPrepareDetails(log) }
+    }
+
+    /** Log completo da instalação, em texto selecionável (para copiar e mandar para o suporte). */
+    private fun showPrepareDetails(log: String) {
+        val text = TextView(this).apply {
+            text = log.trimEnd().ifBlank { getString(R.string.chat_prepare_failed, agentName) }
+            typeface = Typeface.MONOSPACE
+            textSize = 12f
+            setTextColor(getColor(R.color.setup_text))
+            setTextIsSelectable(true)
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.chat_prepare_details)
+            .setView(ScrollView(this).apply { addView(text) })
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun setPreparing(on: Boolean) {
+        preparing = on
+        input.isEnabled = !on
+        sendButton.isEnabled = !on
+        sendButton.alpha = if (on) 0.4f else 1f
+    }
+
+    /** Marca o adaptador deste agente como em instalação; false se outra tela já a está fazendo. */
+    private fun startInstall(): Boolean = synchronized(installing) { installing.add(agentId) }
+
+    private fun finishInstall(id: String) {
+        synchronized(installing) { installing.remove(id) }
+    }
+
+    private fun isInstalling(): Boolean = synchronized(installing) { agentId in installing }
+
+    /** Confere a cada segundo até a outra instalação terminar, e então segue. */
+    private fun waitForInstall(then: () -> Unit) {
+        handler.postDelayed(object : Runnable {
+            override fun run() {
+                if (isDestroyed) return
+                if (isInstalling()) handler.postDelayed(this, 1000) else then()
+            }
+        }, 1000)
     }
 
     private fun attach(chat: AgentChat) {
@@ -229,15 +321,32 @@ class ChatActivity : JangadaActivity() {
     }
 
     private fun send() {
+        if (preparing) return
         val text = input.text.toString().trim()
         if (text.isEmpty() && pendingAttachments.isEmpty()) return
         val svc = service ?: return
+        val running = engine?.takeIf { it.running }
+        if (running != null) {
+            deliver(running)
+            return
+        }
+        // Chat parado: só abre depois que o adaptador estiver pronto (instala na primeira vez).
+        // O texto fica no campo até lá; se a instalação falhar, nada se perde.
+        ensureAdapter {
+            if (isDestroyed) return@ensureAdapter
+            val chat = engine?.takeIf { it.running }
+                ?: svc.openChat(agentId, resume = engine?.sessionId, restart = true).also { attach(it) }
+            deliver(chat)
+        }
+    }
+
+    /** Manda o texto e os anexos pendentes para o chat e limpa o campo. */
+    private fun deliver(chat: AgentChat) {
+        val text = input.text.toString().trim()
         val files = pendingAttachments.toList()
         input.setText("")
         pendingAttachments.clear()
         renderAttachments()
-        val chat = engine?.takeIf { it.running }
-            ?: svc.openChat(agentId, resume = engine?.sessionId, restart = true).also { attach(it) }
         chat.sendMessage(text, files)
     }
 
@@ -276,9 +385,12 @@ class ChatActivity : JangadaActivity() {
         for (attachment in pendingAttachments.toList()) {
             attachmentsRow.addView(TextView(this).apply {
                 text = (if (attachment.imageBase64 != null) "🖼 " else "📎 ") + attachment.name + "  ✕"
+                contentDescription = getString(R.string.chat_remove_attachment, attachment.name)
                 setTextColor(getColor(R.color.setup_text))
                 textSize = 13f
                 maxLines = 1
+                gravity = Gravity.CENTER_VERTICAL
+                minHeight = dp(48)
                 setBackgroundResource(R.drawable.card_bg)
                 setPadding(dp(12), dp(6), dp(12), dp(6))
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -537,7 +649,8 @@ class ChatActivity : JangadaActivity() {
                 Intent(this, MainActivity::class.java)
                     .putExtra(MainActivity.EXTRA_TITLE, agentName)
                     .putExtra(MainActivity.EXTRA_AGENT, agentId)
-                    .putExtra(MainActivity.EXTRA_SCRIPT, script),
+                    .putExtra(MainActivity.EXTRA_SCRIPT, script)
+                    .putExtra(MainActivity.EXTRA_LOGIN, true),
             )
             finish()
         }
@@ -625,7 +738,7 @@ class ChatActivity : JangadaActivity() {
             setLineSpacing(0f, 1.2f)
             setPadding(dp(4), dp(4), dp(4), dp(4))
             if (!item.streaming) Linkify.addLinks(this, Linkify.WEB_URLS)
-            setLinkTextColor(getColor(R.color.key_active))
+            setLinkTextColor(getColor(R.color.accent_text))
             setOnLongClickListener { copy(item.text); true }
         }
 
@@ -650,7 +763,9 @@ class ChatActivity : JangadaActivity() {
             header.addView(TextView(this@ChatActivity).apply {
                 setText(R.string.chat_copy_code)
                 textSize = 13f
-                setTextColor(getColor(R.color.key_active))
+                setTextColor(getColor(R.color.accent_text))
+                gravity = Gravity.CENTER
+                minHeight = dp(48)
                 setPadding(dp(12), dp(8), dp(12), dp(8))
                 setOnClickListener { copy(part.text) }
             })
@@ -719,7 +834,7 @@ class ChatActivity : JangadaActivity() {
                         button.backgroundTintList = ColorStateList.valueOf(getColor(R.color.key_active))
                         button.setTextColor(getColor(R.color.setup_on_accent))
                     } else {
-                        button.setTextColor(getColor(if (option.allows) R.color.key_active else R.color.setup_error))
+                        button.setTextColor(getColor(if (option.allows) R.color.accent_text else R.color.setup_error))
                     }
                     button.setOnClickListener { engine?.answer(item, option) }
                     buttons.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -758,11 +873,22 @@ class ChatActivity : JangadaActivity() {
                 setPadding(0, dp(6), 0, dp(8))
             })
             when (item.state) {
-                ChatItem.Login.State.WORKING -> card.addView(TextView(this@ChatActivity).apply {
-                    setText(R.string.login_waiting)
-                    setTextColor(getColor(R.color.key_active))
-                    textSize = 14f
-                })
+                ChatItem.Login.State.WORKING -> {
+                    card.addView(TextView(this@ChatActivity).apply {
+                        setText(R.string.login_waiting)
+                        setTextColor(getColor(R.color.accent_text))
+                        textSize = 14f
+                    })
+                    card.addView(
+                        Button(this@ChatActivity, null, android.R.attr.borderlessButtonStyle).apply {
+                            setText(R.string.chat_login_cancel)
+                            isAllCaps = false
+                            setTextColor(getColor(R.color.accent_text))
+                            setOnClickListener { (engine as? AcpChat)?.cancelLogin(item) }
+                        },
+                        LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+                    )
+                }
                 ChatItem.Login.State.DONE -> card.addView(TextView(this@ChatActivity).apply {
                     setText(R.string.login_done)
                     setTextColor(getColor(R.color.setup_done))
@@ -790,7 +916,7 @@ class ChatActivity : JangadaActivity() {
                             button.backgroundTintList = ColorStateList.valueOf(getColor(R.color.key_active))
                             button.setTextColor(getColor(R.color.setup_on_accent))
                         } else {
-                            button.setTextColor(getColor(R.color.key_active))
+                            button.setTextColor(getColor(R.color.accent_text))
                         }
                         button.setOnClickListener { startLogin(item, option) }
                         card.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -879,6 +1005,8 @@ class ChatActivity : JangadaActivity() {
     }
 
     companion object {
+        /** Agentes com o adaptador sendo instalado agora, em qualquer tela do chat (evita instalar em paralelo). */
+        private val installing = HashSet<String>()
         const val EXTRA_AGENT_ID = "agent_id"
         const val EXTRA_RESUME = "resume"
         const val EXTRA_NEW = "new"
