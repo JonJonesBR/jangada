@@ -43,8 +43,10 @@ class SecretStore(context: Context) {
 
     fun remove(name: String) = prefs.edit().remove(name).apply()
 
-    /** Todas as chaves, decifradas, como "NOME=valor" para o ambiente do Linux. */
-    fun environment(): List<String> = names().mapNotNull { name -> get(name)?.let { "$name=$it" } }
+    /** Todas as chaves, decifradas, como "NOME=valor" para o ambiente do Linux (nomes reservados ficam de fora). */
+    fun environment(): List<String> = names()
+        .filterNot { isReserved(it) }
+        .mapNotNull { name -> get(name)?.let { "$name=$it" } }
 
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -64,5 +66,19 @@ class SecretStore(context: Context) {
         private const val ALIAS = "jangada_secrets"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         val VALID_NAME = Regex("""^[A-Z_][A-Z0-9_]{1,63}$""")
+
+        /**
+         * Variáveis que o próprio app e o Linux usam (PATH, HOME...) ou que o
+         * proot lê (LD_*, PROOT_*). Uma chave com esses nomes quebraria o ambiente.
+         */
+        private val RESERVED = setOf(
+            "PATH", "HOME", "USER", "LOGNAME", "LANG", "TERM", "COLORTERM",
+            "TMPDIR", "BROWSER", "SHELL", "PWD",
+        )
+
+        fun isReserved(name: String): Boolean {
+            val upper = name.uppercase()
+            return upper in RESERVED || upper.startsWith("LD_") || upper.startsWith("PROOT_")
+        }
     }
 }

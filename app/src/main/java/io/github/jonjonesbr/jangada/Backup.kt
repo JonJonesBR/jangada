@@ -25,40 +25,65 @@ object Backup {
     /** Grava o backup em [uri] (escolhido pelo usuário). Devolve o tamanho em bytes. */
     fun export(context: Context, uri: Uri, everything: Boolean): Long {
         val linux = LinuxEnv(context)
-        val process = linux.startProcess(if (everything) EVERYTHING else PROJECTS, login = false)
-        val errors = StringBuilder()
-        val stderr = thread { runCatching { errors.append(process.errorStream.bufferedReader().readText()) } }
-        var total = 0L
-        context.contentResolver.openOutputStream(uri)?.use { out ->
-            process.inputStream.use { input ->
-                val buffer = ByteArray(64 * 1024)
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    out.write(buffer, 0, n)
-                    total += n
+        // O destino é aberto antes do processo: se não abrir, nada foi iniciado.
+        val target = context.contentResolver.openOutputStream(uri)
+            ?: throw IOException(context.getString(R.string.backup_error_target))
+        return target.use { out ->
+            val process = linux.startProcess(if (everything) EVERYTHING else PROJECTS, login = false, secrets = false)
+            try {
+                val errors = StringBuilder()
+                val stderr = thread { runCatching { errors.append(process.errorStream.bufferedReader().readText()) } }
+                var total = 0L
+                process.inputStream.use { input ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        out.write(buffer, 0, n)
+                        total += n
+                    }
                 }
+                val code = process.waitFor()
+                stderr.join(2000)
+                // tar sai com 1 quando um arquivo mudou durante a leitura: o backup ainda vale.
+                if (code > 1) {
+                    throw IOException(
+                        errors.lines().lastOrNull { it.isNotBlank() }
+                            ?: context.getString(R.string.backup_error_tar_exit, code),
+                    )
+                }
+                total
+            } finally {
+                // Se algo falhou no meio, não deixa o tar rodando; se já terminou, não faz nada.
+                process.destroy()
             }
-        } ?: throw IOException("não consegui abrir o arquivo de destino")
-        val code = process.waitFor()
-        stderr.join(2000)
-        // tar sai com 1 quando um arquivo mudou durante a leitura: o backup ainda vale.
-        if (code > 1) throw IOException(errors.lines().lastOrNull { it.isNotBlank() } ?: "tar terminou com código $code")
-        return total
+        }
     }
 
     /** Extrai o backup de [uri] dentro da pasta pessoal do Linux. */
     fun restore(context: Context, uri: Uri) {
         val linux = LinuxEnv(context)
-        val process = linux.startProcess("cd /root && tar -xzf -", login = false)
-        val errors = StringBuilder()
-        val stderr = thread { runCatching { errors.append(process.errorStream.bufferedReader().readText()) } }
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            process.outputStream.use { input.copyTo(it, 64 * 1024) }
-        } ?: throw IOException("não consegui abrir o arquivo do backup")
-        val code = process.waitFor()
-        stderr.join(2000)
-        if (code != 0) throw IOException(errors.lines().lastOrNull { it.isNotBlank() } ?: "tar terminou com código $code")
+        // Como no export: o arquivo é aberto antes do processo, e o tar nunca fica rodando à toa.
+        val source = context.contentResolver.openInputStream(uri)
+            ?: throw IOException(context.getString(R.string.backup_error_open_backup))
+        source.use { input ->
+            val process = linux.startProcess("cd /root && tar -xzf -", login = false, secrets = false)
+            try {
+                val errors = StringBuilder()
+                val stderr = thread { runCatching { errors.append(process.errorStream.bufferedReader().readText()) } }
+                process.outputStream.use { input.copyTo(it, 64 * 1024) }
+                val code = process.waitFor()
+                stderr.join(2000)
+                if (code != 0) {
+                    throw IOException(
+                        errors.lines().lastOrNull { it.isNotBlank() }
+                            ?: context.getString(R.string.backup_error_tar_exit, code),
+                    )
+                }
+            } finally {
+                process.destroy()
+            }
+        }
         runCatching { linux.refreshIntegration() }
     }
 }

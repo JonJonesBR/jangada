@@ -55,6 +55,7 @@ class ApiKeysActivity : JangadaActivity() {
             setText(R.string.terminal_home_arrow)
             setTextColor(getColor(R.color.bar_text))
             textSize = 15f
+            minHeight = dp(48)
             setPadding(dp(14), dp(12), dp(14), dp(12))
             setOnClickListener { finish() }
         })
@@ -89,7 +90,8 @@ class ApiKeysActivity : JangadaActivity() {
         list.addView(Button(this, null, android.R.attr.borderlessButtonStyle).apply {
             setText(R.string.keys_add_custom)
             isAllCaps = false
-            setTextColor(getColor(R.color.key_active))
+            minHeight = dp(48)
+            setTextColor(getColor(R.color.accent_text))
             setOnClickListener { askName() }
         })
     }
@@ -124,12 +126,14 @@ class ApiKeysActivity : JangadaActivity() {
         actions.addView(Button(this, null, android.R.attr.borderlessButtonStyle).apply {
             setText(if (saved) R.string.keys_change else R.string.keys_set)
             isAllCaps = false
-            setTextColor(getColor(R.color.key_active))
+            minHeight = dp(48)
+            setTextColor(getColor(R.color.accent_text))
             setOnClickListener { askValue(name) }
         })
         if (saved) actions.addView(Button(this, null, android.R.attr.borderlessButtonStyle).apply {
             setText(R.string.chat_delete)
             isAllCaps = false
+            minHeight = dp(48)
             setTextColor(getColor(R.color.setup_error))
             setOnClickListener {
                 store.remove(name)
@@ -153,7 +157,13 @@ class ApiKeysActivity : JangadaActivity() {
             .setPositiveButton(R.string.keys_save) { _, _ ->
                 val value = field.text.toString().trim()
                 if (value.isEmpty()) return@setPositiveButton
-                store.put(name, value)
+                try {
+                    store.put(name, value)
+                } catch (e: Exception) {
+                    // Falha do Android Keystore: avisa em vez de derrubar o app.
+                    Toast.makeText(this, R.string.api_key_save_failed, Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
                 Toast.makeText(this, R.string.keys_saved_note, Toast.LENGTH_LONG).show()
                 render()
             }
@@ -172,8 +182,13 @@ class ApiKeysActivity : JangadaActivity() {
             .setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(field) })
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val name = field.text.toString().trim().uppercase()
-                if (SecretStore.VALID_NAME.matches(name)) askValue(name)
-                else Toast.makeText(this, R.string.keys_invalid_name, Toast.LENGTH_LONG).show()
+                when {
+                    !SecretStore.VALID_NAME.matches(name) ->
+                        Toast.makeText(this, R.string.keys_invalid_name, Toast.LENGTH_LONG).show()
+                    SecretStore.isReserved(name) ->
+                        Toast.makeText(this, getString(R.string.api_key_reserved, name), Toast.LENGTH_LONG).show()
+                    else -> askValue(name)
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

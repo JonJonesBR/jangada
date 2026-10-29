@@ -134,31 +134,39 @@ class LinuxEnv(context: Context) {
         return args.toTypedArray()
     }
 
-    /** Shell interativo do Debian, com ambiente limpo. */
-    fun loginCommand(): List<String> = guestEnv() + listOf("/bin/bash", "--login")
+    /** Shell interativo do Debian, com ambiente limpo (e as chaves de API, para os agentes). */
+    fun loginCommand(): List<String> = guestEnv(secrets = true) + listOf("/bin/bash", "--login")
 
     /**
      * Roda [script] num bash interativo (lê ~/.bashrc, onde instaladores
      * costumam pôr o PATH) e, ao terminar, continua com um shell normal.
      */
     fun sessionScriptCommand(script: String): List<String> =
-        guestEnv() + listOf("/bin/bash", "--login", "-i", "-c", script + "\nexec /bin/bash --login")
+        guestEnv(secrets = true) + listOf("/bin/bash", "--login", "-i", "-c", script + "\nexec /bin/bash --login")
 
-    /** Igual ao anterior, mas sem terminal: para consultas rápidas do app. */
+    /**
+     * Igual ao anterior, mas sem terminal: para consultas rápidas do app.
+     * Sem as chaves de API: quem roda aqui são scripts de instalação de terceiros.
+     */
     fun bashCommand(script: String): List<String> =
-        guestEnv() + listOf("/bin/bash", "--login", "-i", "-c", script)
+        guestEnv(secrets = false) + listOf("/bin/bash", "--login", "-i", "-c", script)
 
-    /** Script não interativo (usado na instalação). */
+    /** Script não interativo (usado na instalação). Sem as chaves de API. */
     fun scriptCommand(script: String): List<String> =
-        guestEnv() + listOf("DEBIAN_FRONTEND=noninteractive", "/bin/sh", "-c", script)
+        guestEnv(secrets = false) + listOf("DEBIAN_FRONTEND=noninteractive", "/bin/sh", "-c", script)
 
-    private fun guestEnv() = listOf(
+    /** Ambiente limpo do Debian. As chaves de API (SecretStore) só entram se [secrets] for true. */
+    private fun guestEnv(secrets: Boolean): List<String> = listOf(
         "/usr/bin/env", "-i",
         "HOME=/root", "USER=root", "LOGNAME=root",
         "LANG=C.UTF-8", "TERM=xterm-256color", "COLORTERM=truecolor", "TMPDIR=/tmp",
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "BROWSER=/usr/local/bin/jangada-open",
-    ) + runCatching { io.github.jonjonesbr.jangada.SecretStore(app).environment() }.getOrDefault(emptyList())
+    ) + if (secrets) {
+        runCatching { io.github.jonjonesbr.jangada.SecretStore(app).environment() }.getOrDefault(emptyList())
+    } else {
+        emptyList()
+    }
 
     /** Roda um script dentro do Debian e entrega a saída linha a linha. */
     fun run(script: String, onLine: (String) -> Unit): Int = runArgv(scriptCommand(script), onLine)
@@ -169,8 +177,9 @@ class LinuxEnv(context: Context) {
     /**
      * Inicia [script] num bash de login dentro do Debian e devolve o processo
      * (para conversar com ele por stdin/stdout, como faz o chat).
+     * [secrets]: se o processo recebe as chaves de API (o chat precisa; o backup não).
      */
-    fun startProcess(script: String, interactive: Boolean = false, login: Boolean = true): Process {
+    fun startProcess(script: String, interactive: Boolean = false, login: Boolean = true, secrets: Boolean = true): Process {
         // interactive: lê o ~/.bashrc inteiro, onde alguns instaladores põem o PATH.
         // login = false: shell "limpo", para quando a saída precisa ser só a do comando (backup).
         val bash = when {
@@ -178,7 +187,7 @@ class LinuxEnv(context: Context) {
             interactive -> listOf("/bin/bash", "--login", "-i", "-c", script)
             else -> listOf("/bin/bash", "--login", "-c", script)
         }
-        val builder = ProcessBuilder(*prootArgv(guestEnv() + bash))
+        val builder = ProcessBuilder(*prootArgv(guestEnv(secrets) + bash))
             .directory(files)
         builder.environment().apply {
             clear()
@@ -227,7 +236,7 @@ class LinuxEnv(context: Context) {
      * Peças que ligam o Debian ao app. Reescritas a cada sessão, então
      * versões novas do app atualizam instalações antigas sem reinstalar.
      */
-    fun refreshIntegration() {
+    fun refreshIntegration(): Unit = synchronized(LOCK) {
         val etc = File(rootfs, "etc")
         // Instaladores como o do Claude Code colocam o programa em ~/.local/bin;
         // BROWSER faz os agentes abrirem links pelo app.
@@ -286,20 +295,42 @@ class LinuxEnv(context: Context) {
         val project = projects.optJSONObject(key) ?: org.json.JSONObject().also { projects.put(key, it) }
         if (!project.optBoolean("hasTrustDialogAccepted")) {
             project.put("hasTrustDialogAccepted", true)
-            val temp = File(file.parentFile, ".claude.json.jangada")
-            temp.writeText(json.toString(2))
-            if (!temp.renameTo(file)) temp.delete()
+            // Nome único, para não colidir com outra gravação; apagado se não virar o arquivo.
+            val temp = File.createTempFile(".claude.json.", ".jangada", file.parentFile)
+            var moved = false
+            try {
+                temp.writeText(json.toString(2))
+                moved = temp.renameTo(file)
+            } finally {
+                if (!moved) temp.delete()
+            }
         }
         claudeJsonChecked = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
     }
 
-    /** Apaga links antes de escrever, para nunca escrever "através" deles. */
+    /**
+     * Grava [content] em [file]. Se ele já é um arquivo comum com exatamente
+     * esse conteúdo, não mexe. Senão, apaga (sem seguir links) e escreve de novo,
+     * para nunca escrever "através" de um link.
+     */
     private fun writeReplacing(file: File, content: String) {
-        Fs.deleteTree(file.toPath())
+        val path = file.toPath()
+        val bytes = content.toByteArray()
+        // Confere o tamanho antes de ler: um arquivo grande no lugar nunca é o esperado.
+        if (java.nio.file.Files.isRegularFile(path, java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
+            runCatching {
+                java.nio.file.Files.size(path) == bytes.size.toLong() &&
+                    java.nio.file.Files.readAllBytes(path).contentEquals(bytes)
+            }.getOrDefault(false)
+        ) return
+        Fs.deleteTree(path)
         file.writeText(content)
     }
 
     companion object {
+        /** Serializa [refreshIntegration]: ele é chamado de várias threads ao mesmo tempo. */
+        private val LOCK = Any()
+
         /** Tamanho e data do ~/.claude.json na última conferência da pasta confiável. */
         @Volatile private var claudeJsonChecked: String? = null
 
