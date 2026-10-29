@@ -49,6 +49,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    testOptions {
+        // Testes rodam na JVM do CI; chamadas ao Android (Log etc.) devolvem o padrão.
+        unitTests.isReturnDefaultValues = true
+    }
     lint {
         abortOnError = false
         checkReleaseBuilds = false
@@ -60,4 +64,16 @@ dependencies {
     implementation(project(":terminal-view"))
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
+
+    testImplementation("junit:junit:4.13.2")
+    // O org.json do Android não funciona fora do celular; nos testes, usa a biblioteca original.
+    testImplementation("org.json:json:20240303")
+}
+
+// Mostra no log do CI o motivo de cada teste que falhar.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }

@@ -31,6 +31,10 @@ jobs:
       - name: Baixar proot do Termux
         run: bash scripts/fetch-proot.sh aarch64
 
+      # Testes na JVM: leitor de tar, receitas e scripts gerados, histórico, traduções.
+      - name: Testes
+        run: gradle --no-daemon :app:testDebugUnitTest
+
       # A chave fica nos "secrets" do repositório, nunca no código.
       # Forks e pull requests não têm acesso a ela e compilam com chave de debug.
       - name: Preparar chave de assinatura
