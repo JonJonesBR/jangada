@@ -81,6 +81,26 @@ class HomeActivity : ComponentActivity() {
         if (!linux.isDeviceSupported) findViewById<View>(R.id.unsupported).visibility = View.VISIBLE
         renderAgents()
         fetchLatestVersions()
+        showLastCrash()
+    }
+
+    /** Se o app fechou sozinho da última vez, mostra os detalhes para copiar. */
+    private fun showLastCrash() {
+        val file = JangadaApp.crashFile(this)
+        if (!file.isFile) return
+        val details = runCatching { file.readText() }.getOrDefault("")
+        file.delete()
+        if (details.isBlank()) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.crash_title)
+            .setMessage(getString(R.string.crash_message) + "\n\n" + details.lineSequence().take(6).joinToString("\n"))
+            .setPositiveButton(R.string.crash_copy) { _, _ ->
+                getSystemService(ClipboardManager::class.java)
+                    ?.setPrimaryClip(ClipData.newPlainText("Jangada crash", details))
+                Toast.makeText(this, R.string.setup_copied, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     override fun onStart() {

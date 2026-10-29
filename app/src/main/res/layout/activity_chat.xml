@@ -38,21 +38,33 @@
                 android:id="@+id/chat_subtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:background="?android:attr/selectableItemBackground"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/setup_muted"
-                android:textSize="11sp" />
+                android:textColor="@color/key_active"
+                android:textSize="12sp" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/chat_history"
+            style="@style/BarButton"
+            android:contentDescription="@string/chat_history"
+            android:text="☰"
+            android:textSize="18sp" />
 
         <TextView
             android:id="@+id/chat_new"
             style="@style/BarButton"
-            android:text="@string/chat_new" />
+            android:contentDescription="@string/chat_new"
+            android:text="＋"
+            android:textSize="20sp" />
 
         <TextView
             android:id="@+id/chat_terminal"
             style="@style/BarButton"
-            android:text="@string/chat_terminal" />
+            android:contentDescription="@string/chat_terminal"
+            android:fontFamily="monospace"
+            android:text="&gt;_" />
     </LinearLayout>
 
     <ListView

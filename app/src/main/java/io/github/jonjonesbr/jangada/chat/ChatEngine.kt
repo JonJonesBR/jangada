@@ -37,6 +37,8 @@ sealed class ChatItem {
 class ChatEngine(
     private val linux: LinuxEnv,
     private val askPermissions: Boolean,
+    /** Apelido do modelo ("opus", "sonnet", "haiku") ou vazio para o padrão da conta. */
+    private val modelAlias: String = "",
 ) {
     val items = mutableListOf<ChatItem>()
 
@@ -75,6 +77,7 @@ class ChatEngine(
         } else {
             args.append(" --permission-prompt-tool stdio --permission-mode auto")
         }
+        if (modelAlias.isNotEmpty()) args.append(" --model ").append(modelAlias)
         when {
             resume != null -> args.append(" --resume=").append(resume)
             continueLast -> args.append(" --continue")
@@ -139,13 +142,30 @@ class ChatEngine(
         changed()
     }
 
-    fun stop() {
+    /**
+     * Encerra o Claude. [then] roda (na thread principal) depois que o
+     * processo terminou de fato — importante antes de abrir a mesma
+     * conversa no terminal, para os dois não gravarem ao mesmo tempo.
+     */
+    fun stop(then: (() -> Unit)? = null) {
         running = false
         busy = false
-        runCatching { stdin?.close() }
-        process?.destroy()
+        val proc = process
         process = null
+        runCatching { stdin?.close() }
         changed()
+        if (proc == null) {
+            then?.let { main.post(it) }
+            return
+        }
+        thread(name = "chat-stop") {
+            // Fechar a entrada já faz o Claude sair; se demorar, força.
+            if (!proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                proc.destroy()
+                proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+            }
+            then?.let { main.post(it) }
+        }
     }
 
     /**
@@ -373,6 +393,15 @@ class ChatEngine(
         const val TAG = "JangadaChat"
         const val MAX_HISTORY = 300
     }
+}
+
+/** Nome amigável do modelo: "claude-haiku-4-5-20251001" -> "Haiku 4.5". */
+fun friendlyModel(id: String?): String? {
+    if (id.isNullOrBlank()) return null
+    val parts = id.removePrefix("claude-").substringBefore('[').split('-')
+    val name = parts.firstOrNull()?.replaceFirstChar { it.uppercase() } ?: return id
+    val version = parts.drop(1).takeWhile { it.length <= 2 && it.all(Char::isDigit) }
+    return if (version.isEmpty()) name else "$name ${version.joinToString(".")}"
 }
 
 /** Textos curtos e em português para as ferramentas do agente. */

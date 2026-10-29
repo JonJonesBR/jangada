@@ -11,6 +11,7 @@
 
     <!-- allowBackup=false: o app vai guardar chaves de API e logins dos agentes. -->
     <application
+        android:name=".JangadaApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"

@@ -222,11 +222,33 @@ class LinuxEnv(context: Context) {
             java.nio.file.Files.createSymbolicLink(phone, java.nio.file.Paths.get("/sdcard"))
         }
 
+        trustWorkspaceInClaude()
+
         // /tmp precisa do "sticky bit" (1777); sem ele o Claude Code desliga recursos.
         for (tmp in listOf(File(rootfs, "tmp"), File(rootfs, "var/tmp"))) {
             tmp.mkdirs()
             runCatching { android.system.Os.chmod(tmp.absolutePath, "1777".toInt(8)) }
         }
+    }
+
+    /**
+     * Marca ~/projetos como pasta confiável no Claude Code. É a pasta de
+     * trabalho criada pelo próprio app; sem isso, alternar entre chat e
+     * terminal faz o Claude perguntar de novo a cada abertura. Só mexe no
+     * arquivo se o Claude Code já tiver sido aberto alguma vez.
+     */
+    private fun trustWorkspaceInClaude() {
+        val file = File(rootfs, "root/.claude.json")
+        if (!file.isFile) return
+        val json = runCatching { org.json.JSONObject(file.readText()) }.getOrNull() ?: return
+        val projects = json.optJSONObject("projects") ?: org.json.JSONObject().also { json.put("projects", it) }
+        val key = "/root/$WORKSPACE"
+        val project = projects.optJSONObject(key) ?: org.json.JSONObject().also { projects.put(key, it) }
+        if (project.optBoolean("hasTrustDialogAccepted")) return
+        project.put("hasTrustDialogAccepted", true)
+        val temp = File(file.parentFile, ".claude.json.jangada")
+        temp.writeText(json.toString(2))
+        if (!temp.renameTo(file)) temp.delete()
     }
 
     /** Apaga links antes de escrever, para nunca escrever "através" deles. */

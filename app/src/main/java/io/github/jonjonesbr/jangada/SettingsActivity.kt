@@ -27,5 +27,13 @@ class SettingsActivity : ComponentActivity() {
         val permissions = findViewById<RadioGroup>(R.id.settings_permissions)
         permissions.check(if (settings.askPermissions) R.id.permissions_ask else R.id.permissions_auto)
         permissions.setOnCheckedChangeListener { _, id -> settings.askPermissions = id == R.id.permissions_ask }
+
+        val models = mapOf(
+            R.id.model_default to "", R.id.model_opus to "opus",
+            R.id.model_sonnet to "sonnet", R.id.model_haiku to "haiku",
+        )
+        val model = findViewById<RadioGroup>(R.id.settings_model_group)
+        model.check(models.entries.firstOrNull { it.value == settings.chatModel }?.key ?: R.id.model_default)
+        model.setOnCheckedChangeListener { _, id -> settings.chatModel = models[id] ?: "" }
     }
 }

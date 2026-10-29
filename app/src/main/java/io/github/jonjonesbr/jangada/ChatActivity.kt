@@ -27,9 +27,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import io.github.jonjonesbr.jangada.chat.ChatEngine
+import io.github.jonjonesbr.jangada.chat.ChatHistory
 import io.github.jonjonesbr.jangada.chat.ChatItem
 import io.github.jonjonesbr.jangada.chat.Markdown
 import io.github.jonjonesbr.jangada.chat.ToolText
+import io.github.jonjonesbr.jangada.chat.friendlyModel
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import java.io.File
 
@@ -68,6 +70,8 @@ class ChatActivity : ComponentActivity() {
         findViewById<View>(R.id.chat_stop).setOnClickListener { engine?.interrupt() }
         findViewById<View>(R.id.chat_terminal).setOnClickListener { switchToTerminal() }
         findViewById<View>(R.id.chat_new).setOnClickListener { newConversation() }
+        findViewById<View>(R.id.chat_history).setOnClickListener { showHistory() }
+        subtitle.setOnClickListener { chooseModel() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
 
         // "Enter envia" (configurações): o Enter do teclado manda a mensagem.
@@ -124,12 +128,16 @@ class ChatActivity : ComponentActivity() {
 
     private fun refresh() {
         val chat = engine ?: return
+        // A lista mostra uma cópia; assim ela nunca vê a conversa mudar
+        // "por baixo" entre um redesenho e outro (o que derrubava o app).
+        adapter.snapshot = ArrayList(chat.items)
         adapter.notifyDataSetChanged()
         val isEmpty = chat.items.isEmpty()
         empty.visibility = if (isEmpty) View.VISIBLE else View.GONE
         list.visibility = if (isEmpty) View.GONE else View.VISIBLE
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
-        subtitle.text = listOfNotNull(chat.model, "~/${LinuxEnv.WORKSPACE}").joinToString(" · ")
+        val model = friendlyModel(chat.model) ?: getString(R.string.chat_model_default)
+        subtitle.text = "$model ▾"
     }
 
     private fun send() {
@@ -143,23 +151,80 @@ class ChatActivity : ComponentActivity() {
 
     private fun newConversation() {
         val svc = service ?: return
-        svc.closeChat()
-        attach(svc.openChat(continueLast = false))
+        svc.closeChat {
+            if (!isDestroyed) attach(svc.openChat(continueLast = false))
+        }
     }
 
-    /** Mesma conversa na tela de terminal: fecha o chat e abre `claude --resume`. */
+    /** Lista as conversas anteriores (as que o Claude Code guardou) para retomar uma. */
+    private fun showHistory() {
+        val svc = service ?: return
+        val conversations = ChatHistory.list(LinuxEnv(this))
+        if (conversations.isEmpty()) {
+            Toast.makeText(this, R.string.chat_history_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val current = engine?.sessionId
+        val format = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
+        val labels = conversations.map { conversation ->
+            val mark = if (conversation.id == current) "● " else ""
+            "$mark${conversation.title}\n${format.format(java.util.Date(conversation.updatedAt))}"
+        }.toTypedArray()
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.chat_history)
+            .setItems(labels) { _, which ->
+                val chosen = conversations[which]
+                if (chosen.id == current) return@setItems
+                svc.closeChat {
+                    if (!isDestroyed) attach(svc.openChat(continueLast = false, resume = chosen.id, restart = true))
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Troca o modelo e continua a mesma conversa com ele. */
+    private fun chooseModel() {
+        val aliases = arrayOf("", "opus", "sonnet", "haiku")
+        val labels = arrayOf(getString(R.string.chat_model_default), "Opus", "Sonnet", "Haiku")
+        val current = aliases.indexOf(settings.chatModel).coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.chat_model_title)
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                dialog.dismiss()
+                if (aliases[which] == settings.chatModel) return@setSingleChoiceItems
+                settings.chatModel = aliases[which]
+                val svc = service ?: return@setSingleChoiceItems
+                val id = engine?.sessionId
+                svc.closeChat {
+                    if (!isDestroyed) attach(svc.openChat(continueLast = id == null && hasPreviousConversation(), resume = id, restart = true))
+                }
+            }
+            .show()
+    }
+
+    /**
+     * Mesma conversa na tela de terminal. Espera o Claude do chat terminar
+     * de sair antes de abrir o do terminal, para os dois não gravarem as
+     * configurações ao mesmo tempo.
+     */
     private fun switchToTerminal() {
         val svc = service ?: return
         val id = engine?.sessionId
-        svc.closeChat()
         val resume = if (id != null) "--resume $id" else if (hasPreviousConversation()) "--continue" else ""
-        startActivity(
-            Intent(this, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_TITLE, getString(R.string.chat_title))
-                .putExtra(MainActivity.EXTRA_AGENT, CLAUDE_AGENT_ID)
-                .putExtra(MainActivity.EXTRA_SCRIPT, "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude $resume"),
-        )
-        finish()
+        val model = settings.chatModel.takeIf { it.isNotEmpty() }?.let { " --model $it" } ?: ""
+        svc.closeChat {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_TITLE, getString(R.string.chat_title))
+                    .putExtra(MainActivity.EXTRA_AGENT, CLAUDE_AGENT_ID)
+                    .putExtra(
+                        MainActivity.EXTRA_SCRIPT,
+                        "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude$model $resume",
+                    ),
+            )
+            finish()
+        }
     }
 
     /** Existe conversa anterior do Claude Code na pasta de projetos? */
@@ -183,7 +248,8 @@ class ChatActivity : ComponentActivity() {
 
     /** Monta cada item da conversa (sem XML: são poucos tipos e bem simples). */
     private inner class ChatAdapter : BaseAdapter() {
-        private val items get() = engine?.items.orEmpty()
+        var snapshot: List<ChatItem> = emptyList()
+        private val items get() = snapshot
 
         override fun getCount() = items.size
         override fun getItem(position: Int): Any = items[position]

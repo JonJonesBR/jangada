@@ -21,7 +21,13 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_ASK_PERMISSIONS, true)
         set(value) = prefs.edit().putBoolean(KEY_ASK_PERMISSIONS, value).apply()
 
+    /** Modelo do chat: "" = padrão da conta, ou "opus", "sonnet", "haiku". */
+    var chatModel: String
+        get() = prefs.getString(KEY_CHAT_MODEL, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_CHAT_MODEL, value).apply()
+
     private companion object {
+        const val KEY_CHAT_MODEL = "chat_model"
         const val KEY_MODE = "mode"
         const val MODE_SIMPLE = "simple"
         const val MODE_PRO = "pro"

@@ -96,18 +96,26 @@ class TerminalService : Service() {
      * Abre (ou devolve) a conversa do chat. [continueLast] retoma a conversa
      * mais recente da pasta de projetos — a mesma que estava no terminal.
      */
-    fun openChat(continueLast: Boolean, resume: String? = null): io.github.jonjonesbr.jangada.chat.ChatEngine {
-        chat?.let { if (it.running || resume == null && !continueLast) return it }
+    fun openChat(
+        continueLast: Boolean,
+        resume: String? = null,
+        restart: Boolean = false,
+    ): io.github.jonjonesbr.jangada.chat.ChatEngine {
+        if (!restart) chat?.let { if (it.running || resume == null && !continueLast) return it }
         val linux = LinuxEnv(this)
         runCatching { linux.refreshIntegration() }
         startLinkWatcher(linux)
-        val engine = io.github.jonjonesbr.jangada.chat.ChatEngine(linux, AppSettings(this).askPermissions)
+        val settings = AppSettings(this)
+        val engine = io.github.jonjonesbr.jangada.chat.ChatEngine(linux, settings.askPermissions, settings.chatModel)
         val previous = chat
         previous?.stop()
         chat = engine
-        // Ao continuar, mostra o que já foi conversado (no chat anterior ou no terminal).
-        if (previous != null && previous.items.isNotEmpty() && (resume != null || continueLast)) {
-            engine.items.addAll(previous.items)
+        // Ao continuar, mostra o que já foi conversado: do chat anterior (se for a
+        // mesma conversa) ou do arquivo que o Claude Code grava (terminal, histórico).
+        val sameConversation = previous != null && previous.items.isNotEmpty() &&
+            (if (resume != null) previous.sessionId == resume else continueLast)
+        if (sameConversation) {
+            engine.items.addAll(previous!!.items)
         } else if (resume != null || continueLast) {
             sessionFile(linux, resume)?.let { engine.loadHistory(it) }
         }
@@ -124,11 +132,20 @@ class TerminalService : Service() {
         return dir.listFiles()?.filter { it.name.endsWith(".jsonl") }?.maxByOrNull { it.lastModified() }
     }
 
-    fun closeChat() {
-        chat?.stop()
+    /** Fecha o chat; [then] roda depois que o Claude terminou de sair. */
+    fun closeChat(then: (() -> Unit)? = null) {
+        val current = chat
         chat = null
         sessionsChanged()
-        leaveForegroundIfIdle()
+        if (current == null) {
+            then?.invoke()
+            leaveForegroundIfIdle()
+            return
+        }
+        current.stop {
+            then?.invoke()
+            leaveForegroundIfIdle()
+        }
     }
 
     override fun onBind(intent: Intent): IBinder = binder

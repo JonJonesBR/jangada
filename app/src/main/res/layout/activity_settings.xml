@@ -87,6 +87,36 @@
             </RadioGroup>
 
             <TextView
+                style="@style/HomeSection"
+                android:text="@string/settings_model" />
+
+            <RadioGroup
+                android:id="@+id/settings_model_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <RadioButton
+                    android:id="@+id/model_default"
+                    style="@style/SettingsOption"
+                    android:text="@string/chat_model_default" />
+
+                <RadioButton
+                    android:id="@+id/model_opus"
+                    style="@style/SettingsOption"
+                    android:text="Opus" />
+
+                <RadioButton
+                    android:id="@+id/model_sonnet"
+                    style="@style/SettingsOption"
+                    android:text="Sonnet" />
+
+                <RadioButton
+                    android:id="@+id/model_haiku"
+                    style="@style/SettingsOption"
+                    android:text="Haiku" />
+            </RadioGroup>
+
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
