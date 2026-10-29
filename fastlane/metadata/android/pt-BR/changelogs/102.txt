@@ -1,0 +1,1 @@
+Segurança: chaves de API não vão mais para os scripts de instalação; links e backup mais seguros. Chat: subagentes não vazam na resposta, permissões pendentes são canceladas quando o agente para, login com Cancelar e tempo limite, adaptador ACP com Tentar de novo. Instalação falha de verdade quando o download falha. Melhor contraste, botões maiores e leitor de tela.

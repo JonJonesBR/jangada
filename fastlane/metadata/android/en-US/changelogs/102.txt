@@ -1,0 +1,1 @@
+Security: API keys no longer go to install scripts; safer links and backup. Chat: subagent text no longer leaks into answers, pending permissions are cancelled when the agent stops, login with Cancel and timeout, ACP adapter with Try again. Installs now fail properly when the download fails. Better contrast, larger buttons and screen reader labels.

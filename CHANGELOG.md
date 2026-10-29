@@ -1,5 +1,15 @@
 # Novidades
 
+## 1.0.2
+
+- Chaves de API só para os agentes: instalar, atualizar e desinstalar rodam sem elas no ambiente. Nomes reservados (PATH, HOME...) são recusados.
+- Links abertos pelos agentes: só http/https e só arquivos pequenos; backup e restauração nunca deixam o tar pendurado.
+- Chat: o texto dos subagentes do Claude não entra mais na resposta; ao parar o agente, permissões pendentes são canceladas; login com Cancelar e tempo limite.
+- Chat dos agentes ACP: o adaptador não é instalado duas vezes, o envio espera ele ficar pronto, e a falha tem Tentar de novo e Detalhes.
+- Instalação: um download que falha no "curl | bash" agora falha a instalação, e downloads travados são detectados.
+- Telas: âmbar com contraste no tema claro, botões de 48dp, ✕ para fechar abas, teclas extras com descrição para leitor de tela, faixa de volta ao chat depois do login, temas do terminal traduzidos.
+- Texto de privacidade corrigido.
+
 ## 1.0.1
 
 - Chat abre mais rápido: integração com o Linux, conversa mais recente e histórico são lidos fora da thread principal. O terminal não copia mais o proot a cada abertura.
