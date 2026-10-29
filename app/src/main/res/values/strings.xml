@@ -48,4 +48,17 @@
     <string name="agent_site">Website</string>
     <string name="session_back">Tap to go back</string>
     <string name="session_close">Close</string>
+
+    <string name="agent_installing">Installing…</string>
+    <string name="agent_updating">Updating…</string>
+    <string name="agent_version">v%s</string>
+    <string name="agent_update_to">Update to %s</string>
+    <string name="task_installing">Installing %s…</string>
+    <string name="task_updating">Updating %s…</string>
+    <string name="task_install_failed">The installation didn’t finish. Try again, or run it in the terminal to answer any questions it asks.</string>
+    <string name="task_update_failed">The update didn’t finish. Try again, or run it in the terminal.</string>
+    <string name="task_retry">Try again</string>
+    <string name="task_terminal">In terminal</string>
+    <string name="task_details">Details</string>
+    <string name="terminal_home_arrow">‹  Home</string>
 </resources>

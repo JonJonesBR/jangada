@@ -13,7 +13,9 @@ import android.os.IBinder
 import android.util.Log
 import android.util.TypedValue
 import android.view.HapticFeedbackConstants
+import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
@@ -80,11 +82,14 @@ class MainActivity : ComponentActivity() {
             onKeyboard = ::showKeyboard,
         )
 
-        // Voltar leva à tela inicial; as sessões continuam rodando no serviço.
-        onBackPressedDispatcher.addCallback(this) {
-            startActivity(Intent(this@MainActivity, HomeActivity::class.java))
-            finish()
-        }
+        // Voltar (ou o botão Início) leva à tela inicial; as sessões continuam rodando.
+        findViewById<View>(R.id.home_button).setOnClickListener { goHome() }
+        onBackPressedDispatcher.addCallback(this) { goHome() }
+    }
+
+    private fun goHome() {
+        startActivity(Intent(this, HomeActivity::class.java))
+        finish()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -161,6 +166,7 @@ class MainActivity : ComponentActivity() {
 
     private fun show(newSession: TerminalSession) {
         session = newSession
+        findViewById<TextView>(R.id.session_title_bar).text = newSession.mSessionName ?: TerminalService.DEFAULT_TITLE
         terminalView.attachSession(newSession)
         terminalView.onScreenUpdated()
     }

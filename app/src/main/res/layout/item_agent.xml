@@ -61,6 +61,59 @@
         android:textSize="13sp"
         android:visibility="gone" />
 
+    <ProgressBar
+        android:id="@+id/task_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:indeterminate="true"
+        android:indeterminateTint="@color/key_active"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/task_line"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="monospace"
+        android:maxLines="1"
+        android:textColor="@color/setup_muted"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/task_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="@color/setup_error"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/task_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/task_retry"
+            style="@style/CardTextButton"
+            android:text="@string/task_retry" />
+
+        <Button
+            android:id="@+id/task_terminal"
+            style="@style/CardTextButton"
+            android:text="@string/task_terminal" />
+
+        <Button
+            android:id="@+id/task_details"
+            style="@style/CardTextButton"
+            android:text="@string/task_details" />
+    </LinearLayout>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

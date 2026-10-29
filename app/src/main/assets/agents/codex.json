@@ -6,6 +6,7 @@
   "command": "codex",
   "install": "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
   "homepage": "https://github.com/openai/codex",
+  "npm": "@openai/codex",
   "description": {
     "pt": "Agente de programação da OpenAI.",
     "en": "OpenAI's coding agent."

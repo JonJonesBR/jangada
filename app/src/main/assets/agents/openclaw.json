@@ -6,6 +6,7 @@
   "command": "openclaw",
   "install": "curl -fsSL https://openclaw.ai/install.sh | bash",
   "homepage": "https://openclaw.ai",
+  "npm": "openclaw",
   "description": {
     "pt": "Assistente pessoal de IA de código aberto.",
     "en": "Open-source personal AI assistant."

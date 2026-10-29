@@ -46,4 +46,17 @@
     <string name="agent_site">Site</string>
     <string name="session_back">Toque para voltar</string>
     <string name="session_close">Fechar</string>
+
+    <string name="agent_installing">Instalando…</string>
+    <string name="agent_updating">Atualizando…</string>
+    <string name="agent_version">v%s</string>
+    <string name="agent_update_to">Atualizar para %s</string>
+    <string name="task_installing">Instalando %s…</string>
+    <string name="task_updating">Atualizando %s…</string>
+    <string name="task_install_failed">A instalação não terminou. Tente de novo, ou rode no terminal para responder às perguntas que ela fizer.</string>
+    <string name="task_update_failed">A atualização não terminou. Tente de novo, ou rode no terminal.</string>
+    <string name="task_retry">Tentar de novo</string>
+    <string name="task_terminal">No terminal</string>
+    <string name="task_details">Detalhes</string>
+    <string name="terminal_home_arrow">‹  Início</string>
 </resources>

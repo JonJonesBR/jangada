@@ -7,6 +7,7 @@
   "install": "curl -fsSL https://claude.ai/install.sh | bash",
   "update": "claude update",
   "homepage": "https://code.claude.com/docs",
+  "npm": "@anthropic-ai/claude-code",
   "description": {
     "pt": "Agente de programação da Anthropic.",
     "en": "Anthropic's coding agent."

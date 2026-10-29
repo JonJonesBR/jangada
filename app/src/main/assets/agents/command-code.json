@@ -11,6 +11,7 @@
   "install": "npm i -g command-code@latest",
   "update": "npm i -g command-code@latest",
   "homepage": "https://commandcode.ai",
+  "npm": "command-code",
   "description": {
     "pt": "Agente que aprende o seu jeito de programar.",
     "en": "An agent that learns how you write code."

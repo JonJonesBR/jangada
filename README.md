@@ -26,7 +26,7 @@ O app terá dois modos:
 - [x] **1. Terminal base** — teclas extras pensadas para agentes, links clicáveis, pinça para a fonte, copiar e colar, APK assinado.
 - [x] **2. Linux dentro do app** — Debian instalado com um toque, com progresso, mensagens claras e retomada se a internet cair.
 - [x] **3. Segundo plano e login fácil** — sessões continuam rodando fora da tela; os agentes abrem o navegador sozinhos (login sem copiar e colar); fonte com os símbolos que os agentes usam.
-- [x] **4. Catálogo de agentes** — instalar, atualizar e abrir com um toque: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw.
+- [x] **4. Catálogo de agentes** — instalar e atualizar na própria tela, com progresso; "Atualizar" só aparece quando há versão nova: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw.
 - [ ] **5. Modo Simples** — chat nativo e tela do agente adaptada, alternando na mesma conversa.
 - [ ] **6. Modo Pro** — abas, chaves de API cifradas, pastas do celular, configurações avançadas.
 - [ ] **7. Lançamento** — temas, backup do ambiente, releases para Obtainium/F-Droid.
@@ -47,6 +47,7 @@ um novo, copie um dos existentes e mande um pull request:
   "update": "meuagente update",
   "requires": ["nodejs", "npm"],
   "homepage": "https://exemplo.com",
+  "npm": "meu-agente",
   "description": { "pt": "O que ele faz.", "en": "What it does." },
   "note": { "pt": "Aviso opcional.", "en": "Optional note." }
 }
@@ -55,6 +56,8 @@ um novo, copie um dos existentes e mande um pull request:
 - `command` é o que abre o agente; o app usa esse nome para saber se ele está instalado.
 - `install` roda dentro do Debian do app; `requires` instala pacotes do Debian antes.
 - `update` é opcional; sem ele, o botão Atualizar repete a instalação.
+- `npm` é opcional: o nome do pacote no npm, usado só para descobrir a versão mais nova.
+  Com ele, "Atualizar" só aparece quando existe versão mais nova que a instalada.
 
 ## Baixar
 

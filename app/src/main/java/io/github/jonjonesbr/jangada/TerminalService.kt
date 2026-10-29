@@ -17,9 +17,12 @@ import android.util.Log
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
+import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinkWatcher
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.thread
 
 /**
  * Mantém as sessões vivas fora da tela. Enquanto existe uma sessão, o
@@ -51,6 +54,36 @@ class TerminalService : Service() {
 
     /** Avisa a tela inicial quando a lista de sessões muda. */
     var onSessionsChanged: (() -> Unit)? = null
+
+    /** Instalação ou atualização de um agente rodando em segundo plano. */
+    class AgentTask(val recipe: AgentRecipe, val updating: Boolean) {
+        enum class State { RUNNING, OK, FAILED }
+
+        @Volatile var state = State.RUNNING
+        @Volatile var lastLine = ""
+        /** A tela inicial já registrou o resultado desta tarefa. */
+        @Volatile var acknowledged = false
+        private val log = StringBuilder()
+
+        fun append(line: String) = synchronized(log) {
+            log.append(line).append('\n')
+            if (log.length > MAX_LOG) log.delete(0, log.length - MAX_LOG)
+        }
+
+        fun logText(): String = synchronized(log) { log.toString() }
+
+        private companion object {
+            const val MAX_LOG = 200_000
+        }
+    }
+
+    /** Tarefas por id do agente (a mais recente de cada um). */
+    val tasks = ConcurrentHashMap<String, AgentTask>()
+
+    /** Avisa a tela inicial quando alguma tarefa muda. */
+    var onTasksChanged: (() -> Unit)? = null
+
+    private var lastTaskPost = 0L
 
     override fun onBind(intent: Intent): IBinder = binder
 
@@ -108,7 +141,58 @@ class TerminalService : Service() {
         session.finishIfRunning()
         sessions.remove(session)
         sessionsChanged()
-        if (sessions.isEmpty()) leaveForeground()
+        leaveForegroundIfIdle()
+    }
+
+    /**
+     * Instala ou atualiza um agente sem abrir o terminal. A saída fica
+     * guardada na tarefa (para "Ver detalhes") e a tela acompanha pelo
+     * [onTasksChanged]. Quem chama deve ter dado startService antes.
+     */
+    fun runAgentTask(recipe: AgentRecipe, updating: Boolean) {
+        if (tasks[recipe.id]?.state == AgentTask.State.RUNNING) return
+        val task = AgentTask(recipe, updating)
+        tasks[recipe.id] = task
+        goForeground()
+        updateNotification()
+        onTasksChanged?.invoke()
+        thread(name = "jangada-agent-${recipe.id}") {
+            val exit = runCatching {
+                LinuxEnv(this).runBash(recipe.backgroundScript(updating)) { raw ->
+                    val line = cleanLine(raw)
+                    if (line.isEmpty()) return@runBash
+                    task.append(line)
+                    if (!line.startsWith("JANGADA_")) task.lastLine = line
+                    postTasksChanged(throttle = true)
+                }
+            }.getOrElse { e ->
+                task.append("ERRO: ${e.message}")
+                -1
+            }
+            task.state = if (exit == 0) AgentTask.State.OK else AgentTask.State.FAILED
+            main.post {
+                onTasksChanged?.invoke()
+                updateNotification()
+                leaveForegroundIfIdle()
+            }
+        }
+    }
+
+    private fun postTasksChanged(throttle: Boolean) {
+        val now = System.currentTimeMillis()
+        if (throttle && now - lastTaskPost < 250) return
+        lastTaskPost = now
+        main.post { onTasksChanged?.invoke() }
+    }
+
+    /** Tira cores e barras de progresso (\r) da saída dos instaladores. */
+    private fun cleanLine(raw: String): String =
+        raw.substringAfterLast('\r').replace(ANSI, "").trim()
+
+    private fun hasRunningTasks() = tasks.values.any { it.state == AgentTask.State.RUNNING }
+
+    private fun leaveForegroundIfIdle() {
+        if (sessions.isEmpty() && !hasRunningTasks()) leaveForeground()
     }
 
     private fun sessionsChanged() {
@@ -193,10 +277,18 @@ class TerminalService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         val count = sessions.size.coerceAtLeast(1)
+        val running = tasks.values.firstOrNull { it.state == AgentTask.State.RUNNING }
+        val text = when {
+            running != null -> getString(
+                if (running.updating) R.string.task_updating else R.string.task_installing,
+                running.recipe.name,
+            )
+            else -> resources.getQuantityString(R.plurals.service_sessions, count, count)
+        }
         return Notification.Builder(this, CHANNEL_SESSIONS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.service_title))
-            .setContentText(resources.getQuantityString(R.plurals.service_sessions, count, count))
+            .setContentText(text)
             .setContentIntent(open)
             .setOngoing(true)
             .setShowWhen(false)
@@ -277,5 +369,6 @@ class TerminalService : Service() {
         private const val NOTIFICATION_LINK = 2
         private const val TRANSCRIPT_ROWS = 5000
         const val DEFAULT_TITLE = "Terminal"
+        private val ANSI = Regex("""\u001B(\[[0-9;?]*[ -/]*[@-~]|\][^\u0007]*\u0007|[()][A-Z0-9])""")
     }
 }

@@ -6,6 +6,7 @@
   "command": "omp",
   "install": "curl -fsSL https://omp.sh/install | sh",
   "homepage": "https://github.com/can1357/oh-my-pi",
+  "npm": "@oh-my-pi/pi-coding-agent",
   "description": {
     "pt": "Derivado do Pi, com mais recursos prontos.",
     "en": "A Pi derivative with more built-in features."

@@ -7,6 +7,7 @@
   "install": "curl -fsSL https://pi.dev/install.sh | sh",
   "update": "pi update",
   "homepage": "https://pi.dev",
+  "npm": "@earendil-works/pi-coding-agent",
   "description": {
     "pt": "Agente minimalista que você adapta com extensões.",
     "en": "Minimal agent you adapt with extensions."
