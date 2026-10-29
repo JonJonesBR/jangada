@@ -7,13 +7,19 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
 import android.util.Log
 import android.util.TypedValue
 import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.TextView
@@ -44,8 +50,13 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var composeBar: View
     private lateinit var composeText: EditText
+    /** Texto começando com / ou !: sem corretor e enviado como digitação. */
+    private var commandMode = false
+    /** Enviando um comando tecla por tecla. */
+    private var typing = false
 
     private var service: TerminalService? = null
+    private var terminalTypeface: Typeface = Typeface.MONOSPACE
     private var session: TerminalSession? = null
     private var screenVisible = false
     private var fontSizePx = 0
@@ -76,7 +87,8 @@ class MainActivity : ComponentActivity() {
 
         terminalView.setTerminalViewClient(JangadaViewClient(this))
         terminalView.setTextSize(fontSizePx) // precisa vir antes de setTypeface()
-        terminalView.setTypeface(TerminalFonts.load(this))
+        terminalTypeface = TerminalFonts.load(this)
+        terminalView.setTypeface(terminalTypeface)
         terminalView.keepScreenOn = true
 
         extraKeys.attach(
@@ -91,6 +103,24 @@ class MainActivity : ComponentActivity() {
         composeBar = findViewById(R.id.compose_bar)
         composeText = findViewById(R.id.compose_text)
         findViewById<View>(R.id.compose_send).setOnClickListener { sendCompose() }
+        composeText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val text = s?.toString().orEmpty()
+                setCommandMode(text.startsWith("/") || text.startsWith("!"))
+            }
+        })
+        // No modo comando a caixa tem uma linha só; o Enter do teclado envia.
+        composeText.setOnEditorActionListener { _, actionId, event ->
+            val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
+            if (commandMode && (actionId == EditorInfo.IME_ACTION_SEND || enter)) {
+                sendCompose()
+                true
+            } else {
+                false
+            }
+        }
         setComposeVisible(prefs.getBoolean(PREF_COMPOSE, true), focus = false)
 
         // Voltar (ou o botão Início) leva à tela inicial; as sessões continuam rodando.
@@ -202,15 +232,74 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Manda o texto da caixa para o terminal como uma colagem e aperta Enter.
-     * Com a caixa vazia, ➤ é só um Enter (útil para confirmar menus).
+     * Modo comando (texto começa com / ou !): tira corretor, maiúscula
+     * automática e sugestões, e usa fonte de terminal. Volta ao normal
+     * quando o texto deixa de começar assim (ou é enviado).
+     */
+    private fun setCommandMode(enabled: Boolean) {
+        if (enabled == commandMode) return
+        commandMode = enabled
+        val cursor = composeText.selectionEnd
+        if (enabled) {
+            composeText.inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            composeText.imeOptions = EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+            composeText.typeface = terminalTypeface
+        } else {
+            composeText.inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+            composeText.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
+            composeText.typeface = Typeface.DEFAULT
+            composeText.maxLines = 5
+        }
+        composeText.setSelection(cursor.coerceIn(0, composeText.length()))
+    }
+
+    /**
+     * Envia o texto da caixa e aperta Enter.
+     * - Mensagem normal: vai de uma vez, como colagem (sem atraso).
+     * - Comando (/ ou !): vai tecla por tecla, como se fosse digitado,
+     *   para o agente abrir o menu de comandos ou o modo shell.
+     * - Caixa vazia: só Enter (útil para confirmar menus).
      */
     private fun sendCompose() {
         val current = session ?: return
+        if (typing) return
         val text = composeText.text.toString()
+        val asCommand = commandMode
         composeText.setText("")
-        if (text.isNotEmpty()) current.emulator?.paste(text)
-        terminalView.postDelayed({ current.write("\r") }, if (text.isEmpty()) 0L else 80L)
+        when {
+            text.isEmpty() -> current.write("\r")
+            asCommand -> typeSlowly(current, text) { current.write("\r") }
+            else -> {
+                current.emulator?.paste(text)
+                terminalView.postDelayed({ current.write("\r") }, PASTE_ENTER_DELAY_MS)
+            }
+        }
+    }
+
+    private fun typeSlowly(target: TerminalSession, text: String, then: () -> Unit) {
+        val codePoints = text.codePoints().toArray()
+        var index = 0
+        typing = true
+        val step = object : Runnable {
+            override fun run() {
+                if (index < codePoints.size) {
+                    target.write(String(Character.toChars(codePoints[index])))
+                    index++
+                    terminalView.postDelayed(this, KEY_DELAY_MS)
+                } else {
+                    terminalView.postDelayed({
+                        typing = false
+                        then()
+                    }, COMMAND_ENTER_DELAY_MS)
+                }
+            }
+        }
+        terminalView.post(step)
     }
 
     fun showKeyboard() {
@@ -298,6 +387,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val PREF_FONT_SIZE = "font_size_px"
         private const val PREF_COMPOSE = "compose_visible"
+        private const val PASTE_ENTER_DELAY_MS = 80L
+        private const val KEY_DELAY_MS = 12L
+        private const val COMMAND_ENTER_DELAY_MS = 150L
         const val EXTRA_TITLE = "title"
         const val EXTRA_SCRIPT = "script"
         const val EXTRA_SESSION = "session"

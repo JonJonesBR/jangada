@@ -27,7 +27,7 @@ O app terá dois modos:
 - [x] **2. Linux dentro do app** — Debian instalado com um toque, com progresso, mensagens claras e retomada se a internet cair.
 - [x] **3. Segundo plano e login fácil** — sessões continuam rodando fora da tela; os agentes abrem o navegador sozinhos (login sem copiar e colar); fonte com os símbolos que os agentes usam.
 - [x] **4. Catálogo de agentes** — instalar e atualizar na própria tela, com progresso; "Atualizar" só aparece quando há versão nova: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw.
-- [x] **Extras** — caixa de texto com corretor e ditado por voz (✎), agentes trabalham em `~/projetos`, arquivos do celular em `~/celular`.
+- [x] **Extras** — caixa de texto com corretor e ditado por voz (✎); comandos com `/` ou `!` vão sem corretor e como digitação; agentes trabalham em `~/projetos`, arquivos do celular em `~/celular`.
 - [ ] **5. Modo Simples** — chat nativo e tela do agente adaptada, alternando na mesma conversa.
 - [ ] **6. Modo Pro** — abas, chaves de API cifradas, pastas do celular, configurações avançadas.
 - [ ] **7. Lançamento** — temas, backup do ambiente, releases para Obtainium/F-Droid.
