@@ -298,4 +298,13 @@
     <string name="key_desc_right">Seta para a direita</string>
     <string name="key_desc_bang">Ponto de exclamação</string>
     <string name="key_desc_link">Abrir link</string>
+
+    <!-- Tarefas, chat e erros (1.0.3) -->
+    <string name="task_cancelled">Cancelado.</string>
+    <string name="chat_terminal_busy_new">O Claude Code está aberto numa aba do terminal, então esta é uma conversa nova. Feche essa aba para continuar a conversa aqui.</string>
+    <string name="chat_error_hint">Toque em ＋ para uma conversa nova, ou em &gt;_ para ver no terminal.</string>
+    <string name="chat_error_details">Detalhes</string>
+    <string name="task_cancel">Cancelar</string>
+    <string name="task_cancel_title">Cancelar %1$s?</string>
+    <string name="task_cancel_confirm">Sim, cancelar</string>
 </resources>

@@ -300,4 +300,13 @@
     <string name="key_desc_right">Right arrow</string>
     <string name="key_desc_bang">Exclamation mark</string>
     <string name="key_desc_link">Open link</string>
+
+    <!-- Tarefas, chat e erros (1.0.3) -->
+    <string name="task_cancelled">Cancelled.</string>
+    <string name="chat_terminal_busy_new">Claude Code is open in a terminal tab, so this is a new conversation. Close that tab to continue it here.</string>
+    <string name="chat_error_hint">Tap ＋ for a new conversation, or &gt;_ to see it in the terminal.</string>
+    <string name="chat_error_details">Details</string>
+    <string name="task_cancel">Cancel</string>
+    <string name="task_cancel_title">Cancel %1$s?</string>
+    <string name="task_cancel_confirm">Yes, cancel</string>
 </resources>
