@@ -82,6 +82,18 @@
         android:textSize="12sp"
         android:visibility="gone" />
 
+    <Button
+        android:id="@+id/task_cancel"
+        style="@style/CardTextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:layout_marginTop="4dp"
+        android:minHeight="48dp"
+        android:text="@string/task_cancel"
+        android:textColor="@color/accent_text"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/task_error"
         android:layout_width="match_parent"

@@ -29,6 +29,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
+import androidx.lifecycle.Lifecycle
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
@@ -54,6 +55,8 @@ class MainActivity : ComponentActivity() {
 
     /** Faixa "já entrou? toque em Chat" que aparece ao voltar do login guiado. */
     private lateinit var loginBanner: View
+    /** O login guiado pediu a faixa (até o usuário fechá-la). Só aparece com o botão Chat da aba atual. */
+    private var loginBannerWanted = false
     private lateinit var composeBar: View
     private lateinit var composeText: EditText
     /** Texto começando com / ou !: sem corretor e enviado como digitação. */
@@ -65,6 +68,8 @@ class MainActivity : ComponentActivity() {
     private val agents by lazy { io.github.jonjonesbr.jangada.agents.AgentCatalog.load(this) }
 
     private var service: TerminalService? = null
+    /** true desde o bindService até o unbindService (feitos em onStart e onStop). */
+    private var bound = false
     private var terminalTypeface: Typeface = Typeface.MONOSPACE
     private var session: TerminalSession? = null
     private var screenVisible = false
@@ -154,7 +159,10 @@ class MainActivity : ComponentActivity() {
         findViewById<View>(R.id.terminal_chat).setOnClickListener { switchToChat() }
 
         loginBanner = findViewById(R.id.login_banner)
-        findViewById<View>(R.id.login_banner_close).setOnClickListener { loginBanner.visibility = View.GONE }
+        findViewById<View>(R.id.login_banner_close).setOnClickListener {
+            loginBannerWanted = false
+            loginBanner.visibility = View.GONE
+        }
         showLoginBanner()
 
         // Voltar (ou o botão Início) leva à tela inicial; as sessões continuam rodando.
@@ -202,8 +210,15 @@ class MainActivity : ComponentActivity() {
         if (!::loginBanner.isInitialized) return
         if (intent.getBooleanExtra(EXTRA_LOGIN, false)) {
             intent.removeExtra(EXTRA_LOGIN)
-            loginBanner.visibility = View.VISIBLE
+            loginBannerWanted = true
+            updateLoginBanner()
         }
+    }
+
+    /** A faixa aparece só se foi pedida e a aba atual tem o botão Chat (some ao trocar para aba sem Chat). */
+    private fun updateLoginBanner() {
+        if (!::loginBanner.isInitialized) return
+        loginBanner.visibility = if (loginBannerWanted && currentHasChat()) View.VISIBLE else View.GONE
     }
 
     override fun onStart() {
@@ -211,7 +226,7 @@ class MainActivity : ComponentActivity() {
         if (!::terminalView.isInitialized) return
         val intent = Intent(this, TerminalService::class.java)
         startService(intent)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        bound = bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
     override fun onResume() {
@@ -240,15 +255,27 @@ class MainActivity : ComponentActivity() {
             it.screenLinkOpener = null
             it.onExit = null
             it.removeSessionsListener(tabsListener)
-            unbindService(connection)
         }
         service = null
+        // Desfaz o bind sempre que foi feito, mesmo se a conexão ainda não chegou.
+        if (bound) {
+            bound = false
+            unbindService(connection)
+        }
         super.onStop()
     }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             val svc = (binder as TerminalService.LocalBinder).service
+            // A tela já saiu da frente antes da conexão: desfaz o bind e não registra nada.
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                if (bound) {
+                    bound = false
+                    unbindService(connection)
+                }
+                return
+            }
             service = svc
             svc.screenClient = sessionClient
             svc.screenLinkOpener = { url -> if (screenVisible) { openUrl(url); true } else false }
@@ -311,6 +338,7 @@ class MainActivity : ComponentActivity() {
             val tab = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(44f)
                 setBackgroundResource(if (selected) R.drawable.tab_bg_selected else R.drawable.tab_bg)
                 isClickable = true
                 setOnClickListener { show(item) }
@@ -371,12 +399,17 @@ class MainActivity : ComponentActivity() {
         session = newSession
         TerminalThemes.apply(appSettings.terminalTheme)
         findViewById<TextView>(R.id.session_title_bar).text = newSession.mSessionName ?: TerminalService.DEFAULT_TITLE
-        val agent = service?.sessionAgent?.get(newSession.mHandle)
-        val hasChat = agent != null && agents.firstOrNull { it.id == agent }?.hasChat == true
-        findViewById<View>(R.id.terminal_chat).visibility = if (hasChat) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.terminal_chat).visibility = if (currentHasChat()) View.VISIBLE else View.GONE
+        updateLoginBanner()
         renderTabs()
         terminalView.attachSession(newSession)
         terminalView.onScreenUpdated()
+    }
+
+    /** A aba atual é de um agente com chat (então o botão Chat aparece). */
+    private fun currentHasChat(): Boolean {
+        val agent = session?.let { service?.sessionAgent?.get(it.mHandle) } ?: return false
+        return agents.firstOrNull { it.id == agent }?.hasChat == true
     }
 
     /** Recria a sessão depois de um "exit" (Enter na tela de processo encerrado). */

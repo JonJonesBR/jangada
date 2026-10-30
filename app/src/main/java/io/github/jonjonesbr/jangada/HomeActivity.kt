@@ -12,7 +12,9 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
@@ -23,12 +25,14 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.Lifecycle
 import io.github.jonjonesbr.jangada.TerminalService.AgentTask
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.agents.Versions
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -53,6 +57,22 @@ class HomeActivity : JangadaActivity() {
     /** Versão mais nova publicada, por id do agente (quando há fonte). */
     private val latestVersions = ConcurrentHashMap<String, String>()
     private var service: TerminalService? = null
+    /** true desde o bindService até o unbindService (feitos em onStart e onStop). */
+    private var bound = false
+
+    /** Cartão de cada agente (id -> view), para mexer só no que mudou. */
+    private val cards = HashMap<String, View>()
+    /** Estado de cada tarefa na última vez que os cartões foram desenhados. */
+    private val drawnTasks = HashMap<String, TaskMark>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var renderScheduled = false
+    private val renderLater = Runnable {
+        renderScheduled = false
+        if (!isDestroyed) renderAgents()
+    }
+    /** Detecção do Debian em andamento; [detectAgain] pede mais uma rodada quando ela termina. */
+    private val detecting = AtomicBoolean(false)
+    private val detectAgain = AtomicBoolean(false)
 
     private val prefs by lazy { getSharedPreferences("agents", MODE_PRIVATE) }
     private val sessionsListener: () -> Unit = { renderSessions() }
@@ -109,7 +129,7 @@ class HomeActivity : JangadaActivity() {
     override fun onStart() {
         super.onStart()
         if (!::agentsList.isInitialized) return
-        bindService(Intent(this, TerminalService::class.java), connection, Context.BIND_AUTO_CREATE)
+        bound = bindService(Intent(this, TerminalService::class.java), connection, Context.BIND_AUTO_CREATE)
         refreshInstalled()
         renderStorage()
     }
@@ -178,15 +198,32 @@ class HomeActivity : JangadaActivity() {
         service?.let {
             it.removeSessionsListener(sessionsListener)
             it.onTasksChanged = null
-            unbindService(connection)
         }
         service = null
+        // Desfaz o bind sempre que foi feito, mesmo se a conexão ainda não chegou.
+        if (bound) {
+            bound = false
+            unbindService(connection)
+        }
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(renderLater)
+        super.onDestroy()
     }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             val svc = (binder as TerminalService.LocalBinder).service
+            // A tela já saiu da frente antes da conexão: desfaz o bind e não registra nada.
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                if (bound) {
+                    bound = false
+                    unbindService(connection)
+                }
+                return
+            }
             service = svc
             svc.addSessionsListener(sessionsListener)
             svc.onTasksChanged = { onTasksChanged() }
@@ -201,37 +238,57 @@ class HomeActivity : JangadaActivity() {
 
     // ---- O que está instalado e em que versão ----
 
-    /** Pergunta ao Debian quais agentes existem e em que versão (em segundo plano). */
+    /**
+     * Pergunta ao Debian quais agentes existem e em que versão (em segundo plano).
+     * Só uma detecção roda por vez; se pedirem outra durante a atual, ela roda de novo ao terminar.
+     */
     private fun refreshInstalled() {
         if (!linux.isReady) return
+        // O pedido é anotado antes de checar, para não se perder se a rodada atual acabar agora.
+        detectAgain.set(true)
+        if (detecting.getAndSet(true)) return
         thread(name = "jangada-detect") {
-            val found = HashSet<String>()
-            var published = false
-            runCatching {
-                linux.runBash(AgentCatalog.detectScript(recipes)) { line ->
-                    when {
-                        line.startsWith(FOUND) -> found += line.removePrefix(FOUND).trim()
-                        line.startsWith(SIZE) -> {
-                            val parts = line.removePrefix(SIZE).trim().split(' ')
-                            parts.getOrNull(1)?.toLongOrNull()?.let { installedSizes[parts[0]] = it }
-                            runOnUiThread { if (!isDestroyed) renderAgents() }
-                        }
-                        line.startsWith(VERSION) -> {
-                            val rest = line.removePrefix(VERSION)
-                            val command = rest.substringBefore(' ')
-                            Versions.parse(rest.substringAfter(' ', ""))?.let { installedVersions[command] = it }
-                            if (!published) {
-                                published = true
-                                publishInstalled(found.toSet())
-                            } else {
-                                runOnUiThread { if (!isDestroyed) renderAgents() }
-                            }
+            while (true) {
+                detectAgain.set(false)
+                try {
+                    detectOnce()
+                } finally {
+                    detecting.set(false)
+                }
+                // Pediram outra enquanto esta terminava: assume a vez e roda mais uma.
+                if (!detectAgain.get() || !detecting.compareAndSet(false, true)) break
+            }
+        }
+    }
+
+    /** Uma rodada da detecção: manda o script ao Debian e publica o resultado. */
+    private fun detectOnce() {
+        val found = HashSet<String>()
+        var published = false
+        runCatching {
+            linux.runBash(AgentCatalog.detectScript(recipes)) { line ->
+                when {
+                    line.startsWith(FOUND) -> found += line.removePrefix(FOUND).trim()
+                    line.startsWith(SIZE) -> {
+                        val parts = line.removePrefix(SIZE).trim().split(' ')
+                        parts.getOrNull(1)?.toLongOrNull()?.let { installedSizes[parts[0]] = it }
+                        runOnUiThread { scheduleRender() }
+                    }
+                    line.startsWith(VERSION) -> {
+                        val rest = line.removePrefix(VERSION)
+                        val command = rest.substringBefore(' ')
+                        Versions.parse(rest.substringAfter(' ', ""))?.let { installedVersions[command] = it }
+                        if (!published) {
+                            published = true
+                            publishInstalled(found.toSet())
+                        } else {
+                            runOnUiThread { scheduleRender() }
                         }
                     }
                 }
             }
-            publishInstalled(found.toSet())
         }
+        publishInstalled(found.toSet())
     }
 
     private fun publishInstalled(found: Set<String>) = runOnUiThread {
@@ -247,7 +304,7 @@ class HomeActivity : JangadaActivity() {
                 val pkg = recipe.npm ?: continue
                 Versions.latestOnNpm(pkg)?.let { latestVersions[recipe.id] = it }
             }
-            runOnUiThread { if (!isDestroyed) renderAgents() }
+            runOnUiThread { scheduleRender() }
         }
     }
 
@@ -263,15 +320,51 @@ class HomeActivity : JangadaActivity() {
             }
         }
         if (finished) refreshInstalled()
-        renderAgents()
+        // Mudou o estado de alguma tarefa: refaz os cartões. Senão, só a linha da saída.
+        if (taskStatesChanged(svc)) renderAgents() else updateRunningLines(svc)
+    }
+
+    /** true se alguma tarefa começou, terminou ou foi cancelada desde o último desenho. */
+    private fun taskStatesChanged(svc: TerminalService): Boolean {
+        if (svc.tasks.size != drawnTasks.size) return true
+        for ((id, task) in svc.tasks) {
+            val drawn = drawnTasks[id] ?: return true
+            if (drawn.task !== task || drawn.state != task.state || drawn.cancelled != task.cancelled) return true
+        }
+        return false
+    }
+
+    /** Atualiza só a última linha da saída nos cartões com instalação em andamento. */
+    private fun updateRunningLines(svc: TerminalService) {
+        for ((id, task) in svc.tasks) {
+            if (task.state != AgentTask.State.RUNNING) continue
+            cards[id]?.findViewById<TextView>(R.id.task_line)?.text = task.lastLine
+        }
+    }
+
+    /** Agenda um redesenho dos cartões; chamadas seguidas dentro de 300 ms viram uma só. */
+    private fun scheduleRender() {
+        if (renderScheduled) return
+        renderScheduled = true
+        mainHandler.postDelayed(renderLater, RENDER_GAP_MS)
     }
 
     // ---- Cartões ----
 
     private fun renderAgents() {
         agentsList.removeAllViews()
+        cards.clear()
+        // O estado é anotado antes de desenhar: se mudar no meio, a próxima chamada corrige.
+        drawnTasks.clear()
+        for ((id, task) in service?.tasks.orEmpty()) {
+            drawnTasks[id] = TaskMark(task, task.state, task.cancelled)
+        }
         val inflater = LayoutInflater.from(this)
-        for (recipe in recipes) agentsList.addView(buildCard(inflater, recipe))
+        for (recipe in recipes) {
+            val card = buildCard(inflater, recipe)
+            cards[recipe.id] = card
+            agentsList.addView(card)
+        }
     }
 
     private fun buildCard(inflater: LayoutInflater, recipe: AgentRecipe): View {
@@ -290,6 +383,7 @@ class HomeActivity : JangadaActivity() {
         val taskLine = card.findViewById<TextView>(R.id.task_line)
         val taskError = card.findViewById<TextView>(R.id.task_error)
         val taskActions = card.findViewById<View>(R.id.task_actions)
+        val taskCancel = card.findViewById<Button>(R.id.task_cancel)
 
         val known = installed
         val isInstalled = known?.contains(recipe.command) == true
@@ -326,6 +420,8 @@ class HomeActivity : JangadaActivity() {
             taskLine.text = task.lastLine
             primary.visibility = View.GONE
             update.visibility = View.GONE
+            taskCancel.visibility = View.VISIBLE
+            taskCancel.setOnClickListener { confirmCancel(recipe) }
         } else {
             // Agentes com chat: no Modo Simples o botão principal é "Conversar" (chat)
             // e o terminal fica como alternativa; no Modo Pro, o contrário.
@@ -361,8 +457,8 @@ class HomeActivity : JangadaActivity() {
             }
         }
 
-        // Tarefa que falhou: explica e oferece as saídas.
-        if (task?.state == AgentTask.State.FAILED && (task.uninstalling || task.updating || !isInstalled)) {
+        // Tarefa que falhou: explica e oferece as saídas. Cancelada pelo usuário não mostra erro.
+        if (task?.state == AgentTask.State.FAILED && !task.cancelled && (task.uninstalling || task.updating || !isInstalled)) {
             taskError.visibility = View.VISIBLE
             taskError.setText(
                 when {
@@ -420,6 +516,14 @@ class HomeActivity : JangadaActivity() {
             .setTitle(getString(R.string.uninstall_title, recipe.name))
             .setMessage(R.string.uninstall_message)
             .setPositiveButton(R.string.agent_uninstall) { _, _ -> startUninstall(recipe) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmCancel(recipe: AgentRecipe) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.task_cancel_title, recipe.name))
+            .setPositiveButton(R.string.task_cancel_confirm) { _, _ -> service?.cancelTask(recipe.id) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -522,11 +626,15 @@ class HomeActivity : JangadaActivity() {
 
     private fun updatedKey(id: String) = "updated_$id"
 
+    /** Estado de uma tarefa como foi desenhado no cartão. */
+    private class TaskMark(val task: AgentTask, val state: AgentTask.State, val cancelled: Boolean)
+
     private companion object {
         const val FOUND = "JANGADA_FOUND "
         const val VERSION = "JANGADA_VERSION "
         const val SIZE = "JANGADA_SIZE "
         const val UPDATE_QUIET_MS = 7L * 24 * 60 * 60 * 1000
+        const val RENDER_GAP_MS = 300L
         const val REQUEST_STORAGE = 42
     }
 }

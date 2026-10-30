@@ -184,16 +184,24 @@ data class AcpSpec(
 object AgentCatalog {
     private const val DIR = "agents"
 
+    /** Receitas já lidas: os assets não mudam enquanto o app roda, então lê uma vez por processo. */
+    private var cache: List<AgentRecipe>? = null
+
+    @Synchronized
     fun load(context: Context): List<AgentRecipe> {
+        cache?.let { return it }
         val assets = context.assets
-        return (assets.list(DIR) ?: emptyArray())
+        val recipes = (assets.list(DIR) ?: emptyArray())
             .filter { it.endsWith(".json") }
             .mapNotNull { file ->
                 runCatching {
-                    AgentRecipe.parse(JSONObject(assets.open("$DIR/$file").bufferedReader().readText()))
+                    val text = assets.open("$DIR/$file").bufferedReader().use { it.readText() }
+                    AgentRecipe.parse(JSONObject(text))
                 }.getOrNull()
             }
             .sortedWith(compareBy({ it.order }, { it.name }))
+        cache = recipes
+        return recipes
     }
 
     /**
