@@ -15,8 +15,13 @@ import android.os.IBinder
 import android.os.Looper
 import android.text.Editable
 import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.TextPaint
 import android.text.TextUtils
 import android.text.TextWatcher
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
+import android.text.style.URLSpan
 import android.text.util.Linkify
 import android.util.TypedValue
 import android.view.Gravity
@@ -48,6 +53,7 @@ import io.github.jonjonesbr.jangada.chat.ToolText
 import io.github.jonjonesbr.jangada.chat.friendlyModel
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import java.io.File
+import java.util.WeakHashMap
 import kotlin.concurrent.thread
 
 /**
@@ -74,6 +80,12 @@ class ChatActivity : JangadaActivity() {
     private val handler = Handler(Looper.getMainLooper())
 
     private var service: TerminalService? = null
+    /** A tela está ligada ao serviço (bindService feito e ainda não desfeito). */
+    private var bound = false
+    /** A tela está iniciada (entre onStart e onStop). */
+    private var started = false
+    /** Um pedido de abrir o chat (feito ao ligar no serviço) espera o adaptador ficar pronto. */
+    private var opening = false
     private var engine: AgentChat? = null
     private var enterAt = -1
     private val pendingAttachments = mutableListOf<Attachment>()
@@ -114,7 +126,8 @@ class ChatActivity : JangadaActivity() {
         findViewById<View>(R.id.chat_new).setOnClickListener { newConversation() }
         findViewById<View>(R.id.chat_history).setOnClickListener { showHistory() }
         continueChip.setOnClickListener { engine?.sendMessage(getString(R.string.chat_continue_prompt)) }
-        subtitle.setOnClickListener { showChatSettings() }
+        // Título e subtítulo formam um só alvo de toque (ajustes da conversa).
+        findViewById<View>(R.id.chat_title_block).setOnClickListener { showChatSettings() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
 
         // "Enter envia" (configurações): o Enter do teclado manda a mensagem.
@@ -141,34 +154,61 @@ class ChatActivity : JangadaActivity() {
 
     override fun onStart() {
         super.onStart()
+        started = true
         val intent = Intent(this, TerminalService::class.java)
         startService(intent)
+        // Mesmo quando bindService devolve false, a ligação fica registrada e precisa do unbindService.
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        bound = true
     }
 
     override fun onStop() {
+        started = false
         engine?.onChanged = null
-        service?.let { unbindService(connection) }
+        // Sempre desfaz o bind feito em onStart, mesmo que o serviço ainda não tenha respondido.
+        if (bound) {
+            bound = false
+            runCatching { unbindService(connection) }
+        }
         service = null
         super.onStop()
     }
 
+    override fun onDestroy() {
+        // Nada que esperava a tela (instalação, por exemplo) roda depois que ela sai.
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            // Pode chegar depois de a tela ter parado: nesse caso, só desfaz o bind.
+            if (!started) {
+                if (bound) {
+                    bound = false
+                    runCatching { unbindService(this) }
+                }
+                return
+            }
             val svc = (binder as TerminalService.LocalBinder).service
             service = svc
+            // Um pedido anterior (de antes de a tela parar e voltar) ainda espera o adaptador: ele abre o chat.
+            if (opening) return
             val resume = intent.getStringExtra(EXTRA_RESUME)
             val fresh = intent.getBooleanExtra(EXTRA_NEW, false)
             intent.removeExtra(EXTRA_RESUME)
             intent.removeExtra(EXTRA_NEW)
             val current = svc.chat?.takeIf { svc.chatAgentId == agentId }
             when {
-                resume != null -> ensureAdapter { attach(svc.openChat(agentId, resume = resume, restart = true)) }
-                fresh -> ensureAdapter { attach(svc.openChat(agentId, restart = true)) }
+                resume != null -> openWhenReady { attach(svc.openChat(agentId, resume = resume, restart = true)) }
+                fresh -> openWhenReady { attach(svc.openChat(agentId, restart = true)) }
                 current != null -> attach(current)
-                else -> ensureAdapter {
+                else -> openWhenReady {
                     // No Claude, continua a conversa mais recente (se houver; o chat confere fora da thread principal).
-                    attach(svc.openChat(agentId, continueLast = isClaude))
+                    // Com o terminal do Claude aberto, ele pode estar gravando essa mesma conversa: abre uma nova.
+                    val terminalBusy = isClaude && svc.hasClaudeTerminal()
+                    if (terminalBusy) Toast.makeText(this@ChatActivity, R.string.chat_terminal_busy_new, Toast.LENGTH_LONG).show()
+                    attach(svc.openChat(agentId, continueLast = isClaude && !terminalBusy))
                 }
             }
         }
@@ -179,25 +219,47 @@ class ChatActivity : JangadaActivity() {
     }
 
     /**
+     * Abre o chat ao ligar no serviço, depois do adaptador pronto. Se a tela
+     * para e volta durante a preparação, a nova ligação não cria um segundo
+     * pedido: o primeiro (que pode ser uma conversa a retomar) segue valendo.
+     */
+    private fun openWhenReady(open: () -> Unit) {
+        opening = true
+        ensureAdapter {
+            opening = false
+            open()
+        }
+    }
+
+    /**
      * Alguns agentes falam ACP por um adaptador separado (Codex, Pi). Na
      * primeira vez, ele é instalado aqui mesmo, com aviso na tela. Se outra
      * tela já estiver instalando o mesmo adaptador, esta só espera o fim.
      */
     private fun ensureAdapter(then: () -> Unit) {
+        // Cada pedido roda o que vem depois uma vez só, e nunca depois de a tela ser destruída
+        // (a tela pode parar e voltar durante a instalação, e as esperas se cruzariam).
+        var ran = false
+        val once: () -> Unit = {
+            if (!ran && !isDestroyed) {
+                ran = true
+                then()
+            }
+        }
         val spec = recipe?.acp
         val bin = spec?.bin
         val script = spec?.installScript()
         // bin pode ser um nome (instalado em /usr/local/bin) ou um caminho absoluto no Linux.
         val binFile = bin?.let { if (it.startsWith("/")) File(linux.rootfs, it.removePrefix("/")) else File(linux.rootfs, "usr/local/bin/$it") }
         if (isClaude || binFile == null || script == null || binFile.exists()) {
-            then()
+            once()
             return
         }
         showPreparing()
         if (!startInstall()) {
             waitForInstall {
                 showReady()
-                ensureAdapter(then)
+                ensureAdapter(once)
             }
             return
         }
@@ -213,9 +275,9 @@ class ChatActivity : JangadaActivity() {
                 if (isDestroyed) return@runOnUiThread
                 if (code == 0) {
                     showReady()
-                    then()
+                    once()
                 } else {
-                    showPrepareFailure(log.toString(), then)
+                    showPrepareFailure(log.toString(), once)
                 }
             }
         }
@@ -249,9 +311,15 @@ class ChatActivity : JangadaActivity() {
     }
 
     /** Log completo da instalação, em texto selecionável (para copiar e mandar para o suporte). */
-    private fun showPrepareDetails(log: String) {
-        val text = TextView(this).apply {
-            text = log.trimEnd().ifBlank { getString(R.string.chat_prepare_failed, agentName) }
+    private fun showPrepareDetails(log: String) = showDetails(
+        R.string.chat_prepare_details,
+        log.trimEnd().ifBlank { getString(R.string.chat_prepare_failed, agentName) },
+    )
+
+    /** Texto longo (log ou erro do agente) numa caixa que se pode selecionar e copiar. */
+    private fun showDetails(title: Int, body: String) {
+        val view = TextView(this).apply {
+            text = body
             typeface = Typeface.MONOSPACE
             textSize = 12f
             setTextColor(getColor(R.color.setup_text))
@@ -259,8 +327,8 @@ class ChatActivity : JangadaActivity() {
             setPadding(dp(20), dp(8), dp(20), dp(8))
         }
         AlertDialog.Builder(this)
-            .setTitle(R.string.chat_prepare_details)
-            .setView(ScrollView(this).apply { addView(text) })
+            .setTitle(title)
+            .setView(ScrollView(this).apply { addView(view) })
             .setPositiveButton(android.R.string.ok, null)
             .show()
     }
@@ -293,7 +361,8 @@ class ChatActivity : JangadaActivity() {
 
     private fun attach(chat: AgentChat) {
         engine = chat
-        chat.onChanged = { refresh() }
+        // Parada, a tela não se registra no chat (o onStop já desfez isso); ao voltar, o onStart a liga de novo.
+        if (started) chat.onChanged = { refresh() }
         refresh()
         input.requestFocus()
     }
@@ -491,28 +560,36 @@ class ChatActivity : JangadaActivity() {
             .setMessage(conversation.title)
             .setPositiveButton(R.string.chat_delete) { _, _ ->
                 val svc = service ?: return@setPositiveButton
-                val acp = engine as? AcpChat
-                val remove = { then: () -> Unit ->
-                    if (isClaude) {
-                        ChatHistory.delete(linux, conversation.id)
-                        then()
-                    } else {
-                        acp?.deleteSession(conversation.id, then) ?: then()
-                    }
+                // Depois de apagar: se era a conversa aberta, abre uma nova; a lista volta à tela principal.
+                val reopenAndDone = {
+                    if (isCurrent && !isDestroyed) attach(svc.openChat(agentId, restart = true))
+                    done()
                 }
-                if (isCurrent) {
-                    remove {
-                        svc.closeChat {
-                            if (!isDestroyed) attach(svc.openChat(agentId, restart = true))
-                            done()
-                        }
+                if (isClaude) {
+                    // Fecha o chat primeiro (o Claude para de gravar); só então apaga os arquivos.
+                    if (isCurrent) {
+                        svc.closeChat { deleteClaudeFiles(conversation.id, reopenAndDone) }
+                    } else {
+                        deleteClaudeFiles(conversation.id, done)
                     }
                 } else {
-                    remove(done)
+                    // ACP: o agente apaga pela própria conexão, então apaga antes de fechar a conversa.
+                    val acp = engine as? AcpChat
+                    val afterDelete = { if (isCurrent) svc.closeChat { reopenAndDone() } else done() }
+                    acp?.deleteSession(conversation.id, afterDelete) ?: afterDelete()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /** Apaga a conversa do Claude fora da thread principal (a pasta de anexos pode ser grande); [then] volta à principal. */
+    private fun deleteClaudeFiles(id: String, then: () -> Unit) {
+        thread(name = "chat-delete") {
+            // Um erro aqui (arquivo preso, por exemplo) não pode derrubar o app.
+            runCatching { ChatHistory.delete(linux, id) }
+            runOnUiThread { if (!isDestroyed) then() }
+        }
     }
 
     /**
@@ -687,24 +764,54 @@ class ChatActivity : JangadaActivity() {
         override fun getItemId(position: Int) = position.toLong()
         override fun isEnabled(position: Int) = false
 
+        /** Respostas já separadas em partes e formatadas, por item (cache do adaptador). */
+        private val answers = WeakHashMap<ChatItem.Assistant, Rendered>()
+
+        /** Um tipo de linha para cada tipo de item (o Android reaproveita só dentro do mesmo tipo). */
+        override fun getViewTypeCount() = 7
+
+        override fun getItemViewType(position: Int): Int = when (snapshot[position]) {
+            is ChatItem.User -> 0
+            is ChatItem.Assistant -> 1
+            is ChatItem.Tool -> 2
+            is ChatItem.Permission -> 3
+            is ChatItem.Plan -> 4
+            is ChatItem.Login -> 5
+            is ChatItem.Info -> 6
+        }
+
+        /**
+         * Reaproveita a linha (e a view de texto dentro dela, quando o tipo
+         * permite). Cada uso refaz todos os campos e listeners: nada do item
+         * anterior fica na tela.
+         */
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            val row = LinearLayout(this@ChatActivity).apply {
+            val item = snapshot[position]
+            val type = getItemViewType(position)
+            val row = (convertView as? LinearLayout)?.takeIf { it.tag == type } ?: LinearLayout(this@ChatActivity).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(0, dp(4), 0, dp(4))
+                tag = type
             }
-            when (val item = snapshot[position]) {
-                is ChatItem.User -> row.addView(userBubble(item))
-                is ChatItem.Assistant -> row.addView(assistantView(item))
-                is ChatItem.Tool -> row.addView(toolLine(item))
-                is ChatItem.Permission -> row.addView(permissionCard(item))
-                is ChatItem.Plan -> row.addView(planView(item))
-                is ChatItem.Login -> row.addView(loginCard(item))
-                is ChatItem.Info -> row.addView(infoText(item))
-            }
+            row.setPadding(0, dp(4), 0, dp(4))
+            // A view antiga é do mesmo tipo, e o construtor de cada tipo redefine todos os campos e listeners
+            // dela (setOnClickListener(null) aqui a deixaria clicável e engoliria toques).
+            val old = row.getChildAt(0)
+            row.removeAllViews()
+            row.addView(
+                when (item) {
+                    is ChatItem.User -> userBubble(item, old as? TextView)
+                    is ChatItem.Assistant -> assistantView(item, old as? LinearLayout)
+                    is ChatItem.Tool -> toolLine(item, old as? TextView)
+                    is ChatItem.Permission -> permissionCard(item)
+                    is ChatItem.Plan -> planView(item, old as? TextView)
+                    is ChatItem.Login -> loginCard(item)
+                    is ChatItem.Info -> infoText(item, old as? TextView)
+                },
+            )
             return row
         }
 
-        private fun userBubble(item: ChatItem.User) = TextView(this@ChatActivity).apply {
+        private fun userBubble(item: ChatItem.User, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
             val files = item.attachments.joinToString("") { "\n📎 $it" }
             text = item.text + files
             setTextColor(getColor(R.color.key_text))
@@ -719,26 +826,56 @@ class ChatActivity : JangadaActivity() {
         }
 
         /** Resposta: texto com Markdown e blocos de código com botão Copiar. */
-        private fun assistantView(item: ChatItem.Assistant): View {
-            val box = LinearLayout(this@ChatActivity).apply { orientation = LinearLayout.VERTICAL }
-            val parts = splitCode(item.text)
-            for ((index, part) in parts.withIndex()) {
-                val last = index == parts.size - 1
-                if (part.isCode) box.addView(codeBlock(part)) else box.addView(prose(part.text, item, last))
+        private fun assistantView(item: ChatItem.Assistant, old: LinearLayout?): View {
+            val box = (old ?: LinearLayout(this@ChatActivity)).apply {
+                removeAllViews()
+                orientation = LinearLayout.VERTICAL
+                setOnLongClickListener { copy(item.text); true }
             }
-            box.setOnLongClickListener { copy(item.text); true }
+            val answer = answerOf(item)
+            for ((index, part) in answer.parts.withIndex()) {
+                val body = answer.bodies[index]
+                val last = index == answer.parts.size - 1
+                if (body == null) box.addView(codeBlock(part)) else box.addView(prose(body, item, last))
+            }
             return box
         }
 
-        private fun prose(text: String, item: ChatItem.Assistant, last: Boolean) = TextView(this@ChatActivity).apply {
-            val body = Markdown.render(text.trim('\n'), getColor(R.color.code_bg))
-            this.text = if (item.streaming && last) SpannableStringBuilder(body).append(" ▍") else body
+        /** Resposta já separada e formatada. Só guarda no cache o que não está em streaming. */
+        private fun answerOf(item: ChatItem.Assistant): Rendered {
+            if (item.streaming) return renderAnswer(item)
+            answers[item]?.takeIf { it.text == item.text }?.let { return it }
+            return renderAnswer(item).also { answers[item] = it }
+        }
+
+        /** Markdown de cada parte de texto (null nas partes de código); os links já ficam marcados. */
+        private fun renderAnswer(item: ChatItem.Assistant): Rendered {
+            val parts = splitCode(item.text)
+            val bodies = parts.map { part ->
+                if (part.isCode) {
+                    null
+                } else {
+                    SpannableStringBuilder(Markdown.render(part.text.trim('\n'), getColor(R.color.code_bg))).also {
+                        if (!item.streaming) Linkify.addLinks(it, Linkify.WEB_URLS)
+                    }
+                }
+            }
+            return Rendered(item.text, parts, bodies)
+        }
+
+        private fun prose(body: CharSequence, item: ChatItem.Assistant, last: Boolean) = TextView(this@ChatActivity).apply {
+            text = if (item.streaming && last) SpannableStringBuilder(body).append(" ▍") else body
             setTextColor(getColor(R.color.setup_text))
             textSize = 16f
             setLineSpacing(0f, 1.2f)
             setPadding(dp(4), dp(4), dp(4), dp(4))
-            if (!item.streaming) Linkify.addLinks(this, Linkify.WEB_URLS)
             setLinkTextColor(getColor(R.color.accent_text))
+            // Links abrem ao toque; sem link, o toque segue para o clique longo (copiar).
+            movementMethod = if (body is Spanned && body.getSpans(0, body.length, URLSpan::class.java).isNotEmpty()) {
+                LinkMovementMethod.getInstance()
+            } else {
+                null
+            }
             setOnLongClickListener { copy(item.text); true }
         }
 
@@ -783,7 +920,7 @@ class ChatActivity : JangadaActivity() {
             return block
         }
 
-        private fun toolLine(item: ChatItem.Tool) = TextView(this@ChatActivity).apply {
+        private fun toolLine(item: ChatItem.Tool, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
             val mark = when {
                 !item.done -> "…"
                 item.failed -> "✕"
@@ -926,7 +1063,7 @@ class ChatActivity : JangadaActivity() {
             return card
         }
 
-        private fun planView(item: ChatItem.Plan) = TextView(this@ChatActivity).apply {
+        private fun planView(item: ChatItem.Plan, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
             text = getString(R.string.chat_plan) + "\n" + item.entries.joinToString("\n") { entry ->
                 val mark = when (entry.status) { "completed" -> "☑"; "in_progress" -> "◐"; else -> "☐" }
                 "$mark ${entry.text}"
@@ -937,8 +1074,30 @@ class ChatActivity : JangadaActivity() {
             setPadding(dp(14), dp(10), dp(14), dp(10))
         }
 
-        private fun infoText(item: ChatItem.Info) = TextView(this@ChatActivity).apply {
-            text = item.text
+        /** Aviso da conversa; com [ChatItem.Info.details], um link "Detalhes" abre o erro completo. */
+        private fun infoText(item: ChatItem.Info, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
+            val details = item.details
+            text = if (details == null) {
+                item.text
+            } else {
+                SpannableStringBuilder(item.text).apply {
+                    append("\n")
+                    val start = length
+                    append(getString(R.string.chat_error_details))
+                    setSpan(
+                        object : ClickableSpan() {
+                            override fun onClick(widget: View) = showDetails(R.string.chat_error_details, details)
+
+                            override fun updateDrawState(ds: TextPaint) {
+                                ds.isUnderlineText = true
+                                ds.color = getColor(R.color.accent_text)
+                            }
+                        },
+                        start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                }
+            }
+            movementMethod = if (details != null) LinkMovementMethod.getInstance() else null
             gravity = Gravity.CENTER
             textSize = 13f
             setTextColor(getColor(if (item.isError) R.color.setup_error else R.color.setup_muted))
@@ -949,6 +1108,9 @@ class ChatActivity : JangadaActivity() {
 
     /** Pedaço de uma resposta: texto comum, bloco de código (```) ou tabela. */
     private class Part(val text: String, val isCode: Boolean, val language: String = "", val isTable: Boolean = false)
+
+    /** Resposta pronta para mostrar: as partes e, para cada uma, o texto formatado (null = bloco de código). */
+    private class Rendered(val text: String, val parts: List<Part>, val bodies: List<CharSequence?>)
 
     private fun splitCode(text: String): List<Part> {
         val parts = mutableListOf<Part>()

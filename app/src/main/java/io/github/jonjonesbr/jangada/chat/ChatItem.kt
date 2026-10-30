@@ -35,7 +35,8 @@ sealed class ChatItem {
 
     /** Plano de trabalho do agente (lista de tarefas que ele vai atualizando). */
     class Plan(var entries: List<PlanEntry>) : ChatItem()
-    class Info(val text: String, val isError: Boolean = false) : ChatItem()
+    /** [details]: texto técnico (ex.: saída de erro do agente), mostrado sob o link "Detalhes". */
+    class Info(val text: String, val isError: Boolean = false, val details: String? = null) : ChatItem()
 }
 
 class PermissionOption(val id: String, val label: String, val kind: Kind) {

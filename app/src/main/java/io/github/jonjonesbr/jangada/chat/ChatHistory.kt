@@ -52,13 +52,13 @@ object ChatHistory {
             when (json.optString("type")) {
                 "user" -> {
                     val content = message.opt("content")
-                    if (content is String && content.isNotBlank() && !content.trimStart().startsWith("<")) {
+                    if (content is String && content.isNotBlank() && !isInternal(content)) {
                         add(ChatItem.User(content))
                     } else if (content is JSONArray) {
                         for (i in 0 until content.length()) {
                             val block = content.optJSONObject(i) ?: continue
                             val text = block.optString("text")
-                            if (block.optString("type") == "text" && text.isNotBlank() && !text.trimStart().startsWith("<")) {
+                            if (block.optString("type") == "text" && text.isNotBlank() && !isInternal(text)) {
                                 add(ChatItem.User(text))
                             }
                         }
@@ -114,14 +114,26 @@ object ChatHistory {
 
     private fun userText(message: JSONObject?): String? {
         when (val content = message?.opt("content")) {
-            is String -> return content.takeIf { it.isNotBlank() && !it.trimStart().startsWith("<") }
+            is String -> return content.takeIf { it.isNotBlank() && !isInternal(it) }
             is JSONArray -> for (i in 0 until content.length()) {
                 val block = content.optJSONObject(i) ?: continue
                 val text = block.optString("text")
-                if (block.optString("type") == "text" && text.isNotBlank() && !text.trimStart().startsWith("<")) return text
+                if (block.optString("type") == "text" && text.isNotBlank() && !isInternal(text)) return text
             }
         }
         return null
+    }
+
+    /** Marcadores que o próprio Claude Code grava (comandos, "!", avisos): não são mensagens digitadas. */
+    private val INTERNAL_MARKERS = listOf(
+        "<command-name>", "<command-message>", "<command-args>", "<local-command-",
+        "<bash-input>", "<bash-stdout>", "<bash-stderr>", "<system-reminder>", "<user-prompt-submit-hook>",
+    )
+
+    /** Texto que começa com um desses marcadores. Mensagens comuns com "<" (ex.: "<div>") ficam. */
+    private fun isInternal(text: String): Boolean {
+        val trimmed = text.trimStart()
+        return INTERNAL_MARKERS.any { trimmed.startsWith(it) }
     }
 
     private const val MAX_LINES = 60

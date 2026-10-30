@@ -171,7 +171,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
      * motivo quando não foi normal.
      */
     protected open fun onExited(code: Int, stderr: String) {
-        if (code != 0) add(ChatItem.Info(exitMessage(code, stderr), isError = true))
+        if (code != 0) add(ChatItem.Info(exitMessage(code), isError = true, details = detailsOf(stderr)))
     }
 
     private fun readOutput(c: Connection, proc: Process) {
@@ -224,16 +224,19 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         }
     }
 
-    /** Explica o código de saída e junta as últimas linhas de erro do agente. */
-    protected fun exitMessage(code: Int, stderr: String): String {
+    /** O que houve com o código de saída e o que fazer agora. O erro cru fica em [detailsOf]. */
+    protected fun exitMessage(code: Int): String {
         val reason = when (code) {
             0 -> context.getString(R.string.chat_exit_normal)
             127 -> context.getString(R.string.chat_exit_not_found)
             126 -> context.getString(R.string.chat_exit_no_permission)
             else -> context.getString(R.string.chat_exit_code, code)
         }
-        return if (code != 0 && stderr.isNotBlank()) "$reason\n\n$stderr" else reason
+        return if (code == 0) reason else reason + "\n" + context.getString(R.string.chat_error_hint)
     }
+
+    /** Últimas linhas de erro do agente, para o link "Detalhes" (null se não houver nenhuma). */
+    protected fun detailsOf(stderr: String): String? = stderr.trim().ifEmpty { null }
 
     protected fun add(item: ChatItem) {
         items += item
@@ -257,7 +260,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
     }
 
     private companion object {
-        const val THROTTLE_MS = 80L
+        const val THROTTLE_MS = 150L
         const val STDERR_LINES = 12
     }
 }

@@ -44,6 +44,22 @@ class ChatHistoryTest {
     }
 
     @Test
+    fun mantemMensagemComTagMasDescarteMarcadorInterno() {
+        val lines = sequenceOf(
+            """{"type":"user","message":{"role":"user","content":"<div>oi</div>"}}""",
+            """{"type":"user","message":{"role":"user","content":"<local-command-stdout>x</local-command-stdout>"}}""",
+            """{"type":"user","message":{"role":"user","content":[{"type":"text","text":"<bash-stdout>ok</bash-stdout>"}]}}""",
+            """{"type":"user","message":{"role":"user","content":[{"type":"text","text":"<p>sim</p>"}]}}""",
+        )
+
+        val items = ChatHistory.parse(lines, max = 10)
+
+        assertEquals(2, items.size)
+        assertEquals("<div>oi</div>", (items[0] as ChatItem.User).text)
+        assertEquals("<p>sim</p>", (items[1] as ChatItem.User).text)
+    }
+
+    @Test
     fun nomeAmigavelDoModelo() {
         assertEquals("Haiku 4.5", friendlyModel("claude-haiku-4-5-20251001"))
         assertEquals("Sonnet 4", friendlyModel("claude-sonnet-4-20250514"))

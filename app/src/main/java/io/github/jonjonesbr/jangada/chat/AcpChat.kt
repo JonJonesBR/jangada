@@ -425,7 +425,7 @@ class AcpChat(
         if (!ready && code != 0 && Regex("auth|login|sign.?in|credential", RegexOption.IGNORE_CASE).containsMatchIn(stderr)) {
             requireLogin(sessionId)
         } else {
-            add(ChatItem.Info(exitMessage(code, stderr), isError = code != 0))
+            add(ChatItem.Info(exitMessage(code), isError = code != 0, details = detailsOf(stderr).takeIf { code != 0 }))
         }
     }
 
@@ -577,7 +577,7 @@ class AcpChat(
         val auth = error?.optInt("code") == -32000 || message.contains("auth", true) || data.contains("auth", true)
         return if (auth) context.getString(R.string.chat_acp_login_hint)
         else listOf(message, data).filter { it.isNotEmpty() && it != "null" }.joinToString("\n")
-            .ifEmpty { context.getString(R.string.chat_acp_error) }
+            .ifEmpty { context.getString(R.string.chat_acp_error) + "\n" + context.getString(R.string.chat_error_hint) }
     }
 
     // ---- JSON-RPC ----
