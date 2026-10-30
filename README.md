@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/screenshots/1-inicio.jpg" width="22%" />
-  <img src="docs/screenshots/2-chat.jpg" width="22%" />
-  <img src="docs/screenshots/3-terminal.jpg" width="22%" />
-  <img src="docs/screenshots/4-configuracoes.jpg" width="22%" />
+  <img src="docs/screenshots/1-inicio.jpg" width="22%" alt="Tela inicial / Home screen" />
+  <img src="docs/screenshots/2-chat.jpg" width="22%" alt="Chat" />
+  <img src="docs/screenshots/3-terminal.jpg" width="22%" alt="Terminal" />
+  <img src="docs/screenshots/4-configuracoes.jpg" width="22%" alt="Configurações / Settings" />
 </p>
 
 # Jangada
