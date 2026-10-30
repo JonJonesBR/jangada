@@ -11,27 +11,18 @@ import android.text.style.TypefaceSpan
 
 /**
  * Markdown simples para as respostas do agente: títulos, negrito, itálico,
- * `código`, blocos ``` e listas. O suficiente para ler bem no celular.
+ * `código` e listas. O suficiente para ler bem no celular.
+ * Recebe só texto já sem blocos ``` (o ChatActivity separa esses blocos antes).
  */
 object Markdown {
 
     fun render(source: String, codeBackground: Int): CharSequence {
         val out = SpannableStringBuilder()
-        var inCode = false
         val lines = source.split('\n')
         for ((index, raw) in lines.withIndex()) {
             val line = raw.trimEnd()
-            if (line.trimStart().startsWith("```")) {
-                inCode = !inCode
-                continue
-            }
             val start = out.length
             when {
-                inCode -> {
-                    out.append(raw)
-                    out.setSpan(TypefaceSpan("monospace"), start, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    out.setSpan(BackgroundColorSpan(codeBackground), start, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
                 line.startsWith("#") -> {
                     val level = line.takeWhile { it == '#' }.length
                     appendInline(out, line.drop(level).trim(), codeBackground)

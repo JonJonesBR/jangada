@@ -49,9 +49,6 @@ class AcpChat(
     @Volatile var configOptions: List<ConfigOption> = emptyList()
         private set
 
-    /** Título da conversa informado pelo agente. */
-    @Volatile var title: String? = null
-        private set
     @Volatile var canDelete = false
         private set
 
@@ -565,7 +562,8 @@ class AcpChat(
                 else plan = ChatItem.Plan(list).also { items += it }
                 changed()
             }
-            "session_info_update" -> update.optString("title").takeIf { it.isNotEmpty() }?.let { title = it; changed() }
+            // Título da sessão: o app não o mostra, então nada a fazer.
+            "session_info_update" -> Unit
             "config_option_update" -> parseConfig(update)
             "current_mode_update" -> {
                 val mode = configOptions.firstOrNull { it.source == ConfigOption.Source.MODE || it.category == "mode" }
