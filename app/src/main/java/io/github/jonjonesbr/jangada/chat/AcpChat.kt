@@ -491,7 +491,7 @@ class AcpChat(
             }
             PermissionOption(o.optString("optionId"), o.optString("name"), kind)
         }
-        add(ChatItem.Permission(id, title, summary, parsed))
+        add(ChatItem.Permission(id, title, summary, parsed, diff = DiffText.fromAcpContent(toolCall.optJSONArray("content"))))
     }
 
     private fun handleUpdate(params: JSONObject?) {

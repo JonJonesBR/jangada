@@ -302,6 +302,7 @@ class ChatEngine(
                     PermissionOption("deny", "", PermissionOption.Kind.REJECT_ONCE),
                 ),
                 input, toolName, detail,
+                diff = DiffText.fromClaude(toolName, input),
             ),
         )
     }

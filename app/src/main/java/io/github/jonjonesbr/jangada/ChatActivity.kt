@@ -22,6 +22,7 @@ import android.text.TextUtils
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
+import android.text.style.ForegroundColorSpan
 import android.text.style.URLSpan
 import android.text.util.Linkify
 import android.util.TypedValue
@@ -1028,6 +1029,7 @@ class ChatActivity : JangadaActivity() {
                     }
                 })
             }
+            item.diff?.let { card.addView(diffView(it)) }
             if (item.detail.isNotEmpty()) {
                 card.addView(TextView(this@ChatActivity).apply {
                     text = item.detail
@@ -1064,6 +1066,31 @@ class ChatActivity : JangadaActivity() {
                 })
             }
             return card
+        }
+
+        /** Trecho de edição (linhas "- " em vermelho e "+ " em verde) com o fundo dos blocos de código. */
+        private fun diffView(diff: String) = TextView(this@ChatActivity).apply {
+            typeface = Typeface.MONOSPACE
+            textSize = 12f
+            setTextColor(getColor(R.color.setup_text))
+            setBackgroundResource(R.drawable.compose_bg)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(2); bottomMargin = dp(6) }
+            setLineSpacing(0f, 1.1f)
+            text = SpannableStringBuilder().apply {
+                for ((index, line) in diff.lines().withIndex()) {
+                    if (index > 0) append('\n')
+                    val start = length
+                    append(line)
+                    val color = when {
+                        line.startsWith("- ") -> R.color.setup_error
+                        line.startsWith("+ ") -> R.color.setup_done
+                        else -> R.color.setup_muted
+                    }
+                    setSpan(ForegroundColorSpan(getColor(color)), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
         }
 
         /** Cartão que guia o primeiro login do agente. */

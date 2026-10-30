@@ -14,6 +14,7 @@ sealed class ChatItem {
     /**
      * Pedido de permissão; [chosen] guarda a opção escolhida (null = esperando).
      * [summary] é o comando ou caminho; [detail] é a descrição extra que o agente mandou (opcional).
+     * [diff] é o trecho que a ação altera num arquivo (ver [DiffText]), quando há.
      */
     class Permission(
         val requestId: Any,
@@ -23,6 +24,7 @@ sealed class ChatItem {
         val input: JSONObject = JSONObject(),
         val toolName: String = "",
         val detail: String = "",
+        val diff: String? = null,
     ) : ChatItem() {
         var chosen: PermissionOption? = null
     }
