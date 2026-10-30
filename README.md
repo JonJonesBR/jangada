@@ -15,15 +15,16 @@ O Jangada traz um Linux Debian completo para dentro do app e deixa você instala
 
 ## Recursos
 
-- **Catálogo de agentes**: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw. Instalar, atualizar (só quando há versão nova) e desinstalar com um toque, mostrando o espaço que cada um ocupa.
+- **Catálogo de agentes**: Claude Code, Antigravity CLI (agy), Codex, OpenCode, Pi, oh-my-pi, Qwen Code, Hermes Agent, Command Code e OpenClaw. Instalar, atualizar (quando há versão nova ou, sem fonte de versão, a cada 7 dias) e desinstalar com um toque, mostrando o espaço que cada um ocupa.
 - **Chat**: balões com respostas em tempo real, ações do agente, cartões de permissão (permitir, recusar ou permitir sempre), plano de tarefas, tabelas e blocos de código com botão copiar. Troca de modelo, esforço e modo pelo próprio chat. Funciona com o Claude Code e com os agentes que falam o [Agent Client Protocol](https://agentclientprotocol.com).
 - **Chat ⇄ Terminal**: no Claude Code, a mesma conversa nos dois modos.
-- **Login guiado**: na primeira vez, o app mostra como entrar na conta de cada agente; o navegador abre sozinho.
+- **Login guiado**: na primeira vez, o app mostra como entrar na conta de cada agente: pelo navegador quando o agente oferece, ou pela tela do próprio agente.
 - **Anexos**: mande fotos, prints e arquivos para o agente.
 - **Terminal de verdade**: abas, teclas extras pensadas para agentes, caixa de texto com corretor e voz, links clicáveis, fontes com os símbolos que os agentes usam e esquemas de cores.
 - **Segundo plano**: os agentes continuam trabalhando com a tela apagada ou em outro app.
 - **Arquivos do celular**: os agentes leem e salvam em `~/celular` (Downloads, Documentos…); os projetos ficam em `~/projetos`.
-- **Modo Simples e Modo Pro**, tema claro, escuro ou do sistema.
+- **Modo Simples e Modo Pro**: no Simples, os agentes abrem no chat (quando têm um) e a caixa de texto já vem ligada. No Pro, eles abrem primeiro no terminal e as abas ficam sempre visíveis.
+- **Tema** claro, escuro ou do sistema.
 - **Chaves de API** guardadas com criptografia (Android Keystore), para quem usa os agentes com chave.
 - **Backup** dos projetos e das configurações dos agentes, e **Liberar espaço** com um toque.
 - **Sem anúncios e sem rastreamento.** O Jangada só acessa a internet para instalar o Linux e os agentes e para ver se há versões novas; suas conversas vão só para os serviços de IA que você escolher.
@@ -44,45 +45,7 @@ O Jangada usa o motor de terminal do [Termux](https://github.com/termux/termux-a
 
 O app é distribuído pelo GitHub, e não pela Play Store: para executar o Linux dentro do app, ele usa `targetSdk 28`, a mesma escolha do Termux.
 
-## Adicionar um agente
-
-Cada agente é um arquivo JSON em [`app/src/main/assets/agents/`](app/src/main/assets/agents). Para incluir um novo, copie um dos existentes e mande um pull request:
-
-```json
-{
-  "id": "meu-agente",
-  "order": 110,
-  "name": "Meu Agente",
-  "vendor": "Quem faz",
-  "command": "meuagente",
-  "install": "curl -fsSL https://exemplo.com/install.sh | bash",
-  "update": "meuagente update",
-  "uninstall": "rm -rf ~/.meuagente",
-  "requires": ["nodejs", "npm"],
-  "homepage": "https://exemplo.com",
-  "npm": "meu-agente",
-  "acp": { "command": "meuagente acp" },
-  "description": { "pt": "O que ele faz.", "en": "What it does." },
-  "note": { "pt": "Aviso opcional.", "en": "Optional note." }
-}
-```
-
-- `command` abre o agente; o app usa esse nome para saber se ele está instalado.
-- `install` roda dentro do Debian; `requires` instala pacotes do Debian antes.
-- `update` e `uninstall` são opcionais (sem `update`, atualizar repete a instalação; o app sempre apaga o comando do agente ao desinstalar).
-- `npm` é opcional: o pacote no npm, usado só para descobrir a versão mais nova.
-- `acp` é opcional: como abrir o agente no modo [ACP](https://agentclientprotocol.com) para ter chat no app. Com adaptador separado: `{ "command": "pi-acp", "bin": "pi-acp", "install": "npm i -g pi-acp", "requires": ["nodejs", "npm"] }`.
-
-## Compilar
-
-Cada push na `main` gera o APK pelo GitHub Actions (`.github/workflows/build.yml`). Para compilar localmente: JDK 17, Android SDK com NDK e Gradle 8.11.1.
-
-```
-bash scripts/fetch-proot.sh aarch64
-gradle :app:assembleRelease
-```
-
-Para APKs assinados num fork, crie os secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` e `KEY_PASSWORD`; sem eles, o build usa a chave de debug.
+Para contribuir, adicionar agentes ou compilar o APK, veja [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ## Licença
 
@@ -96,10 +59,12 @@ Para APKs assinados num fork, crie os secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSW
 
 Jangada brings a full Debian Linux inside the app and lets you install, open and talk to the main AI coding agents with one tap — as a chat (with autocorrect and voice typing) or in each agent’s full terminal screen.
 
-**Features:** agent catalog with one-tap install, update and uninstall · native chat with live answers, permission cards, plans, tables and code blocks, plus model/effort/mode switching (Claude Code and [Agent Client Protocol](https://agentclientprotocol.com) agents) · same conversation in chat and terminal for Claude Code · guided first login · photo and file attachments · real terminal with tabs, agent-friendly extra keys and color schemes · keeps working in the background · access to your phone files · Simple and Pro modes, light/dark theme · encrypted API keys (Android Keystore) · backup and one-tap cleanup · no ads, no tracking.
+**Features:** agent catalog with one-tap install, update (when there is a new version or, with no version source, every 7 days) and uninstall · native chat with live answers, permission cards, plans, tables and code blocks, plus model/effort/mode switching (Claude Code and [Agent Client Protocol](https://agentclientprotocol.com) agents) · same conversation in chat and terminal for Claude Code · guided first login (in the browser when the agent offers it, or on the agent’s own screen) · photo and file attachments · real terminal with tabs, agent-friendly extra keys and color schemes · keeps working in the background · access to your phone files · Simple and Pro modes (in Simple, agents open in the chat when they have one and the text box is on; in Pro, they open in the terminal first and the tabs stay visible) · light/dark theme · encrypted API keys (Android Keystore) · backup and one-tap cleanup · no ads, no tracking.
 
 **Install:** download `Jangada.apk` from [Releases](https://github.com/JonJonesBR/jangada/releases/latest), or track `https://github.com/JonJonesBR/jangada` with [Obtainium](https://github.com/ImranR98/Obtainium). Requires Android 8+, a 64-bit ARM device and about 700 MB free. Each agent uses your own account or API key with its AI provider.
 
 **How it works:** Termux’s terminal engine plus an official Debian running through proot, without root. Distributed through GitHub (it targets SDK 28, like Termux, to run Linux inside the app).
+
+**Contributing:** to add agents or build the APK, see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 **License:** [GPL-3.0](LICENSE) — third-party notices in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
