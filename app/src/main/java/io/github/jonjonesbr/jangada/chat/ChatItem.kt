@@ -55,6 +55,9 @@ class PermissionOption(val id: String, val label: String, val kind: Kind) {
 
 class PlanEntry(val text: String, val status: String)
 
+/** Comando com "/" que o agente anuncia (ex.: "/review"); o chat sugere quando o usuário digita "/". */
+data class SlashCommand(val name: String, val description: String)
+
 /** Um jeito de entrar na conta do agente. */
 class AuthOption(
     val id: String,

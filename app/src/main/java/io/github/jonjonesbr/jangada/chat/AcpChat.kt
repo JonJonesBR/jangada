@@ -52,6 +52,10 @@ class AcpChat(
     @Volatile var canDelete = false
         private set
 
+    /** Comandos "/" que o agente anunciou (podem mudar durante a conversa). */
+    @Volatile var commands: List<SlashCommand> = emptyList()
+        private set
+
     private var nextId = 1
     private val pending = HashMap<Int, (JSONObject?, JSONObject?) -> Unit>()
     private val waitingPrompts = mutableListOf<Pair<String, List<Attachment>>>()
@@ -394,6 +398,17 @@ class AcpChat(
         }
     }
 
+    /** Lista de comandos "/" que o agente anuncia; cada anúncio substitui o anterior. */
+    private fun parseCommands(update: JSONObject) {
+        val list = update.optJSONArray("availableCommands") ?: return
+        commands = (0 until list.length()).mapNotNull { i ->
+            val c = list.optJSONObject(i) ?: return@mapNotNull null
+            val name = c.optString("name").removePrefix("/")
+            if (name.isEmpty()) null else SlashCommand(name, c.optString("description"))
+        }
+        changed()
+    }
+
     /** Opções de um seletor; grupos (ex.: "Recomendados") viram uma lista só. */
     private fun selectChoices(options: JSONArray?): List<Pair<String, String>> {
         options ?: return emptyList()
@@ -565,6 +580,7 @@ class AcpChat(
             // Título da sessão: o app não o mostra, então nada a fazer.
             "session_info_update" -> Unit
             "config_option_update" -> parseConfig(update)
+            "available_commands_update" -> parseCommands(update)
             "current_mode_update" -> {
                 val mode = configOptions.firstOrNull { it.source == ConfigOption.Source.MODE || it.category == "mode" }
                 update.optString("currentModeId").takeIf { it.isNotEmpty() }?.let { mode?.current = it; changed() }

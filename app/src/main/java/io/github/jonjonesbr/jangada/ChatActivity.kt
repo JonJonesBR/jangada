@@ -29,11 +29,13 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ListPopupWindow
 import android.widget.ListView
 import android.widget.ScrollView
 import android.widget.TextView
@@ -54,6 +56,7 @@ import io.github.jonjonesbr.jangada.chat.ChatHistory
 import io.github.jonjonesbr.jangada.chat.ChatItem
 import io.github.jonjonesbr.jangada.chat.Markdown
 import io.github.jonjonesbr.jangada.chat.PermissionOption
+import io.github.jonjonesbr.jangada.chat.SlashCommand
 import io.github.jonjonesbr.jangada.chat.ToolText
 import io.github.jonjonesbr.jangada.chat.friendlyModel
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
@@ -104,6 +107,11 @@ class ChatActivity : JangadaActivity() {
 
     /** Adaptador ACP ainda não pronto (instalando, ou falhou): campo de texto e Enviar desligados. */
     private var preparing = false
+
+    /** Sugestões de comandos "/" do agente, acima da caixa de texto. */
+    private var commandPopup: ListPopupWindow? = null
+    /** Comandos que o popup mostra agora (mesma ordem da lista). */
+    private var commandMatches: List<SlashCommand> = emptyList()
 
     private val isClaude get() = agentId == TerminalService.CLAUDE
     private val agentName get() = recipe?.name ?: getString(R.string.chat_title)
@@ -156,6 +164,7 @@ class ChatActivity : JangadaActivity() {
                     s.delete(at, at + 1)
                     send()
                 }
+                updateCommandSuggestions()
             }
         })
         takeShared(intent)
@@ -171,11 +180,14 @@ class ChatActivity : JangadaActivity() {
         super.onResume()
         resumed = true
         service?.chatScreenVisible = true
+        // Ao voltar com "/..." na caixa, as sugestões reaparecem (depois da janela estar pronta).
+        input.post { updateCommandSuggestions() }
     }
 
     override fun onPause() {
         resumed = false
         service?.chatScreenVisible = false
+        dismissCommandSuggestions()
         super.onPause()
     }
 
@@ -420,9 +432,69 @@ class ChatActivity : JangadaActivity() {
         titleBlock.contentDescription = getString(
             R.string.chat_title_description, agentName, subtitle.text.toString().removeSuffix(" ▾"), getString(R.string.chat_settings_title),
         )
+        // Comandos que o agente acabou de anunciar também podem entrar na sugestão.
+        updateCommandSuggestions()
+    }
+
+    // ---- Sugestões de comandos "/" (agentes ACP) ----
+
+    /**
+     * Mostra até 6 comandos do agente que começam como o texto digitado, enquanto o
+     * texto começa com "/" e não tem espaço. Fecha quando não há o que sugerir.
+     */
+    private fun updateCommandSuggestions() {
+        val text = input.text.toString()
+        val acp = engine as? AcpChat
+        // Só com a tela em primeiro plano: em segundo plano o popup fica para o próximo onResume.
+        val matches = if (resumed && acp != null && text.startsWith("/") && text.none { it.isWhitespace() } && input.width > 0) {
+            val query = text.drop(1)
+            acp.commands.filter { it.name.startsWith(query, ignoreCase = true) }.take(COMMAND_SUGGESTIONS)
+        } else {
+            emptyList()
+        }
+        if (matches.isEmpty()) {
+            dismissCommandSuggestions()
+            return
+        }
+        val popup = commandPopup ?: ListPopupWindow(this).also {
+            it.setAnchorView(input)
+            // Não modal (não rouba o foco): a pessoa continua digitando na caixa.
+            it.isModal = false
+            // Fica junto da caixa de texto, nunca por cima do teclado.
+            it.inputMethodMode = ListPopupWindow.INPUT_METHOD_NEEDED
+            it.setBackgroundDrawable(getDrawable(R.drawable.card_bg))
+            it.setOnItemClickListener { _, _, position, _ -> applyCommand(commandMatches[position]) }
+            commandPopup = it
+        }
+        // Se a lista já está aberta com esses mesmos comandos, não redesenha.
+        if (popup.isShowing && matches == commandMatches) return
+        commandMatches = matches
+        popup.setAdapter(ArrayAdapter(this, android.R.layout.simple_list_item_1, matches.map { commandLabel(it) }))
+        popup.width = input.width
+        // Altura fixa e deslocada para cima: o popup fica sobre a caixa, não embaixo (teclado).
+        val height = matches.size * dp(COMMAND_ROW_DP)
+        popup.height = height
+        popup.setVerticalOffset(-(input.height + height))
+        popup.show()
+    }
+
+    private fun commandLabel(command: SlashCommand): String =
+        if (command.description.isBlank()) "/${command.name}" else "/${command.name} — ${command.description}"
+
+    /** Toque numa sugestão: preenche "/nome " na caixa (o espaço fecha o popup). */
+    private fun applyCommand(command: SlashCommand) {
+        dismissCommandSuggestions()
+        input.setText("/${command.name} ")
+        input.setSelection(input.text.length)
+    }
+
+    private fun dismissCommandSuggestions() {
+        commandPopup?.dismiss()
+        commandMatches = emptyList()
     }
 
     private fun send() {
+        dismissCommandSuggestions()
         if (preparing) return
         val text = input.text.toString().trim()
         if (text.isEmpty() && pendingAttachments.isEmpty()) return
@@ -1280,6 +1352,10 @@ class ChatActivity : JangadaActivity() {
 
         /** Agentes com o adaptador sendo instalado agora, em qualquer tela do chat (evita instalar em paralelo). */
         private val installing = HashSet<String>()
+        /** Quantas sugestões de comando "/" aparecem de uma vez. */
+        const val COMMAND_SUGGESTIONS = 6
+        /** Altura de cada linha do popup de comandos. */
+        const val COMMAND_ROW_DP = 48
         const val EXTRA_AGENT_ID = "agent_id"
         const val EXTRA_RESUME = "resume"
         const val EXTRA_NEW = "new"
