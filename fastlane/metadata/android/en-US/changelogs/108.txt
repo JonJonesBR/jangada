@@ -1,0 +1,1 @@
+Chat: tap an action to see its result (command output, file read); failed actions show the first line of the error right away, also in reopened conversations. Terminal: Claude no longer asks again whether to trust the projects folder when it opens.

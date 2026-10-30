@@ -1,5 +1,10 @@
 # Novidades
 
+## 1.4.0
+
+- Chat: tocar numa ação mostra o resultado dela (saída do comando, arquivo lido, resposta da ferramenta), já limpo e cortado no começo e no fim quando é grande. Ações que falharam mostram a primeira linha do erro na própria conversa. Vale para o Claude, os agentes ACP e as conversas reabertas.
+- Terminal: ao abrir um agente, o app espera a confiança na pasta de projetos ser gravada, e o Claude não pergunta de novo.
+
 ## 1.3.0
 
 - Tela inicial: cartão de boas-vindas (some ao tocar em Entendi), menos redesenho e versões do npm guardadas por 1 hora.
