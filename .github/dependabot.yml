@@ -25,4 +25,4 @@ updates:
       - dependency-name: "com.android.application"
       - dependency-name: "com.android.library"
       - dependency-name: "org.jetbrains.kotlin*"
-      - dependency-name: "gradle"
+      - dependency-name: "gradle-wrapper"
