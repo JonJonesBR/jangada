@@ -272,7 +272,7 @@ class MainActivity : ComponentActivity() {
             if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                 if (bound) {
                     bound = false
-                    unbindService(connection)
+                    unbindService(this)
                 }
                 return
             }
