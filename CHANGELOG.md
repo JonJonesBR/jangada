@@ -1,5 +1,18 @@
 # Novidades
 
+## 1.2.0
+
+- Chat: pedidos de edição mostram o diff (linhas removidas e adicionadas), a lista de tarefas do Claude aparece como plano, e o cartão de permissão mostra sempre o comando, com o pedido inteiro num toque.
+- "Sempre permitir" num comando do terminal vale só para aquele comando; o botão diz o que libera.
+- Chat dos agentes ACP: falha ao iniciar não trava mais o envio; avisa quando o agente começou conversa nova sem lembrar das anteriores; apagar ou listar conversas com erro mostra o motivo.
+- Markdown não apaga mais os "_" de nomes como ANTHROPIC_API_KEY.
+- Fotos anexadas chegam ao agente na orientação certa.
+- Compartilhar aceita só arquivos vindos de apps (content://), até 20 itens e 100 MB por arquivo.
+- Tela inicial: uma falha do Linux na verificação não apaga mais a lista de agentes instalados.
+- Terminal: tocar em pontuação não abre um link qualquer.
+- Textos e acessibilidade: instalação do Linux avisa que roda em segundo plano, apagar chave de API pede confirmação, e o leitor de tela lê o agente no título do chat.
+- Repositório: lint no CI, tempos limite, Dependabot para o Gradle e novos testes.
+
 ## 1.1.1
 
 - Desinstalar remove o programa de todos os agentes (Hermes, Qwen Code, Codex, Pi, OpenClaw, oh-my-pi e Antigravity), mantendo configurações e logins.
