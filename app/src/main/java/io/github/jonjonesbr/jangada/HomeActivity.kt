@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
@@ -50,10 +51,10 @@ class HomeActivity : JangadaActivity() {
 
     /** null = ainda verificando; senão, os comandos encontrados no Debian. */
     private var installed: Set<String>? = null
-    /** Versão instalada por comando (chega depois do [installed]). */
-    private val installedVersions = ConcurrentHashMap<String, String>()
-    /** Espaço ocupado por cada agente instalado, em KB (por comando). */
-    private val installedSizes = ConcurrentHashMap<String, Long>()
+    /** Versão instalada por comando. Trocada inteira na thread principal a cada rodada bem-sucedida. */
+    private var installedVersions: Map<String, String> = emptyMap()
+    /** Espaço ocupado por cada agente instalado, em KB (por comando). Trocado como [installedVersions]. */
+    private var installedSizes: Map<String, Long> = emptyMap()
     /** Versão mais nova publicada, por id do agente (quando há fonte). */
     private val latestVersions = ConcurrentHashMap<String, String>()
     private var service: TerminalService? = null
@@ -265,42 +266,45 @@ class HomeActivity : JangadaActivity() {
         }
     }
 
-    /** Uma rodada da detecção: manda o script ao Debian e publica o resultado. */
+    /**
+     * Uma rodada da detecção: manda o script ao Debian e, só se ele terminar com sucesso,
+     * publica o resultado. Se o proot falhar, mantém a lista e as prefs da rodada anterior.
+     */
     private fun detectOnce() {
+        // Mapas próprios da rodada: só substituem os atuais no fim, se ela deu certo.
         val found = HashSet<String>()
-        var published = false
-        runCatching {
+        val versions = HashMap<String, String>()
+        val sizes = HashMap<String, Long>()
+        val code = runCatching {
             linux.runBash(AgentCatalog.detectScript(recipes)) { line ->
                 when {
                     line.startsWith(FOUND) -> found += line.removePrefix(FOUND).trim()
                     line.startsWith(SIZE) -> {
                         val parts = line.removePrefix(SIZE).trim().split(' ')
-                        parts.getOrNull(1)?.toLongOrNull()?.let { installedSizes[parts[0]] = it }
-                        runOnUiThread { scheduleRender() }
+                        parts.getOrNull(1)?.toLongOrNull()?.let { sizes[parts[0]] = it }
                     }
                     line.startsWith(VERSION) -> {
                         val rest = line.removePrefix(VERSION)
                         val command = rest.substringBefore(' ')
-                        Versions.parse(rest.substringAfter(' ', ""))?.let { installedVersions[command] = it }
-                        if (!published) {
-                            published = true
-                            publishInstalled(found.toSet())
-                        } else {
-                            runOnUiThread { scheduleRender() }
-                        }
+                        Versions.parse(rest.substringAfter(' ', ""))?.let { versions[command] = it }
                     }
                 }
             }
+        }.getOrElse { error ->
+            Log.w(TAG, "detecção dos agentes falhou", error)
+            return
         }
-        publishInstalled(found.toSet())
-    }
-
-    private fun publishInstalled(found: Set<String>) {
+        if (code != 0) {
+            Log.w(TAG, "detecção dos agentes terminou com código $code")
+            return
+        }
         // Guarda os comandos instalados: a ShareActivity filtra os agentes por eles, sem precisar do Debian.
         prefs.edit().putStringSet(INSTALLED_COMMANDS, HashSet(found)).apply()
         runOnUiThread {
             if (isDestroyed) return@runOnUiThread
             installed = found
+            installedVersions = versions
+            installedSizes = sizes
             renderAgents()
         }
     }
@@ -638,6 +642,7 @@ class HomeActivity : JangadaActivity() {
     private class TaskMark(val task: AgentTask, val state: AgentTask.State, val cancelled: Boolean)
 
     private companion object {
+        const val TAG = "Jangada"
         const val FOUND = "JANGADA_FOUND "
         const val VERSION = "JANGADA_VERSION "
         const val SIZE = "JANGADA_SIZE "
