@@ -29,7 +29,7 @@ jobs:
     outputs:
       signed: ${{ steps.sign.outputs.signed }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # O token do checkout não fica salvo no disco do runner.
           persist-credentials: false
@@ -106,7 +106,7 @@ jobs:
       contents: write
     steps:
       # Aqui o token fica salvo: a tag "nightly" é enviada de volta ao repositório.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
