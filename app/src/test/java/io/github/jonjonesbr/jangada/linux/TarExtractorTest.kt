@@ -68,6 +68,18 @@ class TarExtractorTest {
     }
 
     @Test
+    fun hardlinkCujaOrigemPassaPorLinkParaForaNaoCopia() {
+        val outside = File(work, "fora").apply { mkdirs() }
+        File(outside, "segredo.txt").writeText("segredo")
+        val tar = Tar()
+            .symlink("pasta", outside.absolutePath)
+            .hardlink("copia.txt", "pasta/segredo.txt")
+        TarExtractor(root).extract(tar.bytes())
+
+        assertFalse(File(root, "copia.txt").exists())
+    }
+
+    @Test
     fun arquivosWhiteoutApagamDaCamadaAnterior() {
         TarExtractor(root).extract(Tar().file("dir/a.txt", "a").file("dir/b.txt", "b").bytes())
         TarExtractor(root).extract(Tar().file("dir/.wh.a.txt", "").bytes())
@@ -102,6 +114,18 @@ class TarExtractorTest {
 
         assertEquals("gnu", File(root, long).readText())
         assertFalse(File(root, long.take(100)).exists())
+    }
+
+    @Test
+    fun registroGnuLMaiorQue64KbEhPuladoSemTravar() {
+        val huge = "h".repeat(70 * 1024)
+        val logs = mutableListOf<String>()
+        // O registro 'L' gigante é pulado; a entrada seguinte usa o nome do próprio cabeçalho.
+        val tar = Tar().gnuRecord('L', huge).file("curto.txt", "ok")
+        TarExtractor(root) { logs += it }.extract(tar.bytes())
+
+        assertEquals("ok", File(root, "curto.txt").readText())
+        assertTrue(logs.any { it.contains("grande demais") })
     }
 
     @Test

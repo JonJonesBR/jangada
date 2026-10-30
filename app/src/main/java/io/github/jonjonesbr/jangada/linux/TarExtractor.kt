@@ -44,10 +44,10 @@ class TarExtractor(root: File, private val log: (String) -> Unit = {}) {
             var size = parseNumber(header, 124, 12)
 
             when (type) {
-                'x' -> { pax = parsePax(readString(input, size)); continue }
-                'g' -> { globalPax.putAll(parsePax(readString(input, size))); continue }
-                'L' -> { longName = readString(input, size).trimEnd('\u0000'); continue }
-                'K' -> { longLink = readString(input, size).trimEnd('\u0000'); continue }
+                'x' -> { pax = readMetadata(input, size, type)?.let { parsePax(it) } ?: emptyMap(); continue }
+                'g' -> { readMetadata(input, size, type)?.let { globalPax.putAll(parsePax(it)) }; continue }
+                'L' -> { longName = readMetadata(input, size, type)?.trimEnd('\u0000'); continue }
+                'K' -> { longLink = readMetadata(input, size, type)?.trimEnd('\u0000'); continue }
             }
 
             var name = cString(header, 0, 100)
@@ -101,6 +101,12 @@ class TarExtractor(root: File, private val log: (String) -> Unit = {}) {
                 }
                 '1' -> {
                     val source = resolve(link)
+                    // A origem pode passar por um link de pasta que aponta para fora da raiz.
+                    if (source != null && !isInsideRoot(source.parent)) {
+                        log("ignorado (fora da raiz): $name -> $link")
+                        skip(input, size)
+                        continue
+                    }
                     replaceWithFile(target)
                     when {
                         source == null || !Fs.exists(source) -> log("link sem origem: $name -> $link")
@@ -181,6 +187,16 @@ class TarExtractor(root: File, private val log: (String) -> Unit = {}) {
         return out.toString("UTF-8")
     }
 
+    /** Lê um registro de metadados (x, g, L, K); os maiores que o teto são pulados. */
+    private fun readMetadata(input: InputStream, size: Long, type: Char): String? {
+        if (size > MAX_METADATA) {
+            log("registro '$type' grande demais ignorado ($size bytes)")
+            skip(input, size)
+            return null
+        }
+        return readString(input, size)
+    }
+
     private fun copyExactly(input: InputStream, out: java.io.OutputStream, size: Long) {
         val buf = ByteArray(64 * 1024)
         var left = size
@@ -209,6 +225,8 @@ class TarExtractor(root: File, private val log: (String) -> Unit = {}) {
 
     companion object {
         private const val BLOCK = 512
+        /** Teto para registros de metadados (PAX e GNU L/K), que ficam inteiros na memória. */
+        private const val MAX_METADATA = 64L * 1024
         private const val WHITEOUT = ".wh."
         private const val OPAQUE_WHITEOUT = ".wh..wh..opq"
 
