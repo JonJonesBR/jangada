@@ -410,11 +410,15 @@ class AcpChat(
         return out
     }
 
-    /** Conversas anteriores na pasta de projetos (se o agente oferecer). */
-    fun listSessions(callback: (List<ChatHistory.Conversation>) -> Unit) {
+    /**
+     * Conversas anteriores na pasta de projetos (se o agente oferecer).
+     * [callback] recebe null quando a lista falha (ex.: agente parado): não é o mesmo que "sem conversas".
+     */
+    fun listSessions(callback: (List<ChatHistory.Conversation>?) -> Unit) {
         if (!canList) return callback(emptyList())
         request("session/list", JSONObject().put("cwd", "/root/${LinuxEnv.WORKSPACE}")) { result, _ ->
-            val sessions = result?.optJSONArray("sessions") ?: JSONArray()
+            if (result == null) return@request callback(null)
+            val sessions = result.optJSONArray("sessions") ?: JSONArray()
             val list = (0 until sessions.length()).mapNotNull { i ->
                 val s = sessions.optJSONObject(i) ?: return@mapNotNull null
                 val updated = runCatching { java.time.Instant.parse(s.optString("updatedAt")).toEpochMilli() }.getOrDefault(0L)
@@ -424,9 +428,13 @@ class AcpChat(
         }
     }
 
-    fun deleteSession(id: String, callback: () -> Unit) {
-        if (!canDelete) return callback()
-        request("session/delete", JSONObject().put("sessionId", id)) { _, _ -> callback() }
+    /** [callback] recebe null se a conversa foi apagada; senão, o motivo da falha. */
+    fun deleteSession(id: String, callback: (error: String?) -> Unit) {
+        if (!canDelete) return callback(null)
+        request("session/delete", JSONObject().put("sessionId", id)) { _, error ->
+            if (error == null) callback(null)
+            else callback(error.optString("message").ifEmpty { context.getString(R.string.chat_acp_error) })
+        }
     }
 
     /**

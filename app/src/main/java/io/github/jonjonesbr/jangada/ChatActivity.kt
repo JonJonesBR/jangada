@@ -551,7 +551,12 @@ class ChatActivity : JangadaActivity() {
                 runOnUiThread { if (!isDestroyed) showHistoryDialog(found, canDelete = true) }
             }
         } else if (chat is AcpChat && chat.supportsHistory) {
-            chat.listSessions { sessions -> if (!isDestroyed) showHistoryDialog(sessions, chat.canDelete) }
+            chat.listSessions { sessions ->
+                if (isDestroyed) return@listSessions
+                // Lista nula = falhou (agente parado ou erro): não mostra "sem conversas".
+                if (sessions == null) runOnUiThread { Toast.makeText(this, R.string.chat_history_list_failed, Toast.LENGTH_LONG).show() }
+                else showHistoryDialog(sessions, chat.canDelete)
+            }
         } else {
             Toast.makeText(this, getString(R.string.chat_history_unsupported, agentName), Toast.LENGTH_LONG).show()
         }
@@ -637,7 +642,12 @@ class ChatActivity : JangadaActivity() {
                     // ACP: o agente apaga pela própria conexão, então apaga antes de fechar a conversa.
                     val acp = engine as? AcpChat
                     val afterDelete = { if (isCurrent) svc.closeChat { reopenAndDone() } else done() }
-                    acp?.deleteSession(conversation.id, afterDelete) ?: afterDelete()
+                    if (acp == null) afterDelete()
+                    else acp.deleteSession(conversation.id) { error ->
+                        // Falhou: a conversa continua na lista (e aberta, se for a atual).
+                        if (error == null) afterDelete()
+                        else runOnUiThread { if (!isDestroyed) Toast.makeText(this, getString(R.string.chat_history_delete_failed, error), Toast.LENGTH_LONG).show() }
+                    }
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)

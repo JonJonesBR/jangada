@@ -102,6 +102,8 @@
 
     <string name="chat_history">Conversations</string>
     <string name="chat_history_empty">No previous conversations yet</string>
+    <string name="chat_history_list_failed">Couldn’t load the conversations. Send a message to the agent and try again.</string>
+    <string name="chat_history_delete_failed">Couldn’t delete the conversation: %1$s</string>
     <string name="crash_title">Jangada closed unexpectedly</string>
     <string name="crash_message">Copy the details and send them to the developer, or open an issue on GitHub.</string>
     <string name="crash_copy">Copy details</string>

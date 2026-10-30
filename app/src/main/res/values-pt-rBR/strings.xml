@@ -100,6 +100,8 @@
 
     <string name="chat_history">Conversas</string>
     <string name="chat_history_empty">Ainda não há conversas anteriores</string>
+    <string name="chat_history_list_failed">Não consegui carregar as conversas. Mande uma mensagem para o agente e tente de novo.</string>
+    <string name="chat_history_delete_failed">Não consegui apagar a conversa: %1$s</string>
     <string name="crash_title">O Jangada fechou sozinho</string>
     <string name="crash_message">Copie os detalhes e mande para quem desenvolve o app, ou abra uma issue no GitHub.</string>
     <string name="crash_copy">Copiar detalhes</string>
