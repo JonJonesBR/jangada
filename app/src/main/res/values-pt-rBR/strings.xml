@@ -37,6 +37,9 @@
     <string name="home_open_terminal">Abrir terminal</string>
     <string name="home_running">Em andamento</string>
     <string name="home_agents">Agentes</string>
+    <string name="home_welcome_title">Bem-vindo ao Jangada</string>
+    <string name="home_welcome_body">Instale um agente abaixo. Cada um usa a sua própria conta ou chave de API. No modo Simples o agente abre no chat; no Pro, no terminal (troque em Configurações).</string>
+    <string name="home_welcome_ok">Entendi</string>
     <string name="agent_install">Instalar</string>
     <string name="agent_open">Abrir</string>
     <string name="agent_update">Atualizar</string>

@@ -56,6 +56,11 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_TERMINAL_THEME, "default") ?: "default"
         set(value) = prefs.edit().putString(KEY_TERMINAL_THEME, value).apply()
 
+    /** Cartão de boas-vindas da tela inicial já foi dispensado ("Entendi"). */
+    var welcomeDismissed: Boolean
+        get() = prefs.getBoolean(KEY_WELCOME_DISMISSED, false)
+        set(value) = prefs.edit().putBoolean(KEY_WELCOME_DISMISSED, value).apply()
+
     companion object {
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
@@ -72,5 +77,6 @@ class AppSettings(context: Context) {
         private const val MODE_PRO = "pro"
         private const val KEY_ENTER_SENDS = "enter_sends"
         private const val KEY_ASK_PERMISSIONS = "ask_permissions"
+        private const val KEY_WELCOME_DISMISSED = "welcome_dismissed"
     }
 }

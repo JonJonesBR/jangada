@@ -124,6 +124,45 @@
             android:layout_height="wrap_content"
             android:orientation="vertical" />
 
+        <LinearLayout
+            android:id="@+id/welcome_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/card_bg"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/home_welcome_title"
+                android:textColor="@color/setup_text"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:lineSpacingMultiplier="1.15"
+                android:text="@string/home_welcome_body"
+                android:textColor="@color/setup_muted"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/welcome_dismiss"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:minHeight="48dp"
+                android:backgroundTint="@color/key_active"
+                android:text="@string/home_welcome_ok"
+                android:textAllCaps="false"
+                android:textColor="@color/setup_on_accent"
+                android:textStyle="bold" />
+        </LinearLayout>
+
         <TextView
             style="@style/HomeSection"
             android:text="@string/home_agents" />

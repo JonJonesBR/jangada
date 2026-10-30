@@ -19,6 +19,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -48,6 +49,8 @@ class HomeActivity : JangadaActivity() {
     private lateinit var agentsList: LinearLayout
     private lateinit var sessionsList: LinearLayout
     private lateinit var runningTitle: TextView
+    /** Cartão de boas-vindas; null depois de tirado da tela. */
+    private var welcomeCard: View? = null
 
     /** null = ainda verificando; senão, os comandos encontrados no Debian. */
     private var installed: Set<String>? = null
@@ -102,10 +105,24 @@ class HomeActivity : JangadaActivity() {
         findViewById<View>(R.id.open_settings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+        // Boas-vindas: só depois de instalar o Linux e até o usuário tocar em "Entendi".
+        welcomeCard = findViewById<View>(R.id.welcome_card)
+        findViewById<Button>(R.id.welcome_dismiss).setOnClickListener {
+            AppSettings(this).welcomeDismissed = true
+            removeWelcome()
+        }
+        if (!linux.isReady || AppSettings(this).welcomeDismissed) removeWelcome()
         if (!linux.isDeviceSupported) findViewById<View>(R.id.unsupported).visibility = View.VISIBLE
         renderAgents()
         fetchLatestVersions()
         showLastCrash()
+    }
+
+    /** Tira o cartão de boas-vindas da tela, sem recriar a tela. */
+    private fun removeWelcome() {
+        val card = welcomeCard ?: return
+        (card.parent as? ViewGroup)?.removeView(card)
+        welcomeCard = null
     }
 
     /** Se o app fechou sozinho da última vez, mostra os detalhes para copiar. */
