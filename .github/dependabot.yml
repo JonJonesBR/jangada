@@ -26,3 +26,6 @@ updates:
       - dependency-name: "com.android.library"
       - dependency-name: "org.jetbrains.kotlin*"
       - dependency-name: "gradle-wrapper"
+      # Versões menores e maiores do androidx costumam exigir compileSdk e AGP novos (fixos no projeto).
+      - dependency-name: "androidx.*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
