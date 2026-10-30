@@ -63,7 +63,7 @@ jobs:
           java-version: '17'
 
       # Usa o Gradle do wrapper (gradlew, versão 8.11.1), sem repetir a versão aqui.
-      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       # proot + bibliotecas, direto do repositório oficial do Termux (conferidos por SHA-256).
       - name: Baixar proot do Termux
