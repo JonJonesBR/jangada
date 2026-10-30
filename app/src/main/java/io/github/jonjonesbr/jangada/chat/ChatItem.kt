@@ -11,7 +11,10 @@ sealed class ChatItem {
         var failed = false
     }
 
-    /** Pedido de permissão; [chosen] guarda a opção escolhida (null = esperando). */
+    /**
+     * Pedido de permissão; [chosen] guarda a opção escolhida (null = esperando).
+     * [summary] é o comando ou caminho; [detail] é a descrição extra que o agente mandou (opcional).
+     */
     class Permission(
         val requestId: Any,
         val title: String,
@@ -19,6 +22,7 @@ sealed class ChatItem {
         val options: List<PermissionOption>,
         val input: JSONObject = JSONObject(),
         val toolName: String = "",
+        val detail: String = "",
     ) : ChatItem() {
         var chosen: PermissionOption? = null
     }

@@ -290,7 +290,9 @@ class ChatEngine(
             respondPermission(requestId, allow = true, input = input)
             return
         }
-        val summary = request.optString("description").ifEmpty { ToolText.summary(toolName, input) }
+        // O resumo é sempre o comando ou caminho; a descrição do agente vai como texto extra.
+        val summary = ToolText.summary(toolName, input, limit = 4000)
+        val detail = request.optString("description").takeIf { it.isNotEmpty() && it != summary }.orEmpty()
         add(
             ChatItem.Permission(
                 requestId, ToolText.label(context, toolName), summary,
@@ -299,7 +301,7 @@ class ChatEngine(
                     PermissionOption("always", "", PermissionOption.Kind.ALLOW_ALWAYS),
                     PermissionOption("deny", "", PermissionOption.Kind.REJECT_ONCE),
                 ),
-                input, toolName,
+                input, toolName, detail,
             ),
         )
     }
@@ -364,11 +366,11 @@ object ToolText {
         else -> null
     }
 
-    fun summary(name: String, input: JSONObject?): String {
+    fun summary(name: String, input: JSONObject?, limit: Int = 400): String {
         input ?: return ""
         for (key in listOf("command", "file_path", "path", "url", "query", "pattern", "description", "prompt")) {
             val value = input.optString(key)
-            if (value.isNotEmpty()) return value.take(400)
+            if (value.isNotEmpty()) return value.take(limit)
         }
         return input.toString().take(200)
     }

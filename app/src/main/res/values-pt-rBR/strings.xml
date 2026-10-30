@@ -123,6 +123,7 @@
     <string name="chat_allow_always_tool">Sempre permitir %1$s nesta conversa</string>
     <string name="chat_deny_always">Recusar sempre</string>
     <string name="chat_wants_agent">O %1$s quer: %2$s</string>
+    <string name="chat_permission_full">Pedido completo</string>
 
     <string name="chat_settings_title">Ajustes da conversa</string>
     <string name="chat_title_description">%1$s, %2$s. Toque para abrir %3$s</string>

@@ -1019,6 +1019,21 @@ class ChatActivity : JangadaActivity() {
                     ellipsize = TextUtils.TruncateAt.END
                     setTextColor(getColor(R.color.setup_muted))
                     setPadding(0, dp(6), 0, dp(4))
+                    // Texto cortado (reticências na última linha): tocar mostra o pedido inteiro.
+                    setOnClickListener {
+                        val lay = this.layout
+                        if (lay != null && lay.getEllipsisCount(lay.lineCount - 1) > 0) {
+                            showDetails(R.string.chat_permission_full, item.summary)
+                        }
+                    }
+                })
+            }
+            if (item.detail.isNotEmpty()) {
+                card.addView(TextView(this@ChatActivity).apply {
+                    text = item.detail
+                    textSize = 12f
+                    setTextColor(getColor(R.color.setup_muted))
+                    setPadding(0, 0, 0, dp(4))
                 })
             }
             val chosen = item.chosen
