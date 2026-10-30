@@ -37,8 +37,15 @@ class LinuxEnv(context: Context) {
 
     /** Por enquanto o ambiente Linux existe só para celulares ARM de 64 bits. */
     val isDeviceSupported: Boolean
-        get() = Build.SUPPORTED_ABIS.contains("arm64-v8a") &&
-            app.assets.list(ASSET_DIR)?.contains("proot") == true
+        get() = Build.SUPPORTED_ABIS.contains("arm64-v8a") && prootInAssets()
+
+    /** Os assets não mudam com o app aberto: a lista é lida uma vez e guardada. */
+    private fun prootInAssets(): Boolean {
+        prootInAssetsCache?.let { return it }
+        val found = app.assets.list(ASSET_DIR)?.contains("proot") == true
+        prootInAssetsCache = found
+        return found
+    }
 
     val isRootfsReady: Boolean get() = rootfsMarker.exists()
     val isReady: Boolean get() = rootfsMarker.exists() && baseMarker.exists()
@@ -168,11 +175,16 @@ class LinuxEnv(context: Context) {
         emptyList()
     }
 
-    /** Roda um script dentro do Debian e entrega a saída linha a linha. */
-    fun run(script: String, onLine: (String) -> Unit): Int = runArgv(scriptCommand(script), onLine)
+    /**
+     * Roda um script dentro do Debian e entrega a saída linha a linha.
+     * [onStart] roda logo depois de o processo iniciar (para guardá-lo e cancelá-lo).
+     */
+    fun run(script: String, onStart: ((Process) -> Unit)? = null, onLine: (String) -> Unit): Int =
+        runArgv(scriptCommand(script), onStart, onLine)
 
     /** Como [run], mas num bash interativo (enxerga o PATH dos instaladores). */
-    fun runBash(script: String, onLine: (String) -> Unit): Int = runArgv(bashCommand(script), onLine)
+    fun runBash(script: String, onStart: ((Process) -> Unit)? = null, onLine: (String) -> Unit): Int =
+        runArgv(bashCommand(script), onStart, onLine)
 
     /**
      * Inicia [script] num bash de login dentro do Debian e devolve o processo
@@ -199,7 +211,7 @@ class LinuxEnv(context: Context) {
         return builder.start()
     }
 
-    private fun runArgv(inner: List<String>, onLine: (String) -> Unit): Int {
+    private fun runArgv(inner: List<String>, onStart: ((Process) -> Unit)?, onLine: (String) -> Unit): Int {
         val builder = ProcessBuilder(*prootArgv(inner))
             .directory(files)
             .redirectErrorStream(true)
@@ -211,6 +223,7 @@ class LinuxEnv(context: Context) {
             }
         }
         val process = builder.start()
+        onStart?.invoke(process)
         process.outputStream.close()
         process.inputStream.bufferedReader().useLines { lines -> lines.forEach(onLine) }
         return process.waitFor()
@@ -250,8 +263,16 @@ class LinuxEnv(context: Context) {
         Fs.setMode(opener.toPath(), "755".toInt(8))
         for (alias in listOf("xdg-open", "sensible-browser", "x-www-browser", "www-browser")) {
             val link = File(bin, alias).toPath()
+            // Já é o link certo: não mexe (cada sessão passa aqui).
+            val upToDate = java.nio.file.Files.isSymbolicLink(link) &&
+                runCatching { java.nio.file.Files.readSymbolicLink(link).toString() == "jangada-open" }.getOrDefault(false)
+            if (upToDate) continue
             Fs.deleteTree(link)
-            java.nio.file.Files.createSymbolicLink(link, java.nio.file.Paths.get("jangada-open"))
+            try {
+                java.nio.file.Files.createSymbolicLink(link, java.nio.file.Paths.get("jangada-open"))
+            } catch (e: java.nio.file.FileAlreadyExistsException) {
+                // Outra chamada criou o link ao mesmo tempo: já está certo.
+            }
         }
         linkInbox.mkdirs()
 
@@ -266,15 +287,19 @@ class LinuxEnv(context: Context) {
 
         trustWorkspaceInClaude()
 
-        // O servidor de chat do Antigravity (≈1 GB) não roda no Android; versões
-        // antigas do app o baixavam. Apaga para liberar o espaço.
-        File(rootfs, "root/.local/share/agy-acp").takeIf { it.exists() }?.let { Fs.deleteTree(it.toPath()) }
-
         // /tmp precisa do "sticky bit" (1777); sem ele o Claude Code desliga recursos.
         for (tmp in listOf(File(rootfs, "tmp"), File(rootfs, "var/tmp"))) {
             tmp.mkdirs()
             runCatching { android.system.Os.chmod(tmp.absolutePath, "1777".toInt(8)) }
         }
+    }
+
+    /**
+     * Apaga restos de versões antigas do app: o servidor de chat do Antigravity
+     * (≈1 GB), que elas baixavam. Pode demorar; chame fora da thread principal.
+     */
+    fun cleanupLegacy() {
+        File(rootfs, "root/.local/share/agy-acp").takeIf { it.exists() }?.let { Fs.deleteTree(it.toPath()) }
     }
 
     /**
@@ -333,6 +358,9 @@ class LinuxEnv(context: Context) {
 
         /** Tamanho e data do ~/.claude.json na última conferência da pasta confiável. */
         @Volatile private var claudeJsonChecked: String? = null
+
+        /** A lista de assets tem o proot? Lida uma vez (os assets não mudam com o app aberto). */
+        @Volatile private var prootInAssetsCache: Boolean? = null
 
         private const val ASSET_DIR = "bootstrap/aarch64"
         const val IMAGE_REPOSITORY = "library/debian"

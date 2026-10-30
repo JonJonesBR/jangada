@@ -30,7 +30,10 @@ class SecretStore(context: Context) {
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val encrypted = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
         val blob = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(encrypted, Base64.NO_WRAP)
-        prefs.edit().putString(name, blob).apply()
+        synchronized(LOCK) {
+            prefs.edit().putString(name, blob).apply()
+            environmentCache = null
+        }
     }
 
     fun get(name: String): String? = runCatching {
@@ -41,14 +44,30 @@ class SecretStore(context: Context) {
         String(cipher.doFinal(Base64.decode(data, Base64.NO_WRAP)), Charsets.UTF_8)
     }.getOrNull()
 
-    fun remove(name: String) = prefs.edit().remove(name).apply()
+    fun remove(name: String) {
+        synchronized(LOCK) {
+            prefs.edit().remove(name).apply()
+            environmentCache = null
+        }
+    }
 
-    /** Todas as chaves, decifradas, como "NOME=valor" para o ambiente do Linux (nomes reservados ficam de fora). */
-    fun environment(): List<String> = names()
-        .filterNot { isReserved(it) }
-        .mapNotNull { name -> get(name)?.let { "$name=$it" } }
+    /**
+     * Todas as chaves, decifradas, como "NOME=valor" para o ambiente do Linux (nomes reservados ficam de fora).
+     * Guardado em cache até uma chave ser salva ou removida.
+     */
+    fun environment(): List<String> = synchronized(LOCK) {
+        environmentCache ?: names()
+            .filterNot { isReserved(it) }
+            .mapNotNull { name -> get(name)?.let { "$name=$it" } }
+            .also { environmentCache = it }
+    }
 
-    private fun key(): SecretKey {
+    /** A chave do Keystore fica guardada depois da primeira vez (abrir o Keystore é caro). */
+    private fun key(): SecretKey = synchronized(LOCK) {
+        cachedKey ?: loadOrCreateKey().also { cachedKey = it }
+    }
+
+    private fun loadOrCreateKey(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getEntry(ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
@@ -66,6 +85,14 @@ class SecretStore(context: Context) {
         private const val ALIAS = "jangada_secrets"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         val VALID_NAME = Regex("""^[A-Z_][A-Z0-9_]{1,63}$""")
+
+        /** Protege a chave e o cache: a chave é criada uma vez só (criar de novo perderia os dados). */
+        private val LOCK = Any()
+
+        @Volatile private var cachedKey: SecretKey? = null
+
+        /** Resultado de [environment]; zerado em put e remove. */
+        @Volatile private var environmentCache: List<String>? = null
 
         /**
          * Variáveis que o próprio app e o Linux usam (PATH, HOME...) ou que o

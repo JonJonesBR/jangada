@@ -1,8 +1,12 @@
 package io.github.jonjonesbr.jangada
 
 import android.app.AlertDialog
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
 import android.view.View
 import android.widget.Button
 import android.widget.RadioGroup
@@ -204,25 +208,27 @@ class SettingsActivity : JangadaActivity() {
                 .setTitle(R.string.backup_restore_title)
                 .setMessage(R.string.backup_restore_message)
                 .setPositiveButton(R.string.backup_import) { _, _ ->
-                    startService(Intent(this, TerminalService::class.java).setAction(TerminalService.ACTION_EXIT))
-                    runBackupTask(R.string.backup_restoring, {
-                        Thread.sleep(1500)
-                        Backup.restore(this, uri)
-                        getString(R.string.backup_restored)
-                    })
+                    val progress = AlertDialog.Builder(this).setMessage(R.string.backup_restoring).setCancelable(false).show()
+                    ServiceCloser {
+                        runCatching { progress.dismiss() }
+                        runBackupTask(R.string.backup_restoring, {
+                            Backup.restore(this, uri)
+                            getString(R.string.backup_restored)
+                        })
+                    }.start()
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
     }
 
-    /** Roda backup/restauração em segundo plano com um aviso de progresso. */
+    /** Roda backup/restauração em segundo plano com um aviso de progresso (se a tela ainda existir). */
     private fun runBackupTask(workingText: Int, work: () -> String) {
-        val progress = AlertDialog.Builder(this).setMessage(workingText).setCancelable(false).show()
+        val progress = if (isDestroyed) null else AlertDialog.Builder(this).setMessage(workingText).setCancelable(false).show()
         thread(name = "backup") {
             val message = runCatching(work).getOrElse { getString(R.string.backup_failed, it.message ?: it.javaClass.simpleName) }
             runOnUiThread {
-                progress.dismiss()
+                progress?.let { runCatching { it.dismiss() } }
                 if (isDestroyed) return@runOnUiThread
                 AlertDialog.Builder(this).setMessage(message).setPositiveButton(android.R.string.ok, null).show()
                 showLinuxSize()
@@ -250,18 +256,53 @@ class SettingsActivity : JangadaActivity() {
     /** Fecha tudo, apaga o Linux e volta para a tela de preparação. */
     private fun reinstallLinux() {
         val progress = AlertDialog.Builder(this).setMessage(R.string.settings_erasing).setCancelable(false).show()
-        startService(Intent(this, TerminalService::class.java).setAction(TerminalService.ACTION_EXIT))
-        val linux = LinuxEnv(this)
-        thread(name = "linux-erase") {
-            Thread.sleep(1500) // dá tempo de os processos do Linux terminarem
-            linux.clearMarkers()
-            runCatching { Fs.deleteTree(linux.linuxDir.toPath()) }
-            runOnUiThread {
-                progress.dismiss()
-                Setup.reset()
-                startActivity(Intent(this, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
-                finish()
+        ServiceCloser {
+            val linux = LinuxEnv(this)
+            thread(name = "linux-erase") {
+                linux.clearMarkers()
+                runCatching { Fs.deleteTree(linux.linuxDir.toPath()) }
+                runOnUiThread {
+                    runCatching { progress.dismiss() }
+                    Setup.reset()
+                    if (!isDestroyed) {
+                        startActivity(Intent(this, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
+                        finish()
+                    }
+                }
             }
+        }.start()
+    }
+
+    /**
+     * Liga-se ao serviço, manda encerrar tudo (sessões, chat, instalações) e só
+     * então chama [then], na thread principal. O bind é desfeito uma vez só.
+     * [then] roda mesmo se a tela já tiver sido destruída: quem usa a tela checa isDestroyed.
+     */
+    private inner class ServiceCloser(private val then: () -> Unit) : ServiceConnection {
+        private var bound = false
+        private var finished = false
+
+        fun start() {
+            // Pelo contexto do app: o bind sobrevive à tela e é desfeito pelo mesmo contexto em done().
+            bound = runCatching {
+                applicationContext.bindService(Intent(applicationContext, TerminalService::class.java), this, Context.BIND_AUTO_CREATE)
+            }.getOrDefault(false)
+            if (!bound) done()
+        }
+
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            val service = (binder as? TerminalService.LocalBinder)?.service
+            if (service == null) done() else service.closeEverything { done() }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) = done()
+
+        private fun done() {
+            if (finished) return
+            finished = true
+            if (bound) runCatching { applicationContext.unbindService(this) }
+            bound = false
+            then()
         }
     }
 

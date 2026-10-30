@@ -40,7 +40,11 @@ class TerminalService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private var wakeLock: PowerManager.WakeLock? = null
     private var foreground = false
+    /** Serviço iniciado por startService (fica vivo mesmo sem tela ligada a ele). */
+    private var started = false
     private var linkWatcher: LinkWatcher? = null
+    /** Limpeza de restos antigos (onCreate); closeEverything espera por ela antes de apagar o Linux. */
+    @Volatile private var legacyCleanup: Thread? = null
 
     val sessions = mutableListOf<TerminalSession>()
 
@@ -67,6 +71,12 @@ class TerminalService : Service() {
         @Volatile var lastLine = ""
         /** A tela inicial já registrou o resultado desta tarefa. */
         @Volatile var acknowledged = false
+        /** Processo do instalador em andamento (para cancelar). */
+        @Volatile var process: Process? = null
+        /** true quando o usuário cancelou; o estado final fica FAILED. */
+        @Volatile var cancelled = false
+        /** Thread que roda o instalador (o fechamento espera por ela). */
+        @Volatile var worker: Thread? = null
         private val log = StringBuilder()
 
         fun append(line: String) = synchronized(log) {
@@ -180,6 +190,17 @@ class TerminalService : Service() {
         }
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        // Limpeza de restos de versões antigas: em segundo plano, sem atrasar o serviço.
+        legacyCleanup = thread(name = "jangada-legacy") {
+            runCatching {
+                val linux = LinuxEnv(this)
+                if (linux.isReady) linux.cleanupLegacy()
+            }
+        }
+    }
+
     override fun onBind(intent: Intent): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -187,7 +208,9 @@ class TerminalService : Service() {
             exit()
             return START_NOT_STICKY
         }
-        goForeground()
+        // Iniciado pelas telas: só vai ao primeiro plano se houver trabalho.
+        started = true
+        if (hasWork()) goForeground()
         return START_NOT_STICKY
     }
 
@@ -220,11 +243,15 @@ class TerminalService : Service() {
         session.mSessionName = title
         sessionStartedAt[session.mHandle] = System.currentTimeMillis()
         sessions += session
+        goForeground()
         sessionsChanged()
         return session
     }
 
     fun session(handle: String): TerminalSession? = sessions.firstOrNull { it.mHandle == handle }
+
+    /** Há uma sessão de terminal do Claude Code rodando agora? */
+    fun hasClaudeTerminal(): Boolean = sessions.any { sessionAgent[it.mHandle] == CLAUDE && it.isRunning }
 
     /** Troca uma sessão encerrada por uma nova (Enter depois de "exit"). */
     fun replaceSession(old: TerminalSession): TerminalSession {
@@ -258,10 +285,14 @@ class TerminalService : Service() {
         goForeground()
         updateNotification()
         onTasksChanged?.invoke()
-        thread(name = "jangada-agent-${recipe.id}") {
+        val worker = thread(start = false, name = "jangada-agent-${recipe.id}") {
             val exit = runCatching {
                 val script = if (uninstalling) recipe.uninstallScript() else recipe.backgroundScript(updating)
-                LinuxEnv(this).runBash(script) { raw ->
+                LinuxEnv(this).runBash(script, onStart = { process ->
+                    task.process = process
+                    // Cancelado antes de o processo nascer: encerra logo.
+                    if (task.cancelled) process.destroy()
+                }) { raw ->
                     val line = cleanLine(raw)
                     if (line.isEmpty()) return@runBash
                     task.append(line)
@@ -269,16 +300,45 @@ class TerminalService : Service() {
                     postTasksChanged(throttle = true)
                 }
             }.getOrElse { e ->
-                task.append(getString(R.string.task_error, e.message.orEmpty()))
+                // Ao cancelar, a leitura da saída falha de propósito: não é erro.
+                if (!task.cancelled) task.append(getString(R.string.task_error, e.message.orEmpty()))
                 -1
             }
-            task.state = if (exit == 0) AgentTask.State.OK else AgentTask.State.FAILED
+            task.process = null
+            if (task.cancelled) task.append(getString(R.string.task_cancelled))
+            task.state = if (exit == 0 && !task.cancelled) AgentTask.State.OK else AgentTask.State.FAILED
             main.post {
                 onTasksChanged?.invoke()
                 updateNotification()
                 leaveForegroundIfIdle()
             }
         }
+        task.worker = worker
+        worker.start()
+    }
+
+    /**
+     * Cancela a instalação, atualização ou desinstalação em andamento do agente
+     * [agentId]: pede para o processo sair e, se ele não sair em 2 s, força.
+     * Sem tarefa rodando, não faz nada.
+     */
+    fun cancelTask(agentId: String) {
+        val task = tasks[agentId]?.takeIf { it.state == AgentTask.State.RUNNING } ?: return
+        task.cancelled = true
+        task.process?.destroy()
+        thread(name = "jangada-cancel-$agentId") {
+            runCatching { Thread.sleep(2_000) }
+            task.process?.takeIf { it.isAlive }?.destroyForcibly()
+        }
+        main.post {
+            onTasksChanged?.invoke()
+            updateNotification()
+        }
+    }
+
+    /** Cancela todas as tarefas em andamento (ao sair pela notificação ou fechar tudo). */
+    private fun cancelRunningTasks() {
+        tasks.keys.toList().forEach { cancelTask(it) }
     }
 
     /** Fecha o chat e as sessões de terminal de um agente (antes de desinstalar). */
@@ -300,8 +360,11 @@ class TerminalService : Service() {
 
     private fun hasRunningTasks() = tasks.values.any { it.state == AgentTask.State.RUNNING }
 
+    /** Há algo que mantenha o serviço em primeiro plano (sessão, chat ou instalação)? */
+    private fun hasWork() = sessions.isNotEmpty() || chat != null || hasRunningTasks()
+
     private fun leaveForegroundIfIdle() {
-        if (sessions.isEmpty() && !hasRunningTasks() && chat == null) leaveForeground()
+        if (!hasWork()) leaveForeground()
     }
 
     private fun sessionsChanged() {
@@ -311,6 +374,7 @@ class TerminalService : Service() {
 
     private fun leaveForeground() {
         foreground = false
+        started = false
         stopForeground(true)
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
@@ -356,18 +420,50 @@ class TerminalService : Service() {
         sessions.clear()
         chat?.stop()
         chat = null
+        cancelRunningTasks()
         sessionListeners.forEach { it() }
         onExit?.invoke()
         leaveForeground()
     }
 
-    /** Encerra tudo (sessões, chat, tarefas visíveis) — usado antes de reinstalar o Linux. */
-    fun closeEverything() = exit()
+    /**
+     * Encerra tudo (sessões, chat, instalações em andamento) antes de reinstalar
+     * ou restaurar o Linux. [then] roda na thread principal, depois que o chat
+     * saiu e as instalações terminaram (no máximo 5 s para cada uma).
+     */
+    fun closeEverything(then: () -> Unit) {
+        sessions.forEach { it.finishIfRunning() }
+        sessions.clear()
+        val current = chat
+        chat = null
+        chatAgentId = null
+        cancelRunningTasks()
+        sessionListeners.forEach { it() }
+        val chatGone = java.util.concurrent.CountDownLatch(1)
+        if (current == null) chatGone.countDown() else current.stop { chatGone.countDown() }
+        val workers = tasks.values.mapNotNull { it.worker }
+        thread(name = "jangada-close") {
+            runCatching { chatGone.await(5, java.util.concurrent.TimeUnit.SECONDS) }
+            workers.forEach { runCatching { it.join(5_000) } }
+            // Apagar o Linux enquanto a limpeza apaga parte dele faria as duas falharem.
+            legacyCleanup?.let { runCatching { it.join(60_000) } }
+            main.post {
+                onExit?.invoke()
+                leaveForeground()
+                then()
+            }
+        }
+    }
 
     private fun goForeground() {
         createChannels()
         startForeground(NOTIFICATION_SESSIONS, buildNotification())
         foreground = true
+        // Sem startService, o serviço morre quando a última tela se desliga dele (só bind).
+        if (!started) {
+            started = true
+            runCatching { startService(Intent(this, TerminalService::class.java)) }
+        }
         // Manter o processador acordado é opcional (configurações, Modo Pro).
         if (wakeLock == null && AppSettings(this).keepCpuAwake) {
             val power = getSystemService(PowerManager::class.java)
@@ -393,7 +489,7 @@ class TerminalService : Service() {
             Intent(this, TerminalService::class.java).setAction(ACTION_EXIT),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val count = (sessions.size + if (chat != null) 1 else 0).coerceAtLeast(1)
+        val count = sessions.size + if (chat != null) 1 else 0
         val running = tasks.values.firstOrNull { it.state == AgentTask.State.RUNNING }
         val text = when {
             running != null -> getString(
