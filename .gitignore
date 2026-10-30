@@ -10,5 +10,16 @@ captures/
 # Chaves de assinatura NUNCA vão para o repositório
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+keystore.properties
+signing.properties
+.env
+.env.*
+# APKs saem só do CI (releases)
+*.apk
+*.aab
 # Baixado pelo scripts/fetch-proot.sh na hora do build
 app/src/main/assets/bootstrap/
