@@ -3,6 +3,8 @@ package io.github.jonjonesbr.jangada.chat
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
@@ -74,7 +76,7 @@ object Attachments {
         return "\n\n(Anexos: " + files.joinToString(", ") { it.guestPath } + ")"
     }
 
-    /** Reduz a foto (lado maior até 1568 px) e devolve em base64 JPEG. */
+    /** Gira a foto conforme o EXIF, reduz (lado maior até 1568 px) e devolve em base64 JPEG. */
     private fun encodeImage(file: File): String? = runCatching {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, bounds)
@@ -82,16 +84,47 @@ object Attachments {
         while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_IMAGE_SIDE) sample *= 2
         val decoded = BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
             ?: return null
-        val scale = MAX_IMAGE_SIDE.toFloat() / maxOf(decoded.width, decoded.height)
+        // Gira antes de reduzir; a rotação não muda o lado maior.
+        val upright = orient(decoded, exifOrientation(file))
+        val scale = MAX_IMAGE_SIDE.toFloat() / maxOf(upright.width, upright.height)
         val bitmap = if (scale < 1f) {
-            Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt(), (decoded.height * scale).toInt(), true)
+            Bitmap.createScaledBitmap(upright, (upright.width * scale).toInt(), (upright.height * scale).toInt(), true)
         } else {
-            decoded
+            upright
         }
         val out = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        // Libera só os bitmaps intermediários (sem repetir o mesmo objeto).
+        listOf(bitmap, upright, decoded).distinct().forEach { it.recycle() }
         Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }.getOrNull()
+
+    /** Orientação EXIF da foto; sem EXIF ou se a leitura falhar, vale NORMAL (sem girar). */
+    private fun exifOrientation(file: File): Int = runCatching {
+        ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+    /** Aplica a rotação e o espelhamento da orientação EXIF. Sem nada a fazer, devolve o mesmo bitmap. */
+    private fun orient(bitmap: Bitmap, orientation: Int): Bitmap {
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.setRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.setRotate(-90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+            else -> return bitmap
+        }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
 
     private fun displayName(context: Context, uri: Uri): String? = runCatching {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
