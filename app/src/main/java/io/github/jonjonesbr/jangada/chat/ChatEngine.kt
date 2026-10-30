@@ -37,6 +37,8 @@ class ChatEngine(
 
     private var draft: ChatItem.Assistant? = null
     private val tools = HashMap<String, ChatItem.Tool>()
+    /** Lista de tarefas (TodoWrite) da conversa: um único plano, atualizado a cada chamada. */
+    private var plan: ChatItem.Plan? = null
     private var requestCounter = 0
 
     /**
@@ -96,6 +98,9 @@ class ChatEngine(
     /** Põe o que já foi conversado antes das mensagens novas (thread principal). */
     private fun showHistory(loaded: List<ChatItem>, markInterrupted: Boolean) {
         items.addAll(0, loaded)
+        // Continua atualizando o plano que já está na conversa, em vez de criar outro
+        // (a menos que um plano novo já tenha chegado antes do histórico).
+        if (plan == null) loaded.filterIsInstance<ChatItem.Plan>().lastOrNull()?.let { plan = it }
         // Terminou numa ação ou numa mensagem sua, sem resposta depois: foi interrompida.
         if (markInterrupted) interrupted = loaded.lastOrNull().let { it is ChatItem.Tool || it is ChatItem.User }
         changed()
@@ -242,6 +247,11 @@ class ChatEngine(
                 "text" -> text.append(block.optString("text"))
                 "tool_use" -> {
                     val id = block.optString("id")
+                    if (block.optString("name") == TODO_TOOL) {
+                        // A lista de tarefas de um subagente não substitui a da conversa.
+                        if (!fromSubagent) updatePlan(todoEntries(block.optJSONObject("input")))
+                        continue
+                    }
                     if (tools.containsKey(id)) continue
                     val tool = ChatItem.Tool(id, block.optString("name"), ToolText.summary(block.optString("name"), block.optJSONObject("input")))
                     tools[id] = tool
@@ -260,6 +270,13 @@ class ChatEngine(
         }
         draft = null
         changed()
+    }
+
+    /** Põe o plano na conversa ou, se já existe, troca só as tarefas dele. */
+    private fun updatePlan(entries: List<PlanEntry>) {
+        val current = plan
+        if (current != null && items.contains(current)) current.entries = entries
+        else plan = ChatItem.Plan(entries).also { items += it }
     }
 
     private fun handleToolResults(message: JSONObject?) {
@@ -325,6 +342,22 @@ class ChatEngine(
         private val SHELL_TOOLS = setOf("Bash", "BashOutput", "KillShell")
 
         fun isShellTool(name: String): Boolean = name in SHELL_TOOLS
+
+        /** Ferramenta de lista de tarefas do Claude Code: vira um [ChatItem.Plan], não um cartão. */
+        const val TODO_TOOL = "TodoWrite"
+
+        /**
+         * Tarefas do TodoWrite ({"todos":[{"content","status","activeForm"}]}) como entradas
+         * de plano. Status: pending, in_progress ou completed (os mesmos do ACP).
+         */
+        fun todoEntries(input: JSONObject?): List<PlanEntry> {
+            val todos = input?.optJSONArray("todos") ?: return emptyList()
+            return (0 until todos.length()).mapNotNull { i ->
+                val todo = todos.optJSONObject(i) ?: return@mapNotNull null
+                val text = todo.optString("content").ifEmpty { todo.optString("activeForm") }
+                PlanEntry(text, todo.optString("status").ifEmpty { "pending" })
+            }
+        }
 
         /**
          * Chave do "sempre permitir": o comando exato (ou os dados da chamada, se não há

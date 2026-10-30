@@ -45,6 +45,7 @@ object ChatHistory {
             loaded.addLast(item)
             if (loaded.size > max) loaded.removeFirst()
         }
+        var plan: ChatItem.Plan? = null
         for (line in lines) {
             val json = runCatching { JSONObject(line) }.getOrNull() ?: continue
             if (json.optBoolean("isMeta") || json.optBoolean("isSidechain")) continue
@@ -71,12 +72,20 @@ object ChatHistory {
                         when (block.optString("type")) {
                             "text" -> block.optString("text").takeIf { it.isNotBlank() }
                                 ?.let { add(ChatItem.Assistant(it, streaming = false)) }
-                            "tool_use" -> add(
-                                ChatItem.Tool(
-                                    block.optString("id"), block.optString("name"),
-                                    ToolText.summary(block.optString("name"), block.optJSONObject("input")),
-                                ).apply { done = true },
-                            )
+                            "tool_use" -> if (block.optString("name") == ChatEngine.TODO_TOOL) {
+                                // Lista de tarefas: um único plano, atualizado (se ainda estiver na lista).
+                                val entries = ChatEngine.todoEntries(block.optJSONObject("input"))
+                                val current = plan
+                                if (current != null && loaded.any { it === current }) current.entries = entries
+                                else plan = ChatItem.Plan(entries).also { add(it) }
+                            } else {
+                                add(
+                                    ChatItem.Tool(
+                                        block.optString("id"), block.optString("name"),
+                                        ToolText.summary(block.optString("name"), block.optJSONObject("input")),
+                                    ).apply { done = true },
+                                )
+                            }
                         }
                     }
                 }

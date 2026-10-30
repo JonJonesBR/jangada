@@ -60,6 +60,28 @@ class ChatHistoryTest {
     }
 
     @Test
+    fun listaDeTarefasViraUmSoPlano() {
+        val lines = sequenceOf(
+            """{"type":"user","message":{"role":"user","content":"Faz duas coisas"}}""",
+            """{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w1","name":"TodoWrite","input":""" +
+                """{"todos":[{"content":"Ler","status":"pending","activeForm":"Lendo"},""" +
+                """{"content":"Escrever","status":"pending","activeForm":"Escrevendo"}]}}]}}""",
+            """{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"w1","content":"ok"}]}}""",
+            """{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w2","name":"TodoWrite","input":""" +
+                """{"todos":[{"content":"Ler","status":"completed","activeForm":"Lendo"},""" +
+                """{"content":"Escrever","status":"in_progress","activeForm":"Escrevendo"}]}}]}}""",
+        )
+
+        val items = ChatHistory.parse(lines, max = 100)
+
+        assertEquals(2, items.size)
+        assertTrue(items[1] is ChatItem.Plan)
+        val entries = (items[1] as ChatItem.Plan).entries
+        assertEquals(listOf("Ler", "Escrever"), entries.map { it.text })
+        assertEquals(listOf("completed", "in_progress"), entries.map { it.status })
+    }
+
+    @Test
     fun nomeAmigavelDoModelo() {
         assertEquals("Haiku 4.5", friendlyModel("claude-haiku-4-5-20251001"))
         assertEquals("Sonnet 4", friendlyModel("claude-sonnet-4-20250514"))
