@@ -2,6 +2,7 @@ package io.github.jonjonesbr.jangada
 
 import android.app.AlertDialog
 import android.content.ClipData
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -19,6 +20,11 @@ import io.github.jonjonesbr.jangada.linux.LinuxEnv
  */
 class ShareActivity : ComponentActivity() {
 
+    private companion object {
+        /** Máximo de arquivos por compartilhamento; o excesso é descartado com aviso. */
+        const val MAX_SHARED_ITEMS = 20
+    }
+
     private var text: String? = null
     private var uris: List<Uri> = emptyList()
 
@@ -26,6 +32,7 @@ class ShareActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         readShared()
         if (text == null && uris.isEmpty()) {
+            Toast.makeText(this, R.string.share_nothing_usable, Toast.LENGTH_LONG).show()
             finish()
             return
         }
@@ -46,14 +53,22 @@ class ShareActivity : ComponentActivity() {
         }
     }
 
-    /** Lê o texto e os arquivos do Intent (ACTION_SEND ou ACTION_SEND_MULTIPLE). */
+    /**
+     * Lê o texto e os arquivos do Intent (ACTION_SEND ou ACTION_SEND_MULTIPLE).
+     * Só aceita content:// (file:// apontaria para arquivos privados do Jangada).
+     */
     @Suppress("DEPRECATION")
     private fun readShared() {
         text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf { it.isNotBlank() }
-        uris = when (intent.action) {
+        val received: List<Uri> = when (intent.action) {
             Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
             Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.filterNotNull().orEmpty()
             else -> emptyList()
+        }
+        val accepted = received.filter { it.scheme == ContentResolver.SCHEME_CONTENT }
+        uris = accepted.take(MAX_SHARED_ITEMS)
+        if (accepted.size > MAX_SHARED_ITEMS) {
+            Toast.makeText(this, getString(R.string.share_too_many, MAX_SHARED_ITEMS), Toast.LENGTH_LONG).show()
         }
     }
 

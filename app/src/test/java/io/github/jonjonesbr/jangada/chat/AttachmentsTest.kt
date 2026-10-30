@@ -2,7 +2,10 @@ package io.github.jonjonesbr.jangada.chat
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.File
 
 class AttachmentsTest {
 
@@ -36,5 +39,24 @@ class AttachmentsTest {
     fun semExtensaoCortaONomeTodo() {
         val name = Attachments.safeName("x".repeat(200))
         assertEquals(80, length(name))
+    }
+
+    @Test
+    fun copiaDentroDoLimite() {
+        val target = File.createTempFile("anexo", ".bin").apply { deleteOnExit() }
+        Attachments.copyLimited(ByteArrayInputStream(ByteArray(1000)), target, maxBytes = 1000)
+        assertEquals(1000L, target.length())
+    }
+
+    @Test
+    fun passarDoLimitePara() {
+        val target = File.createTempFile("anexo", ".bin").apply { deleteOnExit() }
+        try {
+            Attachments.copyLimited(ByteArrayInputStream(ByteArray(1001)), target, maxBytes = 1000)
+            fail("deveria recusar arquivo acima do limite")
+        } catch (e: AttachmentTooLargeException) {
+            // Esperado: quem chama apaga a cópia parcial.
+        }
+        assertTrue(target.length() <= 1000L)
     }
 }

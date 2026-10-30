@@ -9,6 +9,11 @@ import android.util.Base64
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
+
+/** Arquivo maior que [Attachments.MAX_ATTACHMENT_BYTES]: a cópia é interrompida. */
+class AttachmentTooLargeException(limit: Long) : IOException("attachment larger than $limit bytes")
 
 /**
  * Anexos do chat. Todo arquivo é copiado para ~/projetos/anexos (dentro do
@@ -21,6 +26,9 @@ object Attachments {
     private const val MAX_NAME = 80
     const val DIR = "anexos"
 
+    /** Tamanho máximo de um anexo (100 MB). Compartilhamentos e escolhas acima disso são recusados. */
+    const val MAX_ATTACHMENT_BYTES = 100L * 1024 * 1024
+
     /** Lê o arquivo escolhido no Android e prepara o anexo (rodar fora da thread principal). */
     fun prepare(context: Context, linux: LinuxEnv, uri: Uri): Attachment {
         val resolver = context.contentResolver
@@ -29,8 +37,8 @@ object Attachments {
         val dir = File(linux.rootfs, "root/${LinuxEnv.WORKSPACE}/$DIR").apply { mkdirs() }
         val target = unique(dir, name)
         try {
-            resolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
-                ?: throw java.io.IOException("could not read the file")
+            resolver.openInputStream(uri)?.use { input -> copyLimited(input, target) }
+                ?: throw IOException("could not read the file")
         } catch (e: Exception) {
             // Cópia pela metade não fica na pasta de anexos.
             target.delete()
@@ -39,6 +47,24 @@ object Attachments {
         val guestPath = "/root/${LinuxEnv.WORKSPACE}/$DIR/${target.name}"
         val image = if (mime.startsWith("image/")) encodeImage(target) else null
         return Attachment(target.name, guestPath, if (image != null) "image/jpeg" else mime, image)
+    }
+
+    /**
+     * Copia o stream para [target], parando com [AttachmentTooLargeException]
+     * se passar de [maxBytes]. Quem chama apaga o arquivo parcial.
+     */
+    internal fun copyLimited(input: InputStream, target: File, maxBytes: Long = MAX_ATTACHMENT_BYTES) {
+        target.outputStream().use { out ->
+            val buffer = ByteArray(8192)
+            var total = 0L
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                total += read
+                if (total > maxBytes) throw AttachmentTooLargeException(maxBytes)
+                out.write(buffer, 0, read)
+            }
+        }
     }
 
     /** Texto que acompanha a mensagem com o caminho dos arquivos anexados. */

@@ -113,6 +113,7 @@
     <string name="chat_prepare_failed">Não consegui preparar o chat do %s. Confira a conexão e abra de novo.</string>
     <string name="chat_attach">Anexar</string>
     <string name="chat_attach_failed">Alguns arquivos não puderam ser anexados</string>
+    <string name="chat_attach_too_large">Arquivos maiores que %1$d MB não podem ser anexados</string>
     <string name="chat_history_unsupported">O %s não compartilha as conversas anteriores com o app</string>
     <string name="chat_terminal_note">No terminal, o %s abre a tela dele numa conversa nova</string>
     <string name="chat_copy_code">Copiar</string>
@@ -336,5 +337,7 @@
     <string name="share_linux_missing">Instale o Linux no Jangada primeiro.</string>
     <string name="share_no_agents">Nenhum agente com chat está instalado ainda.</string>
     <string name="share_choose_agent">Mandar para qual agente?</string>
+    <string name="share_nothing_usable">Nada que o Jangada possa receber</string>
+    <string name="share_too_many">Só os primeiros %1$d itens foram enviados</string>
     <string name="chat_effort_default">Padrão</string>
 </resources>

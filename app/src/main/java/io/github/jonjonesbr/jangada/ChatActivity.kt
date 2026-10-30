@@ -44,6 +44,7 @@ import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.chat.AcpChat
 import io.github.jonjonesbr.jangada.chat.AgentChat
 import io.github.jonjonesbr.jangada.chat.Attachment
+import io.github.jonjonesbr.jangada.chat.AttachmentTooLargeException
 import io.github.jonjonesbr.jangada.chat.AuthOption
 import io.github.jonjonesbr.jangada.chat.Attachments
 import io.github.jonjonesbr.jangada.chat.ChatEngine
@@ -470,10 +471,18 @@ class ChatActivity : JangadaActivity() {
     private fun prepareAttachments(uris: List<Uri>) {
         if (uris.isEmpty()) return
         thread(name = "attachments") {
-            val prepared = uris.mapNotNull { uri -> runCatching { Attachments.prepare(this, linux, uri) }.getOrNull() }
+            val failures = mutableListOf<Throwable>()
+            val prepared = uris.mapNotNull { uri ->
+                runCatching { Attachments.prepare(this, linux, uri) }.onFailure { failures += it }.getOrNull()
+            }
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
-                if (prepared.size < uris.size) Toast.makeText(this, R.string.chat_attach_failed, Toast.LENGTH_SHORT).show()
+                when {
+                    failures.any { it is AttachmentTooLargeException } -> Toast.makeText(
+                        this, getString(R.string.chat_attach_too_large, Attachments.MAX_ATTACHMENT_BYTES / (1024 * 1024)), Toast.LENGTH_LONG
+                    ).show()
+                    prepared.size < uris.size -> Toast.makeText(this, R.string.chat_attach_failed, Toast.LENGTH_SHORT).show()
+                }
                 pendingAttachments += prepared
                 renderAttachments()
             }
