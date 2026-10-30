@@ -173,6 +173,7 @@
     <string name="keys_remove_title">Remover %1$s?</string>
     <string name="keys_remove_message">A chave salva é apagada deste celular. Agentes abertos depois não vão recebê-la.</string>
     <string name="keys_remove_confirm">Remover</string>
+    <string name="keys_name_hint">MINHA_CHAVE_API</string>
     <string name="keys_invalid_name">Use letras maiúsculas, números e _ (por exemplo MINHA_CHAVE_API)</string>
 
     <string name="tab_close_title">Fechar esta sessão?</string>
@@ -309,6 +310,9 @@
     <string name="key_desc_right">Seta para a direita</string>
     <string name="key_desc_bang">Ponto de exclamação</string>
     <string name="key_desc_link">Abrir link</string>
+    <string name="key_state_on">Ativado</string>
+    <string name="key_state_off">Desativado</string>
+    <string name="key_state_named">%1$s, %2$s</string>
 
     <!-- Tarefas, chat e erros (1.0.3) -->
     <string name="task_cancelled">Cancelado.</string>

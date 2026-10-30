@@ -175,6 +175,7 @@
     <string name="keys_remove_title">Remove %1$s?</string>
     <string name="keys_remove_message">The saved key is deleted from this device. Agents opened later won’t receive it.</string>
     <string name="keys_remove_confirm">Remove</string>
+    <string name="keys_name_hint">MY_API_KEY</string>
     <string name="keys_invalid_name">Use capital letters, numbers and _ (for example MY_API_KEY)</string>
 
     <string name="tab_close_title">Close this session?</string>
@@ -311,6 +312,9 @@
     <string name="key_desc_right">Right arrow</string>
     <string name="key_desc_bang">Exclamation mark</string>
     <string name="key_desc_link">Open link</string>
+    <string name="key_state_on">On</string>
+    <string name="key_state_off">Off</string>
+    <string name="key_state_named">%1$s, %2$s</string>
 
     <!-- Tarefas, chat e erros (1.0.3) -->
     <string name="task_cancelled">Cancelled.</string>

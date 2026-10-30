@@ -184,7 +184,7 @@ class ApiKeysActivity : JangadaActivity() {
     private fun askName() {
         val field = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
-            hint = "MINHA_CHAVE_API"
+            hint = getString(R.string.keys_name_hint)
             isSingleLine = true
         }
         AlertDialog.Builder(this)

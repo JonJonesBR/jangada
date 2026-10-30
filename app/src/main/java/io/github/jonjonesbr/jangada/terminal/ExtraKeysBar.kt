@@ -2,6 +2,7 @@ package io.github.jonjonesbr.jangada.terminal
 
 import android.content.Context
 import android.graphics.Typeface
+import android.os.Build
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
@@ -91,8 +92,21 @@ class ExtraKeysBar @JvmOverloads constructor(
     private fun refresh() {
         ctrlKey?.setTextColor(if (ctrlOn) activeColor else textColor)
         ctrlKey?.isSelected = ctrlOn
+        markState(ctrlKey, R.string.key_desc_ctrl, ctrlOn)
         altKey?.setTextColor(if (altOn) activeColor else textColor)
         altKey?.isSelected = altOn
+        markState(altKey, R.string.key_desc_alt, altOn)
+    }
+
+    /** Anuncia ligado/desligado: stateDescription no Android 11+, nome + estado nas versões antigas. */
+    private fun markState(tv: TextView?, name: Int, on: Boolean) {
+        tv ?: return
+        val state = context.getString(if (on) R.string.key_state_on else R.string.key_state_off)
+        if (Build.VERSION.SDK_INT >= 30) {
+            tv.stateDescription = state
+        } else {
+            tv.contentDescription = context.getString(R.string.key_state_named, context.getString(name), state)
+        }
     }
 
     private fun sendKey(keyCode: Int, shift: Boolean = false) {
@@ -111,7 +125,7 @@ class ExtraKeysBar @JvmOverloads constructor(
 
     private fun newRow(): LinearLayout {
         val row = LinearLayout(context).apply { orientation = HORIZONTAL }
-        addView(row, LayoutParams(LayoutParams.MATCH_PARENT, dp(42)))
+        addView(row, LayoutParams(LayoutParams.MATCH_PARENT, dp(48)))
         return row
     }
 
