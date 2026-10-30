@@ -71,7 +71,18 @@ object Backup {
             try {
                 val errors = StringBuilder()
                 val stderr = thread { runCatching { errors.append(process.errorStream.bufferedReader().readText()) } }
-                process.outputStream.use { input.copyTo(it, 64 * 1024) }
+                try {
+                    process.outputStream.use { input.copyTo(it, 64 * 1024) }
+                } catch (e: IOException) {
+                    // Arquivo que não é backup faz o tar sair cedo: o "Broken pipe" não é o erro real.
+                    // O use acima já fechou o stdin; espera o tar e mostra a mensagem dele, se houver.
+                    val code = process.waitFor()
+                    stderr.join(2000)
+                    // A primeira linha é a causa (ex.: "gzip: stdin: not in gzip format"); as seguintes são consequência.
+                    val message = errors.lines().firstOrNull { it.isNotBlank() }
+                    if (code != 0 && message != null) throw IOException(message)
+                    throw e
+                }
                 val code = process.waitFor()
                 stderr.join(2000)
                 if (code != 0) {
