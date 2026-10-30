@@ -83,8 +83,16 @@ object Setup {
             publish(State.Done)
         } catch (e: Throwable) {
             log("ERRO: ${e.javaClass.simpleName}: ${e.message}")
+            // Camadas baixadas pela metade (ou inteiras, se a extração falhou) ocupam
+            // espaço; "Tentar de novo" baixa tudo outra vez mesmo.
+            deletePartialLayers(context)
             publish(State.Failed(step, friendlyMessage(e, step)))
         }
+    }
+
+    private fun deletePartialLayers(context: Context) {
+        context.cacheDir.listFiles { f -> f.name.startsWith("layer-") && f.name.endsWith(".tar.gz") }
+            ?.forEach { it.delete() }
     }
 
     private fun download(context: Context, env: LinuxEnv): List<File> {
@@ -158,15 +166,6 @@ object Setup {
         if (free < REQUIRED_BYTES) throw NotEnoughSpace()
     }
 
-    private fun friendlyMessage(e: Throwable, step: Step): Int = when {
-        e is NotEnoughSpace -> R.string.setup_error_space
-        e is DockerHub.HttpError && e.code == 429 -> R.string.setup_error_rate_limit
-        e is UnknownHostException -> R.string.setup_error_offline
-        step == Step.PACKAGES -> R.string.setup_error_packages
-        e is IOException && step == Step.DOWNLOAD -> R.string.setup_error_download
-        else -> R.string.setup_error_generic
-    }
-
     private fun log(line: String) {
         synchronized(logLines) {
             logLines.addLast(line)
@@ -180,8 +179,6 @@ object Setup {
     }
 
     private fun mb(bytes: Long) = "%.1f".format(java.util.Locale.getDefault(), bytes / 1_048_576.0)
-
-    private class NotEnoughSpace : IOException("pouco espaço livre")
 
     private class CountingInputStream(
         input: InputStream,
@@ -209,3 +206,23 @@ object Setup {
     private const val MAX_LOG_LINES = 400
     private const val REQUIRED_BYTES = 700L * 1024 * 1024
 }
+
+internal class NotEnoughSpace : IOException("pouco espaço livre")
+
+/** Falta de espaço vem do Java ("No space left on device") ou do Android ("ENOSPC"), às vezes numa causa. */
+internal fun isNoSpace(e: Throwable): Boolean = generateSequence(e) { it.cause }.take(MAX_CAUSES).any { t ->
+    val text = t.message.orEmpty()
+    text.contains("No space left", ignoreCase = true) || text.contains("ENOSPC")
+}
+
+/** Id da mensagem para a falha; pura, para os testes. */
+internal fun friendlyMessage(e: Throwable, step: Setup.Step): Int = when {
+    e is NotEnoughSpace || isNoSpace(e) -> R.string.setup_error_space
+    e is DockerHub.HttpError && e.code == 429 -> R.string.setup_error_rate_limit
+    e is UnknownHostException -> R.string.setup_error_offline
+    step == Setup.Step.PACKAGES -> R.string.setup_error_packages
+    e is IOException && step == Setup.Step.DOWNLOAD -> R.string.setup_error_download
+    else -> R.string.setup_error_generic
+}
+
+private const val MAX_CAUSES = 10
