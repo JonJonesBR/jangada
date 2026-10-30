@@ -1,5 +1,17 @@
 # Novidades
 
+## 1.3.0
+
+- Tela inicial: cartão de boas-vindas (some ao tocar em Entendi), menos redesenho e versões do npm guardadas por 1 hora.
+- Chat: agentes ACP sugerem os comandos / ao digitar; Parar no Claude recusa as permissões pendentes e respeita o cancelamento do agente; "limite de passos" e outros erros com mensagem clara; o histórico reaberto mostra as ações que falharam.
+- Acessibilidade: botões do chat e teclas extras com 48 dp, estado do Ctrl/Alt e erros anunciados pelo leitor de tela.
+- Segurança: anexos e integração não seguem links nas pastas do Linux; extração de imagens com limites; chave de API ilegível aparece como tal; a saída dos agentes não vai mais para o log do sistema; no máximo 3 links abertos direto a cada 30 s.
+- Instalação do Linux: falta de espaço tem a mensagem certa e downloads pela metade são apagados.
+- Restaurar um arquivo que não é backup mostra o erro real.
+- Terminal: a confiança na pasta do Claude é feita fora da thread principal (sem travar com ~/.claude.json grande).
+- Seletor de anexos moderno; células de tabela cortadas ganham reticências; notas dos agentes sem prazo.
+- Repositório: release com SHA-256 do APK, CI confere o proot dentro do APK e vigia semanalmente as URLs de instalação; código morto removido e preferências organizadas.
+
 ## 1.2.0
 
 - Chat: pedidos de edição mostram o diff (linhas removidas e adicionadas), a lista de tarefas do Claude aparece como plano, e o cartão de permissão mostra sempre o comando, com o pedido inteiro num toque.
