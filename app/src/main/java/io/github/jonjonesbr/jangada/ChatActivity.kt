@@ -706,7 +706,7 @@ class ChatActivity : JangadaActivity() {
             "high" -> R.string.effort_high
             "xhigh" -> R.string.effort_xhigh
             "max" -> R.string.effort_max
-            else -> R.string.chat_model_default
+            else -> R.string.chat_effort_default
         },
     )
 
@@ -1151,7 +1151,7 @@ class ChatActivity : JangadaActivity() {
     }
 
     /** Pedaço de uma resposta: texto comum, bloco de código (```) ou tabela. */
-    private class Part(val text: String, val isCode: Boolean, val language: String = "", val isTable: Boolean = false)
+    private class Part(val text: String, val isCode: Boolean, val language: String = "")
 
     /** Resposta pronta para mostrar: as partes e, para cada uma, o texto formatado (null = bloco de código). */
     private class Rendered(val text: String, val parts: List<Part>, val bodies: List<CharSequence?>)
@@ -1166,7 +1166,7 @@ class ChatActivity : JangadaActivity() {
             if (table.isEmpty()) return
             if (buffer.isNotBlank()) parts += Part(buffer.toString(), isCode = false)
             buffer.clear()
-            parts += Part(formatTable(table.toString()), isCode = true, language = "", isTable = true)
+            parts += Part(formatTable(table.toString()), isCode = true, language = "")
             table.clear()
         }
         for (line in text.split('\n')) {
@@ -1220,7 +1220,6 @@ class ChatActivity : JangadaActivity() {
         const val EXTRA_SHARED_URIS = "shared_uris"
         /** Texto recebido pelo "Compartilhar" (vai para o campo de mensagem, sem enviar). */
         const val EXTRA_SHARED_TEXT = "shared_text"
-        const val CLAUDE_AGENT_ID = TerminalService.CLAUDE
         private const val REQUEST_ATTACH = 7
         private val MODELS = arrayOf("", "opus", "sonnet", "haiku")
         private val EFFORTS = arrayOf("", "low", "medium", "high", "xhigh", "max")

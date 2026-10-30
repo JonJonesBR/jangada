@@ -148,7 +148,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <RadioButton android:id="@+id/effort_default" style="@style/SettingsOption" android:text="@string/chat_model_default" />
+                <RadioButton android:id="@+id/effort_default" style="@style/SettingsOption" android:text="@string/chat_effort_default" />
                 <RadioButton android:id="@+id/effort_low" style="@style/SettingsOption" android:text="@string/effort_low" />
                 <RadioButton android:id="@+id/effort_medium" style="@style/SettingsOption" android:text="@string/effort_medium" />
                 <RadioButton android:id="@+id/effort_high" style="@style/SettingsOption" android:text="@string/effort_high" />

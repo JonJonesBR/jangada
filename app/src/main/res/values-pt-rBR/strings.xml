@@ -75,7 +75,7 @@
     <string name="chat_working">Trabalhando…</string>
     <string name="chat_stop">Parar</string>
     <string name="chat_hint">Mensagem para o Claude</string>
-    <string name="chat_empty">Converse com o %1$s aqui. Ele trabalha na pasta ~/projetos e pede licença antes de agir.\n\nToque em &gt;_ no topo para abrir a tela completa do agente.</string>
+    <string name="chat_empty">Converse com o %1$s aqui. Ele trabalha na pasta ~/projetos.\n\nToque em &gt;_ no topo para abrir a tela completa do agente.</string>
     <string name="chat_allow">Permitir</string>
     <string name="chat_deny">Recusar</string>
     <string name="chat_copied">Copiado</string>
@@ -330,4 +330,5 @@
     <string name="share_linux_missing">Instale o Linux no Jangada primeiro.</string>
     <string name="share_no_agents">Nenhum agente com chat está instalado ainda.</string>
     <string name="share_choose_agent">Mandar para qual agente?</string>
+    <string name="chat_effort_default">Padrão</string>
 </resources>

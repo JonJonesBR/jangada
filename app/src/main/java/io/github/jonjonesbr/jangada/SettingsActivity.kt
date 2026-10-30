@@ -29,6 +29,8 @@ class SettingsActivity : JangadaActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A escolha do backup sobrevive se o Android recriar a tela enquanto o seletor de arquivos está aberto.
+        backupEverything = savedInstanceState?.getBoolean(STATE_BACKUP_EVERYTHING) ?: false
         setContentView(R.layout.activity_settings)
         val settings = AppSettings(this)
 
@@ -172,6 +174,11 @@ class SettingsActivity : JangadaActivity() {
 
     private var backupEverything = false
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_BACKUP_EVERYTHING, backupEverything)
+    }
+
     private fun chooseBackup() {
         val options = arrayOf(getString(R.string.backup_projects), getString(R.string.backup_everything))
         AlertDialog.Builder(this)
@@ -309,5 +316,6 @@ class SettingsActivity : JangadaActivity() {
     private companion object {
         const val REQUEST_EXPORT = 21
         const val REQUEST_IMPORT = 22
+        const val STATE_BACKUP_EVERYTHING = "backup_everything"
     }
 }
