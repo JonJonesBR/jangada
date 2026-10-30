@@ -20,6 +20,7 @@ jobs:
   # Testes, assinatura e compilação. Não publica nada.
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
     env:
@@ -72,6 +73,19 @@ jobs:
       - name: Testes
         run: ./gradlew --no-daemon :app:testDebugUnitTest
 
+      # Lint informativo: os avisos não derrubam o build (abortOnError=false). O relatório vai nos artefatos.
+      - name: Lint
+        continue-on-error: true
+        run: ./gradlew --no-daemon :app:lintDebug
+
+      - name: Guardar relatório de lint
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Relatorio-lint
+          path: app/build/reports/lint-results-debug.html
+          retention-days: 14
+
       # A chave fica nos "secrets" do repositório, nunca no código.
       - name: Preparar chave de assinatura
         if: env.HAS_KEYSTORE == 'true'
@@ -96,12 +110,15 @@ jobs:
         with:
           name: Jangada-apk
           path: Jangada.apk
+          # O publish usa este artefato no mesmo run; não precisa guardar mais.
+          retention-days: 7
 
   # Publica só o APK assinado: build da main (versão "nightly") ou tag v* (versão nova).
   publish:
     needs: build
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && needs.build.outputs.signed == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:

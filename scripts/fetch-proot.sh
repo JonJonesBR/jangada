@@ -25,7 +25,7 @@ PINS_aarch64=(
 
 # Mostra as versões mais novas do índice, no formato das linhas acima.
 latest() {
-  curl -fsSL --retry 3 "$REPO/dists/stable/main/binary-$ARCH/Packages" -o "$WORK/Packages"
+  curl -fsSL --retry 3 --connect-timeout 20 --max-time 300 "$REPO/dists/stable/main/binary-$ARCH/Packages" -o "$WORK/Packages"
   for pkg in proot libtalloc libandroid-shmem; do
     awk -v pkg="$pkg" '
       /^Package: / { cur = substr($0, 10) }
@@ -39,7 +39,7 @@ latest() {
 fetch() {
   local pkg="$1" file="$2" sha="$3"
   echo "-> $pkg (${file##*/})"
-  if ! curl -fsSL --retry 3 "$REPO/$file" -o "$WORK/$pkg.deb"; then
+  if ! curl -fsSL --retry 3 --connect-timeout 20 --max-time 300 "$REPO/$file" -o "$WORK/$pkg.deb"; then
     echo "ERRO: $file não está mais no repositório do Termux." >&2
     echo "Versões atuais (troque os PINS deste script):" >&2
     latest >&2

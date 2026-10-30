@@ -11,3 +11,18 @@ updates:
       actions-github:
         patterns:
           - "*"
+  # Gradle: atualizações semanais em um PR só. Versões fixas do projeto (AGP, Kotlin, Gradle) ficam de fora.
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      gradle-deps:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "com.android.tools.build:gradle"
+      - dependency-name: "com.android.application"
+      - dependency-name: "com.android.library"
+      - dependency-name: "org.jetbrains.kotlin*"
+      - dependency-name: "gradle"
