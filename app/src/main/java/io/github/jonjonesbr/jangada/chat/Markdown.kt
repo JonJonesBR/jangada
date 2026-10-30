@@ -77,9 +77,9 @@ object Markdown {
                         continue
                     }
                 }
-                (c == '*' || c == '_') && i + 1 < text.length && !text[i + 1].isWhitespace() -> {
-                    val end = text.indexOf(c, i + 1)
-                    if (end > i + 1 && !text[end - 1].isWhitespace()) {
+                c == '*' || c == '_' -> {
+                    val end = findEmphasisEnd(text, i)
+                    if (end != -1) {
                         val start = out.length
                         out.append(text, i + 1, end)
                         out.setSpan(StyleSpan(Typeface.ITALIC), start, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -91,6 +91,26 @@ object Markdown {
             out.append(c)
             i++
         }
+    }
+
+    /**
+     * Índice do marcador de fechamento da ênfase que começa em [start] (`*` ou `_`),
+     * ou -1 se o trecho não é ênfase. `_` dentro de palavra (MAX_IMAGE_SIDE) não conta,
+     * e `*` logo depois de dígito (2*3*4) também não.
+     */
+    internal fun findEmphasisEnd(text: String, start: Int): Int {
+        val c = text[start]
+        if (start + 1 >= text.length || text[start + 1].isWhitespace()) return -1
+        if (c == '_' && start > 0 && text[start - 1].isLetterOrDigit()) return -1
+        if (c == '*' && start > 0 && text[start - 1].isDigit()) return -1
+        var end = text.indexOf(c, start + 1)
+        while (end > start + 1) {
+            val closes = !text[end - 1].isWhitespace() &&
+                (c == '*' || end + 1 >= text.length || !text[end + 1].isLetterOrDigit())
+            if (closes) return end
+            end = text.indexOf(c, end + 1)
+        }
+        return -1
     }
 
     private val BULLET = Regex("""^\s*[-*+]\s+.*""")
