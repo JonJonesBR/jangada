@@ -1,0 +1,8 @@
+# Abre pull requests semanais para atualizar as actions do workflow (os SHAs fixados
+# no build.yml, com o comentário da versão).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

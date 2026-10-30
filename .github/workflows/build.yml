@@ -7,25 +7,62 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Um push novo cancela o build anterior só em pull requests. Builds de main e de
+# tags nunca são cancelados no meio, para não deixar uma versão pela metade.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # Testes, assinatura e compilação. Não publica nada.
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     env:
-      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      # Só assina quando a chave existe e o evento não é pull request. Pull requests,
+      # inclusive de forks, nunca recebem a chave: compilam com a chave de debug.
+      HAS_KEYSTORE: ${{ github.event_name != 'pull_request' && secrets.KEYSTORE_BASE64 != '' }}
+    outputs:
+      signed: ${{ steps.sign.outputs.signed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # O token do checkout não fica salvo no disco do runner.
+          persist-credentials: false
 
-      - uses: actions/setup-java@v4
+      - name: Estado da assinatura
+        id: sign
+        run: echo "signed=$HAS_KEYSTORE" >> "$GITHUB_OUTPUT"
+
+      # Uma tag de versão (v*) só vira APK publicado se tudo batendo: número da tag,
+      # versionName, changelogs nas duas línguas e assinatura com a chave do projeto.
+      - name: Conferir versão
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          name=$(sed -n 's/^[[:space:]]*versionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -n 1)
+          code=$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -n 1)
+          fail() { echo "::error title=Versão não publicada::$1"; exit 1; }
+          [ "$tag" = "$name" ] || fail "A tag é v$tag, mas o versionName em app/build.gradle.kts é \"$name\". Ajuste um dos dois."
+          [ -n "$code" ] || fail "versionCode não encontrado em app/build.gradle.kts."
+          for lang in pt-BR en-US; do
+            [ -f "fastlane/metadata/android/$lang/changelogs/$code.txt" ] || fail "Falta o changelog fastlane/metadata/android/$lang/changelogs/$code.txt."
+          done
+          [ "$HAS_KEYSTORE" = "true" ] || fail "A tag v$tag precisa ser compilada com a chave de assinatura (secrets do repositório)."
+          echo "Versão $name (código $code) conferida."
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+      # Usa o Gradle do wrapper (gradlew, versão 8.11.1), sem repetir a versão aqui.
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
 
       # proot + bibliotecas, direto do repositório oficial do Termux (conferidos por SHA-256).
       - name: Baixar proot do Termux
@@ -33,10 +70,9 @@ jobs:
 
       # Testes na JVM: leitor de tar, receitas e scripts gerados, histórico, traduções.
       - name: Testes
-        run: gradle --no-daemon :app:testDebugUnitTest
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
 
       # A chave fica nos "secrets" do repositório, nunca no código.
-      # Forks e pull requests não têm acesso a ela e compilam com chave de debug.
       - name: Preparar chave de assinatura
         if: env.HAS_KEYSTORE == 'true'
         env:
@@ -50,38 +86,68 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle --no-daemon :app:assembleRelease
+        run: ./gradlew --no-daemon :app:assembleRelease
 
       - name: Preparar APK
         run: cp app/build/outputs/apk/release/app-release.apk Jangada.apk
 
       - name: Guardar APK nos artefatos
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Jangada-apk
           path: Jangada.apk
 
+  # Publica só o APK assinado: build da main (versão "nightly") ou tag v* (versão nova).
+  publish:
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && needs.build.outputs.signed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # Aqui o token fica salvo: a tag "nightly" é enviada de volta ao repositório.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Jangada-apk
+
+      # A tag "nightly" sempre aponta para o último build da main.
+      - name: Mover tag "nightly" para este build
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git tag -f nightly "$GITHUB_SHA"
+          git push -f origin refs/tags/nightly
+
       - name: Publicar "Build mais recente"
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_KEYSTORE == 'true'
-        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: nightly
           name: Build mais recente
           prerelease: true
           files: Jangada.apk
 
-      # As novidades da versão vêm do changelog do fastlane (usado também por lojas como o IzzyOnDroid).
-      - name: Novidades da versão
+      # As novidades vêm do changelog do fastlane (usado também por lojas como o IzzyOnDroid),
+      # nas duas línguas: pt-BR, uma linha "---" e en-US. A conferência já foi feita no build.
+      - name: Montar notas da versão
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          code=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | grep -oE '[0-9]+')
-          notes="fastlane/metadata/android/pt-BR/changelogs/$code.txt"
-          [ -f "$notes" ] || notes=CHANGELOG.md
+          set -euo pipefail
+          code=$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -n 1)
+          notes="$RUNNER_TEMP/notas-versao.md"
+          {
+            cat "fastlane/metadata/android/pt-BR/changelogs/$code.txt"
+            echo
+            echo "---"
+            echo
+            cat "fastlane/metadata/android/en-US/changelogs/$code.txt"
+          } > "$notes"
           echo "RELEASE_NOTES=$notes" >> "$GITHUB_ENV"
 
       - name: Publicar versão (tag v*)
-        if: startsWith(github.ref, 'refs/tags/v') && env.HAS_KEYSTORE == 'true'
-        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: Jangada.apk
           body_path: ${{ env.RELEASE_NOTES }}
