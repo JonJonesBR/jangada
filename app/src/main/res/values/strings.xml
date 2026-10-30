@@ -168,6 +168,7 @@
     <string name="keys_custom">Custom variable</string>
     <string name="keys_add_custom">Add another variable</string>
     <string name="keys_saved">Saved (encrypted)</string>
+    <string name="keys_unreadable">Couldn’t read this key. Remove it and add it again.</string>
     <string name="keys_not_set">Not set</string>
     <string name="keys_set">Set</string>
     <string name="keys_change">Change</string>

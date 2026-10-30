@@ -110,9 +110,9 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
             thread(name = "$tag-stderr") {
                 // Ao fechar o chat, a leitura é interrompida de propósito: não é erro.
                 runCatching {
+                    // A saída do agente não vai para o logcat: fica só em stderrTail (Detalhes).
                     proc.errorStream.bufferedReader().useLines { lines ->
                         lines.forEach {
-                            Log.d(tag, "stderr: $it")
                             synchronized(stderrTail) {
                                 stderrTail.addLast(it)
                                 while (stderrTail.size > STDERR_LINES) stderrTail.removeFirst()
@@ -197,11 +197,8 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         try {
             proc.inputStream.bufferedReader().useLines { lines ->
                 for (line in lines) {
-                    val json = runCatching { JSONObject(line) }.getOrNull()
-                    if (json == null) {
-                        Log.d(tag, "stdout: $line")
-                        continue
-                    }
+                    // Linha que não é JSON é ignorada (não vai para o logcat).
+                    val json = runCatching { JSONObject(line) }.getOrNull() ?: continue
                     main.post { if (connection === c) handle(json) }
                 }
             }

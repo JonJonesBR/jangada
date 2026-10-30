@@ -97,7 +97,9 @@ class ApiKeysActivity : JangadaActivity() {
     }
 
     private fun row(name: String, description: String): View {
-        val saved = store.has(name)
+        // "Salva" só quando dá para ler: um blob que não decifra (ex.: Keystore apagado) não conta.
+        val readable = store.get(name) != null
+        val stored = store.has(name)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundResource(R.drawable.card_bg)
@@ -117,20 +119,25 @@ class ApiKeysActivity : JangadaActivity() {
             textSize = 13f
         })
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val (statusText, statusColor) = when {
+            readable -> R.string.keys_saved to R.color.setup_done
+            stored -> R.string.keys_unreadable to R.color.setup_error
+            else -> R.string.keys_not_set to R.color.setup_muted
+        }
         actions.addView(TextView(this).apply {
-            setText(if (saved) R.string.keys_saved else R.string.keys_not_set)
-            setTextColor(getColor(if (saved) R.color.setup_done else R.color.setup_muted))
+            setText(statusText)
+            setTextColor(getColor(statusColor))
             textSize = 13f
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         })
         actions.addView(Button(this, null, android.R.attr.borderlessButtonStyle).apply {
-            setText(if (saved) R.string.keys_change else R.string.keys_set)
+            setText(if (stored) R.string.keys_change else R.string.keys_set)
             isAllCaps = false
             minHeight = dp(48)
             setTextColor(getColor(R.color.accent_text))
             setOnClickListener { askValue(name) }
         })
-        if (saved) actions.addView(Button(this, null, android.R.attr.borderlessButtonStyle).apply {
+        if (stored) actions.addView(Button(this, null, android.R.attr.borderlessButtonStyle).apply {
             setText(R.string.chat_delete)
             isAllCaps = false
             minHeight = dp(48)

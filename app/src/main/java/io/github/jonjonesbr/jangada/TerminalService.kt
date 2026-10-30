@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -49,6 +50,8 @@ class TerminalService : Service() {
     /** Serviço iniciado por startService (fica vivo mesmo sem tela ligada a ele). */
     private var started = false
     private var linkWatcher: LinkWatcher? = null
+    /** Horários (elapsedRealtime) das aberturas diretas de link na janela; só a thread principal mexe. */
+    private val directLinkOpens = ArrayDeque<Long>()
     /** Limpeza de restos antigos (onCreate); closeEverything espera por ela antes de apagar o Linux. */
     @Volatile private var legacyCleanup: Thread? = null
     /** Vigia a rede do celular, para regravar o DNS do Debian quando ela muda. */
@@ -481,9 +484,20 @@ class TerminalService : Service() {
         linkWatcher = LinkWatcher(dir) { url -> main.post { openLink(url) } }.also { it.startWatching() }
     }
 
-    /** Com o app na tela, abre direto; fora dela, avisa por notificação. */
+    /**
+     * Com o app na tela, abre direto (no máximo [MAX_DIRECT_LINKS] a cada
+     * [DIRECT_LINK_WINDOW_MS], para um agente em loop não abrir navegador sem parar);
+     * o resto, e tudo com o app fora da tela, avisa por notificação. Thread principal.
+     */
     private fun openLink(url: String) {
-        if (screenLinkOpener?.invoke(url) == true) return
+        val now = SystemClock.elapsedRealtime()
+        while (directLinkOpens.isNotEmpty() && now - directLinkOpens.first() >= DIRECT_LINK_WINDOW_MS) {
+            directLinkOpens.removeFirst()
+        }
+        if (directLinkOpens.size < MAX_DIRECT_LINKS && screenLinkOpener?.invoke(url) == true) {
+            directLinkOpens.addLast(now)
+            return
+        }
         val view = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val pending = PendingIntent.getActivity(
             this, url.hashCode(), view, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -766,6 +780,9 @@ class TerminalService : Service() {
         private const val REQUEST_HOME = 10
         private const val REQUEST_SETUP = 11
         private const val TRANSCRIPT_ROWS = 5000
+        /** Limite de links abertos direto na tela: [MAX_DIRECT_LINKS] a cada [DIRECT_LINK_WINDOW_MS]. */
+        private const val MAX_DIRECT_LINKS = 3
+        private const val DIRECT_LINK_WINDOW_MS = 30_000L
         const val DEFAULT_TITLE = "Terminal"
         const val CLAUDE = "claude-code"
         private val ANSI = Regex("""\u001B(\[[0-9;?]*[ -/]*[@-~]|\][^\u0007]*\u0007|[()][A-Z0-9])""")

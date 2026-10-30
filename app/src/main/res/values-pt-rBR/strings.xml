@@ -166,6 +166,7 @@
     <string name="keys_custom">Variável personalizada</string>
     <string name="keys_add_custom">Adicionar outra variável</string>
     <string name="keys_saved">Salva (com criptografia)</string>
+    <string name="keys_unreadable">Não foi possível ler esta chave. Remova e cadastre de novo.</string>
     <string name="keys_not_set">Não definida</string>
     <string name="keys_set">Definir</string>
     <string name="keys_change">Trocar</string>
