@@ -309,4 +309,27 @@
     <string name="task_cancel">Cancel</string>
     <string name="task_cancel_title">Cancel %1$s?</string>
     <string name="task_cancel_confirm">Yes, cancel</string>
+
+    <!-- Avisos, compartilhar e instalação do Linux (1.1.0) -->
+    <string name="channel_attention">Alerts</string>
+    <string name="notify_permission_title">%1$s needs you</string>
+    <string name="notify_permission_text">Allow or deny to continue.</string>
+    <string name="notify_login_title">%1$s needs you to log in</string>
+    <string name="notify_login_text">Open the chat to finish logging in.</string>
+    <string name="notify_finished_title">%1$s finished</string>
+    <string name="notify_finished_text">Tap to see the answer.</string>
+    <string name="notify_failed_title">%1$s: something went wrong</string>
+    <string name="notify_failed_text">Open the chat to see what happened.</string>
+    <string name="task_notify_installed">%1$s installed</string>
+    <string name="task_notify_updated">%1$s updated</string>
+    <string name="task_notify_uninstalled">%1$s uninstalled</string>
+    <string name="task_notify_failed">%1$s: something went wrong</string>
+    <string name="task_notify_text">Tap to open Jangada.</string>
+    <string name="service_setup_progress">Installing Linux… %1$d%%</string>
+    <string name="service_setup">Installing Linux…</string>
+    <string name="setup_notify_done">Linux is ready</string>
+    <string name="setup_notify_failed">Linux installation stopped</string>
+    <string name="share_linux_missing">Set up Linux in Jangada first.</string>
+    <string name="share_no_agents">No chat agent is installed yet.</string>
+    <string name="share_choose_agent">Send to which agent?</string>
 </resources>

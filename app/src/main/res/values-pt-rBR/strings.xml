@@ -307,4 +307,27 @@
     <string name="task_cancel">Cancelar</string>
     <string name="task_cancel_title">Cancelar %1$s?</string>
     <string name="task_cancel_confirm">Sim, cancelar</string>
+
+    <!-- Avisos, compartilhar e instalação do Linux (1.1.0) -->
+    <string name="channel_attention">Avisos</string>
+    <string name="notify_permission_title">%1$s precisa de você</string>
+    <string name="notify_permission_text">Permita ou recuse para continuar.</string>
+    <string name="notify_login_title">%1$s precisa que você entre na conta</string>
+    <string name="notify_login_text">Abra o chat para terminar o login.</string>
+    <string name="notify_finished_title">%1$s terminou</string>
+    <string name="notify_finished_text">Toque para ver a resposta.</string>
+    <string name="notify_failed_title">%1$s: algo deu errado</string>
+    <string name="notify_failed_text">Abra o chat para ver o que aconteceu.</string>
+    <string name="task_notify_installed">%1$s instalado</string>
+    <string name="task_notify_updated">%1$s atualizado</string>
+    <string name="task_notify_uninstalled">%1$s desinstalado</string>
+    <string name="task_notify_failed">%1$s: algo deu errado</string>
+    <string name="task_notify_text">Toque para abrir o Jangada.</string>
+    <string name="service_setup_progress">Instalando o Linux… %1$d%%</string>
+    <string name="service_setup">Instalando o Linux…</string>
+    <string name="setup_notify_done">O Linux está pronto</string>
+    <string name="setup_notify_failed">A instalação do Linux parou</string>
+    <string name="share_linux_missing">Instale o Linux no Jangada primeiro.</string>
+    <string name="share_no_agents">Nenhum agente com chat está instalado ainda.</string>
+    <string name="share_choose_agent">Mandar para qual agente?</string>
 </resources>
