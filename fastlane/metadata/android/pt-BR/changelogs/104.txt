@@ -1,0 +1,1 @@
+Avisos quando o agente pede permissão, termina ou dá erro, e quando uma instalação acaba. Compartilhe fotos, arquivos e textos de outros apps direto para o chat. A instalação do Linux continua com a tela apagada e mostra o progresso. O Debian usa o DNS da rede do celular.

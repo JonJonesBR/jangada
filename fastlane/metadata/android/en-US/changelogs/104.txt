@@ -1,0 +1,1 @@
+Alerts when the agent asks for permission, finishes or fails, and when an install ends. Share photos, files and text from other apps straight to the chat. Linux setup keeps going with the screen off and shows its progress. Debian now uses the phone network DNS.

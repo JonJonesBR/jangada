@@ -1,5 +1,13 @@
 # Novidades
 
+## 1.1.0
+
+- Avisos: o celular avisa quando o agente pede permissão ou login, termina a resposta ou dá erro com o chat fora da tela, e quando uma instalação de agente acaba.
+- Compartilhar: mande fotos, arquivos e textos de qualquer app direto para o chat de um agente.
+- A instalação do Linux continua com a tela apagada ou em outro app, mostra o progresso na notificação e avisa quando termina.
+- O Debian usa o DNS da rede do celular (Wi-Fi, dados ou VPN), com DNS públicos de reserva: instalações funcionam em redes que bloqueiam o DNS do Google.
+- Capturas de tela e ícone para o README e as lojas; actions do CI atualizadas.
+
 ## 1.0.3
 
 - Instalações, atualizações e desinstalações de agentes têm botão Cancelar.
