@@ -40,6 +40,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.chat.AcpChat
@@ -96,6 +97,10 @@ class ChatActivity : JangadaActivity() {
     private var engine: AgentChat? = null
     private var enterAt = -1
     private val pendingAttachments = mutableListOf<Attachment>()
+    /** Seletor de arquivos do sistema (vários arquivos, qualquer tipo). */
+    private val attachPicker = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) prepareAttachments(uris)
+    }
 
     /** Adaptador ACP ainda não pronto (instalando, ou falhou): campo de texto e Enviar desligados. */
     private var preparing = false
@@ -450,22 +455,7 @@ class ChatActivity : JangadaActivity() {
     // ---- Anexos ----
 
     private fun pickAttachment() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT)
-            .setType("*/*")
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-        runCatching { startActivityForResult(Intent.createChooser(intent, getString(R.string.chat_attach)), REQUEST_ATTACH) }
-    }
-
-    @Deprecated("Resposta do seletor de arquivos.")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_ATTACH || resultCode != RESULT_OK || data == null) return
-        val uris = buildList {
-            data.clipData?.let { clip -> for (i in 0 until clip.itemCount) add(clip.getItemAt(i).uri) }
-            if (isEmpty()) data.data?.let { add(it) }
-        }
-        prepareAttachments(uris)
+        runCatching { attachPicker.launch("*/*") }
     }
 
     /** Prepara os arquivos fora da thread principal e os põe na fila de anexos. */
@@ -753,23 +743,35 @@ class ChatActivity : JangadaActivity() {
             // Se ele estava no meio de uma resposta, o terminal já pede para continuar.
             val resume = when {
                 id == null -> ""
-                wasBusy -> "--resume $id " + AgentRecipe.q(getString(R.string.chat_continue_prompt))
-                else -> "--resume $id"
+                wasBusy -> " --resume ${AgentRecipe.q(id)} " + AgentRecipe.q(getString(R.string.chat_continue_prompt))
+                else -> " --resume ${AgentRecipe.q(id)}"
             }
             val model = settings.chatModel.takeIf { it.isNotEmpty() }?.let { " --model $it" } ?: ""
             val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { " --effort $it" } ?: ""
-            script = "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude$model$effort $resume"
+            script = claudeLaunchScript(model + effort + resume)
         } else {
             script = recipe?.launchScript() ?: return
             Toast.makeText(this, getString(R.string.chat_terminal_note, agentName), Toast.LENGTH_LONG).show()
         }
+        openTerminal(svc, script, conversation = if (isClaude) id else null)
+    }
+
+    /** Comando que abre o Claude Code na pasta de trabalho; [args] vai depois do comando. */
+    private fun claudeLaunchScript(args: String) =
+        "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude$args"
+
+    /** Fecha o chat e abre a tela de terminal com o [script]; esta tela termina em seguida. */
+    private fun openTerminal(svc: TerminalService, script: String, conversation: String? = null, login: Boolean = false) {
         svc.closeChat {
             startActivity(
                 Intent(this, MainActivity::class.java)
                     .putExtra(MainActivity.EXTRA_TITLE, agentName)
                     .putExtra(MainActivity.EXTRA_AGENT, agentId)
                     .putExtra(MainActivity.EXTRA_SCRIPT, script)
-                    .apply { if (isClaude && id != null) putExtra(MainActivity.EXTRA_CONVERSATION, id) },
+                    .apply {
+                        if (conversation != null) putExtra(MainActivity.EXTRA_CONVERSATION, conversation)
+                        if (login) putExtra(MainActivity.EXTRA_LOGIN, true)
+                    },
             )
             finish()
         }
@@ -788,20 +790,11 @@ class ChatActivity : JangadaActivity() {
         val svc = service ?: return
         val script = when {
             option.kind == AuthOption.Kind.TERMINAL -> (engine as? AcpChat)?.terminalLoginScript(option)
-            isClaude -> "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && claude"
+            isClaude -> claudeLaunchScript("")
             else -> recipe?.launchScript()
         } ?: return
         Toast.makeText(this, getString(R.string.login_come_back), Toast.LENGTH_LONG).show()
-        svc.closeChat {
-            startActivity(
-                Intent(this, MainActivity::class.java)
-                    .putExtra(MainActivity.EXTRA_TITLE, agentName)
-                    .putExtra(MainActivity.EXTRA_AGENT, agentId)
-                    .putExtra(MainActivity.EXTRA_SCRIPT, script)
-                    .putExtra(MainActivity.EXTRA_LOGIN, true),
-            )
-            finish()
-        }
+        openTerminal(svc, script, login = true)
     }
 
     private fun goHome() {
@@ -1276,12 +1269,15 @@ class ChatActivity : JangadaActivity() {
         val columns = rows.maxOf { it.size }
         val widths = (0 until columns).map { c -> rows.maxOf { it.getOrNull(c)?.length ?: 0 }.coerceAtMost(40) }
         return rows.mapIndexed { index, row ->
-            val line = (0 until columns).joinToString(" │ ") { c -> (row.getOrNull(c) ?: "").take(40).padEnd(widths[c]) }
+            val line = (0 until columns).joinToString(" │ ") { c -> cell(row.getOrNull(c) ?: "").padEnd(widths[c]) }
             if (index == 0 && rows.size > 1) line + "\n" + widths.joinToString("─┼─") { "─".repeat(it) } else line
         }.joinToString("\n")
     }
 
     companion object {
+        /** Célula com no máximo 40 caracteres; o corte aparece como reticências. */
+        private fun cell(text: String) = if (text.length > 40) text.take(39) + "…" else text
+
         /** Agentes com o adaptador sendo instalado agora, em qualquer tela do chat (evita instalar em paralelo). */
         private val installing = HashSet<String>()
         const val EXTRA_AGENT_ID = "agent_id"
@@ -1291,7 +1287,6 @@ class ChatActivity : JangadaActivity() {
         const val EXTRA_SHARED_URIS = "shared_uris"
         /** Texto recebido pelo "Compartilhar" (vai para o campo de mensagem, sem enviar). */
         const val EXTRA_SHARED_TEXT = "shared_text"
-        private const val REQUEST_ATTACH = 7
         private val MODELS = arrayOf("", "opus", "sonnet", "haiku")
         private val EFFORTS = arrayOf("", "low", "medium", "high", "xhigh", "max")
     }
