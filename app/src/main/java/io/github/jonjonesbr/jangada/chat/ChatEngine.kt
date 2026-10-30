@@ -147,8 +147,23 @@ class ChatEngine(
         if (!running) return
         // Interrompido pelo usuário: o fim desse turno não gera aviso.
         silentTurn = true
+        // Pedidos de permissão em aberto são recusados antes do interrupt (o CLI lê na ordem).
+        for (item in items) {
+            if (item is ChatItem.Permission && item.chosen == null) refuse(item, reply = true)
+        }
         send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
             .put("request", JSONObject().put("subtype", "interrupt")))
+        changed()
+    }
+
+    /**
+     * Marca um pedido de permissão como recusado. Com [reply], responde "negado" ao CLI;
+     * sem ele (o CLI mesmo cancelou o pedido), só mostra no cartão.
+     */
+    private fun refuse(item: ChatItem.Permission, reply: Boolean) {
+        item.chosen = item.options.firstOrNull { it.kind == PermissionOption.Kind.REJECT_ONCE }
+            ?: PermissionOption("deny", "", PermissionOption.Kind.REJECT_ONCE)
+        if (reply) respondPermission(item.requestId as String, allow = false, input = item.input)
     }
 
     /** Responde a um pedido de permissão. */
@@ -196,20 +211,34 @@ class ChatEngine(
                 busy = false
                 endStreaming()
                 if (json.optBoolean("is_error")) {
-                    val text = json.optString("result").ifEmpty { json.optString("subtype") }
+                    val result = json.optString("result")
+                    val subtype = json.optString("subtype")
+                    val text = result.ifEmpty { subtype }
                     if (Regex("login|log in|auth|api key|credential", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
                         // Sem login: o cartão leva à tela do Claude, onde o login acontece.
                         if (items.none { it is ChatItem.Login && it.state == ChatItem.Login.State.WAITING }) {
                             add(ChatItem.Login(listOf(AuthOption("screen", "", "", AuthOption.Kind.AGENT_SCREEN))))
                         }
+                    } else if (result.isEmpty()) {
+                        // Sem texto do agente: o subtipo (ex.: error_max_turns) vira mensagem amigável.
+                        add(errorBySubtype(subtype))
                     } else {
-                        add(ChatItem.Info(friendlyError(text), isError = true))
+                        add(ChatItem.Info(friendlyError(result), isError = true))
                     }
                 }
                 changed()
             }
             "control_request" -> handleControlRequest(json)
+            "control_cancel_request" -> handleControlCancel(json.optString("request_id"))
         }
+    }
+
+    /** O CLI cancelou um pedido de permissão em aberto: o cartão fica recusado, sem resposta. */
+    private fun handleControlCancel(requestId: String) {
+        val item = items.filterIsInstance<ChatItem.Permission>()
+            .firstOrNull { it.requestId == requestId && it.chosen == null } ?: return
+        refuse(item, reply = false)
+        changed()
     }
 
     /** Nenhuma resposta fica com o cursor piscando depois que o Claude parou de escrever. */
@@ -328,6 +357,17 @@ class ChatEngine(
         text.contains("login", ignoreCase = true) || text.contains("auth", ignoreCase = true) ->
             context.getString(R.string.chat_claude_login_hint, text)
         else -> text
+    }
+
+    /** Erro do resultado sem texto: mensagem amigável; o subtipo do CLI vai em Detalhes. */
+    private fun errorBySubtype(subtype: String): ChatItem.Info {
+        val details = subtype.ifEmpty { null }
+        return if (subtype == "error_max_turns") {
+            ChatItem.Info(context.getString(R.string.chat_error_max_turns), isError = true, details = details)
+        } else {
+            val text = context.getString(R.string.chat_acp_error) + "\n" + context.getString(R.string.chat_error_hint)
+            ChatItem.Info(text, isError = true, details = details)
+        }
     }
 
     // ---- Utilidades ----

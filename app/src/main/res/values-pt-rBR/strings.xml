@@ -245,6 +245,7 @@
     <!-- Chat: mensagens e nomes das ferramentas -->
     <string name="chat_denied_message">O usuário recusou esta ação.</string>
     <string name="chat_claude_login_hint">%1$s\n\nFaça login pelo Terminal (botão no topo) e volte para o chat.</string>
+    <string name="chat_error_max_turns">O agente chegou ao limite de passos desta resposta. Mande uma mensagem para continuar.</string>
     <string name="chat_acp_no_init">O agente não respondeu ao início: %1$s</string>
     <string name="chat_acp_reopen_failed">Não consegui reabrir essa conversa: %1$s</string>
     <string name="chat_acp_new_context">O agente começou uma conversa nova e não lembra das mensagens acima</string>
