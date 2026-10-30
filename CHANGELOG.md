@@ -1,5 +1,16 @@
 # Novidades
 
+## 1.0.3
+
+- Instalações, atualizações e desinstalações de agentes têm botão Cancelar.
+- Reinstalar o Linux e restaurar backup esperam instalações e chat terminarem de verdade antes de apagar ou sobrescrever.
+- A notificação fixa só aparece com terminal, chat ou instalação em andamento.
+- Chat mais leve em respostas longas; com o Claude Code aberto no terminal, o chat abre uma conversa nova em vez de gravar na mesma.
+- Histórico mantém mensagens que começam com "<"; apagar uma conversa fecha o chat antes.
+- Erros do chat dizem o que fazer, com a saída técnica em Detalhes.
+- Tela inicial redesenha menos durante uma instalação; barras e botões não cortam o texto com fonte grande.
+- Repositório: publicação separada do build, Gradle wrapper, actions fixadas, notas da versão em português e inglês, licenças completas.
+
 ## 1.0.2
 
 - Chaves de API só para os agentes: instalar, atualizar e desinstalar rodam sem elas no ambiente. Nomes reservados (PATH, HOME...) são recusados.

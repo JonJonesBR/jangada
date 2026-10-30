@@ -1,0 +1,1 @@
+Botão Cancelar nas instalações de agentes. Reinstalar o Linux e restaurar backup esperam tudo terminar antes. A notificação fixa só aparece quando há algo rodando. Chat mais leve, sem gravar na mesma conversa do terminal, com erros que dizem o que fazer. Histórico completo e textos que não cortam com fonte grande.

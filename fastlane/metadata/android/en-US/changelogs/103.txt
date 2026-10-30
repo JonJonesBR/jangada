@@ -1,0 +1,1 @@
+Cancel button for agent installs. Reinstalling Linux and restoring a backup now wait for everything to finish first. The ongoing notification only shows when something is running. Lighter chat that never writes to the same conversation as the terminal, with errors that say what to do. Complete history and text that is not cut off with large fonts.
