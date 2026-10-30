@@ -62,12 +62,12 @@ android {
 
 dependencies {
     implementation(project(":terminal-view"))
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-ktx:1.9.3")
 
     testImplementation("junit:junit:4.13.2")
     // O org.json do Android não funciona fora do celular; nos testes, usa a biblioteca original.
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260814")
 }
 
 // Mostra no log do CI o motivo de cada teste que falhar.

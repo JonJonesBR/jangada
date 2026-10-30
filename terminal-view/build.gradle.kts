@@ -19,6 +19,6 @@ android {
 }
 
 dependencies {
-    implementation("androidx.annotation:annotation:1.9.1")
+    implementation("androidx.annotation:annotation:1.11.0")
     api(project(":terminal-emulator"))
 }
