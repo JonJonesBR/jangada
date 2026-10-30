@@ -32,7 +32,7 @@ class ChatEngine(
         private set
     override val supportsHistory = true
 
-    /** Ferramentas liberadas com "Sempre nesta conversa". */
+    /** Chaves liberadas com "Sempre permitir nesta conversa" (ver [permissionKey]). */
     private val alwaysAllowed = HashSet<String>()
 
     private var draft: ChatItem.Assistant? = null
@@ -156,7 +156,7 @@ class ChatEngine(
         }
         item.chosen = option
         val allow = option.allows
-        if (option.kind == PermissionOption.Kind.ALLOW_ALWAYS) alwaysAllowed += item.toolName
+        if (option.kind == PermissionOption.Kind.ALLOW_ALWAYS) alwaysAllowed += permissionKey(item.toolName, item.input)
         respondPermission(item.requestId as String, allow, item.input)
         changed()
     }
@@ -286,7 +286,7 @@ class ChatEngine(
         }
         val toolName = request.optString("tool_name")
         val input = request.optJSONObject("input") ?: JSONObject()
-        if (toolName in alwaysAllowed) {
+        if (permissionKey(toolName, input) in alwaysAllowed) {
             respondPermission(requestId, allow = true, input = input)
             return
         }
@@ -317,6 +317,20 @@ class ChatEngine(
     companion object {
         private const val TAG = "JangadaChat"
         const val MAX_HISTORY = 300
+
+        /** Ferramentas que executam comando: "sempre permitir" vale só para o mesmo comando. */
+        private val SHELL_TOOLS = setOf("Bash", "BashOutput", "KillShell")
+
+        fun isShellTool(name: String): Boolean = name in SHELL_TOOLS
+
+        /**
+         * Chave do "sempre permitir": o comando exato (ou os dados da chamada, se não há
+         * comando) para ferramentas de shell; o nome da ferramenta para as demais.
+         */
+        fun permissionKey(toolName: String, input: JSONObject): String {
+            if (!isShellTool(toolName)) return toolName
+            return "$toolName\u0000${input.optString("command").ifEmpty { input.toString() }}"
+        }
     }
 }
 

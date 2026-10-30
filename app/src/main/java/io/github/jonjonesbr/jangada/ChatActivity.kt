@@ -46,6 +46,7 @@ import io.github.jonjonesbr.jangada.chat.AgentChat
 import io.github.jonjonesbr.jangada.chat.Attachment
 import io.github.jonjonesbr.jangada.chat.AuthOption
 import io.github.jonjonesbr.jangada.chat.Attachments
+import io.github.jonjonesbr.jangada.chat.ChatEngine
 import io.github.jonjonesbr.jangada.chat.ChatHistory
 import io.github.jonjonesbr.jangada.chat.ChatItem
 import io.github.jonjonesbr.jangada.chat.Markdown
@@ -790,14 +791,17 @@ class ChatActivity : JangadaActivity() {
     private fun dp(value: Int) =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
 
-    private fun optionLabel(option: PermissionOption): String = getString(
-        when (option.kind) {
-            PermissionOption.Kind.ALLOW_ONCE -> R.string.chat_allow
-            PermissionOption.Kind.ALLOW_ALWAYS -> R.string.chat_allow_always
-            PermissionOption.Kind.REJECT_ONCE -> R.string.chat_deny
-            PermissionOption.Kind.REJECT_ALWAYS -> R.string.chat_deny_always
-        },
-    )
+    /** Texto do botão. "Sempre permitir" diz o que libera; só o Claude Code (com ferramenta) muda. */
+    private fun optionLabel(item: ChatItem.Permission, option: PermissionOption): String = when (option.kind) {
+        PermissionOption.Kind.ALLOW_ONCE -> getString(R.string.chat_allow)
+        PermissionOption.Kind.ALLOW_ALWAYS -> when {
+            ChatEngine.isShellTool(item.toolName) -> getString(R.string.chat_allow_always_command)
+            item.toolName.isNotEmpty() -> getString(R.string.chat_allow_always_tool, item.title)
+            else -> getString(R.string.chat_allow_always)
+        }
+        PermissionOption.Kind.REJECT_ONCE -> getString(R.string.chat_deny)
+        PermissionOption.Kind.REJECT_ALWAYS -> getString(R.string.chat_deny_always)
+    }
 
     /** Monta cada item da conversa (sem XML: são poucos tipos e bem simples). */
     private inner class ChatAdapter : BaseAdapter() {
@@ -1009,7 +1013,7 @@ class ChatActivity : JangadaActivity() {
                 for (option in item.options.sortedBy { it.kind.ordinal }) {
                     val primary = option.kind == PermissionOption.Kind.ALLOW_ONCE
                     val button = if (primary) Button(this@ChatActivity) else Button(this@ChatActivity, null, android.R.attr.borderlessButtonStyle)
-                    button.text = optionLabel(option)
+                    button.text = optionLabel(item, option)
                     button.isAllCaps = false
                     if (primary) {
                         button.backgroundTintList = ColorStateList.valueOf(getColor(R.color.key_active))
@@ -1023,7 +1027,7 @@ class ChatActivity : JangadaActivity() {
                 card.addView(buttons)
             } else {
                 card.addView(TextView(this@ChatActivity).apply {
-                    text = optionLabel(chosen)
+                    text = optionLabel(item, chosen)
                     setTextColor(getColor(if (chosen.allows) R.color.setup_done else R.color.setup_error))
                     textSize = 13f
                     setPadding(0, dp(4), 0, 0)

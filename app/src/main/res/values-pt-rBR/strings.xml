@@ -118,6 +118,8 @@
     <string name="chat_copy_code">Copiar</string>
     <string name="chat_plan">Plano</string>
     <string name="chat_allow_always">Permitir sempre nesta conversa</string>
+    <string name="chat_allow_always_command">Sempre permitir este comando nesta conversa</string>
+    <string name="chat_allow_always_tool">Sempre permitir %1$s nesta conversa</string>
     <string name="chat_deny_always">Recusar sempre</string>
     <string name="chat_wants_agent">O %1$s quer: %2$s</string>
 

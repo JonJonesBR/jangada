@@ -120,6 +120,8 @@
     <string name="chat_copy_code">Copy</string>
     <string name="chat_plan">Plan</string>
     <string name="chat_allow_always">Always allow in this conversation</string>
+    <string name="chat_allow_always_command">Always allow this command in this conversation</string>
+    <string name="chat_allow_always_tool">Always allow %1$s in this conversation</string>
     <string name="chat_deny_always">Always deny</string>
     <string name="chat_wants_agent">%1$s wants to: %2$s</string>
 
