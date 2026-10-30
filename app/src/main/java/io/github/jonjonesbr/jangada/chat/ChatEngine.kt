@@ -316,6 +316,7 @@ class ChatEngine(
             tools[block.optString("tool_use_id")]?.let {
                 it.done = true
                 it.failed = block.optBoolean("is_error")
+                it.output = ToolOutput.fromClaude(block.opt("content"))
             }
         }
         changed()

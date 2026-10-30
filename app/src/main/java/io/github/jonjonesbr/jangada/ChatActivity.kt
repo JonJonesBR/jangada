@@ -882,6 +882,11 @@ class ChatActivity : JangadaActivity() {
     private fun dp(value: Int) =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
 
+    /** Fundo com o efeito de toque do tema, para linhas clicáveis da conversa. */
+    private val selectableBackground by lazy {
+        TypedValue().also { theme.resolveAttribute(android.R.attr.selectableItemBackground, it, true) }.resourceId
+    }
+
     /** Texto do botão. "Sempre permitir" diz o que libera; só o Claude Code (com ferramenta) muda. */
     private fun optionLabel(item: ChatItem.Permission, option: PermissionOption): String = when (option.kind) {
         PermissionOption.Kind.ALLOW_ONCE -> getString(R.string.chat_allow)
@@ -1065,13 +1070,31 @@ class ChatActivity : JangadaActivity() {
                 item.failed -> "✕"
                 else -> "✓"
             }
-            text = "$mark ${ToolText.label(this@ChatActivity, item.name)}  ${item.summary}"
-            maxLines = 2
+            val output = item.output
+            val line = "$mark ${ToolText.label(this@ChatActivity, item.name)}  ${item.summary}"
+            // Falha: a primeira linha do erro já aparece; o resto (e a saída de quem deu certo) abre num toque.
+            val firstError = output?.takeIf { item.failed }?.lineSequence()?.firstOrNull { it.isNotBlank() }
+            text = if (output == null) line else "$line  ›" + firstError?.let { "\n$it" }.orEmpty()
+            maxLines = if (firstError != null) 3 else 2
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE
             textSize = 12f
             setTextColor(getColor(if (item.failed) R.color.setup_error else R.color.setup_muted))
             setPadding(dp(4), dp(2), dp(4), dp(2))
+            gravity = Gravity.CENTER_VERTICAL
+            if (output != null) {
+                minHeight = dp(32)
+                setBackgroundResource(selectableBackground)
+                setOnClickListener { showDetails(R.string.chat_tool_output, "$line\n\n$output") }
+                contentDescription = getString(R.string.chat_tool_output_description, listOfNotNull(line, firstError).joinToString(". "))
+            } else {
+                // setOnClickListener(null) deixaria a linha clicável (engolindo toques): desliga de vez.
+                setOnClickListener(null)
+                isClickable = false
+                minHeight = 0
+                background = null
+                contentDescription = null
+            }
         }
 
         private fun permissionCard(item: ChatItem.Permission): View {

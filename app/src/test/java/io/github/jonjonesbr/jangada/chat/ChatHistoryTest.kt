@@ -32,6 +32,7 @@ class ChatHistoryTest {
         assertEquals("Bash", tool.name)
         assertEquals("ls -la", tool.summary)
         assertTrue(tool.done)
+        assertEquals("ok", tool.output)
         assertEquals("Valeu", (items[3] as ChatItem.User).text)
     }
 

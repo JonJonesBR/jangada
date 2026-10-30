@@ -557,6 +557,7 @@ class AcpChat(
                     tools[id] = it
                     items += it
                 }
+                ToolOutput.fromAcp(update)?.let { tool.output = it }
                 applyStatus(tool, update.optString("status"))
                 changed()
             }
@@ -564,6 +565,7 @@ class AcpChat(
                 val tool = tools[update.optString("toolCallId")] ?: return
                 update.optString("title").takeIf { it.isNotEmpty() }?.let { tool.name = it }
                 summaryOf(update).takeIf { it.isNotEmpty() }?.let { tool.summary = it }
+                ToolOutput.fromAcp(update)?.let { tool.output = it }
                 applyStatus(tool, update.optString("status"))
                 changed()
             }

@@ -9,6 +9,8 @@ sealed class ChatItem {
     class Tool(val id: String, var name: String, var summary: String) : ChatItem() {
         var done = false
         var failed = false
+        /** O que a ação devolveu (ver [ToolOutput]), mostrado num toque; null = nada. */
+        var output: String? = null
     }
 
     /**

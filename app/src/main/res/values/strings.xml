@@ -131,6 +131,8 @@
     <string name="chat_deny_always">Always deny</string>
     <string name="chat_wants_agent">%1$s wants to: %2$s</string>
     <string name="chat_permission_full">Full request</string>
+    <string name="chat_tool_output">Action result</string>
+    <string name="chat_tool_output_description">%1$s. Tap to see the result.</string>
 
     <string name="chat_settings_title">Conversation settings</string>
     <string name="chat_title_description">%1$s, %2$s. Tap to open %3$s</string>
