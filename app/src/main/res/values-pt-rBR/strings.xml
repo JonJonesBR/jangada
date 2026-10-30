@@ -5,7 +5,7 @@
     <string name="cannot_open_link">Nenhum app consegue abrir este link</string>
 
     <string name="setup_title">Vamos preparar seu Linux</string>
-    <string name="setup_intro">O Jangada roda os assistentes de IA dentro de um Linux Debian guardado no app. Isso acontece uma vez só: baixa cerca de 70 MB e ocupa uns 300 MB. Deixe o app aberto até terminar.</string>
+    <string name="setup_intro">O Jangada roda os assistentes de IA dentro de um Linux Debian guardado no app. Isso acontece uma vez só: baixa cerca de 70 MB e ocupa uns 300 MB. Enquanto isso, você pode usar outros apps: o progresso aparece na notificação e o app avisa quando terminar.</string>
     <string name="setup_step_download">Baixar o Debian</string>
     <string name="setup_step_extract">Instalar o Debian</string>
     <string name="setup_step_packages">Instalar ferramentas básicas</string>
@@ -124,6 +124,7 @@
     <string name="chat_wants_agent">O %1$s quer: %2$s</string>
 
     <string name="chat_settings_title">Ajustes da conversa</string>
+    <string name="chat_title_description">%1$s, %2$s. Toque para abrir %3$s</string>
     <string name="chat_setting_model">Modelo</string>
     <string name="chat_setting_effort">Esforço</string>
     <string name="chat_settings_unsupported">O %s não oferece ajustes pelo chat</string>
@@ -165,6 +166,9 @@
     <string name="keys_paste_hint">Cole a chave</string>
     <string name="keys_saved_note">Salva. Vale para as sessões e chats que você abrir daqui em diante.</string>
     <string name="keys_removed">Chave apagada</string>
+    <string name="keys_remove_title">Remover %1$s?</string>
+    <string name="keys_remove_message">A chave salva é apagada deste celular. Agentes abertos depois não vão recebê-la.</string>
+    <string name="keys_remove_confirm">Remover</string>
     <string name="keys_invalid_name">Use letras maiúsculas, números e _ (por exemplo MINHA_CHAVE_API)</string>
 
     <string name="tab_close_title">Fechar esta sessão?</string>

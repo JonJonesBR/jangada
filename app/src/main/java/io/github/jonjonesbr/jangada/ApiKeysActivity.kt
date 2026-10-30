@@ -135,14 +135,24 @@ class ApiKeysActivity : JangadaActivity() {
             isAllCaps = false
             minHeight = dp(48)
             setTextColor(getColor(R.color.setup_error))
-            setOnClickListener {
-                store.remove(name)
-                Toast.makeText(this@ApiKeysActivity, R.string.keys_removed, Toast.LENGTH_SHORT).show()
-                render()
-            }
+            setOnClickListener { confirmRemove(name) }
         })
         card.addView(actions)
         return card
+    }
+
+    /** Pede confirmação antes de apagar a chave salva. */
+    private fun confirmRemove(name: String) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.keys_remove_title, name))
+            .setMessage(R.string.keys_remove_message)
+            .setPositiveButton(R.string.keys_remove_confirm) { _, _ ->
+                store.remove(name)
+                Toast.makeText(this, R.string.keys_removed, Toast.LENGTH_SHORT).show()
+                render()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun askValue(name: String) {

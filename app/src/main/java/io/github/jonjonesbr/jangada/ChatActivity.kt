@@ -70,6 +70,7 @@ class ChatActivity : JangadaActivity() {
     private lateinit var status: View
     private lateinit var input: EditText
     private lateinit var subtitle: TextView
+    private lateinit var titleBlock: View
     private lateinit var continueChip: TextView
     private lateinit var attachmentsRow: LinearLayout
     private lateinit var prepareActions: LinearLayout
@@ -113,6 +114,7 @@ class ChatActivity : JangadaActivity() {
         status = findViewById(R.id.chat_status)
         input = findViewById(R.id.chat_input)
         subtitle = findViewById(R.id.chat_subtitle)
+        titleBlock = findViewById(R.id.chat_title_block)
         continueChip = findViewById(R.id.chat_continue)
         attachmentsRow = findViewById(R.id.chat_attachments)
         prepareActions = findViewById(R.id.chat_prepare_actions)
@@ -407,6 +409,10 @@ class ChatActivity : JangadaActivity() {
             val effort = options.firstOrNull { it.category == "thought_level" }?.let { " · " + it.currentName } ?: ""
             (chat.model ?: "~/${LinuxEnv.WORKSPACE}") + effort + if (options.isNotEmpty()) " ▾" else ""
         }
+        // O leitor de tela lê agente e modelo, e avisa que o toque abre os ajustes.
+        titleBlock.contentDescription = getString(
+            R.string.chat_title_description, agentName, subtitle.text.toString().removeSuffix(" ▾"), getString(R.string.chat_settings_title),
+        )
     }
 
     private fun send() {

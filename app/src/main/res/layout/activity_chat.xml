@@ -26,7 +26,6 @@
             android:layout_weight="1"
             android:background="?android:attr/selectableItemBackground"
             android:clickable="true"
-            android:contentDescription="@string/chat_settings_title"
             android:gravity="center_vertical"
             android:minHeight="48dp"
             android:orientation="vertical">

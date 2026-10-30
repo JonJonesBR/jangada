@@ -7,7 +7,7 @@
     <string name="cannot_open_link">No app can open this link</string>
 
     <string name="setup_title">Let’s set up your Linux</string>
-    <string name="setup_intro">Jangada runs AI assistants inside a Debian Linux kept in the app. This happens only once: it downloads about 70 MB and takes about 300 MB of space. Keep the app open until it finishes.</string>
+    <string name="setup_intro">Jangada runs AI assistants inside a Debian Linux kept in the app. This happens only once: it downloads about 70 MB and takes about 300 MB of space. You can use other apps meanwhile: progress shows in the notification, and the app tells you when it’s done.</string>
     <string name="setup_step_download">Download Debian</string>
     <string name="setup_step_extract">Install Debian</string>
     <string name="setup_step_packages">Install basic tools</string>
@@ -126,6 +126,7 @@
     <string name="chat_wants_agent">%1$s wants to: %2$s</string>
 
     <string name="chat_settings_title">Conversation settings</string>
+    <string name="chat_title_description">%1$s, %2$s. Tap to open %3$s</string>
     <string name="chat_setting_model">Model</string>
     <string name="chat_setting_effort">Effort</string>
     <string name="chat_settings_unsupported">%s doesn’t offer settings through the chat</string>
@@ -167,6 +168,9 @@
     <string name="keys_paste_hint">Paste the key</string>
     <string name="keys_saved_note">Saved. It applies to sessions and chats you open from now on.</string>
     <string name="keys_removed">Key deleted</string>
+    <string name="keys_remove_title">Remove %1$s?</string>
+    <string name="keys_remove_message">The saved key is deleted from this device. Agents opened later won’t receive it.</string>
+    <string name="keys_remove_confirm">Remove</string>
     <string name="keys_invalid_name">Use capital letters, numbers and _ (for example MY_API_KEY)</string>
 
     <string name="tab_close_title">Close this session?</string>
