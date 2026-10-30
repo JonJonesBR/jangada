@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -84,6 +85,8 @@ class ChatActivity : JangadaActivity() {
     private var bound = false
     /** A tela está iniciada (entre onStart e onStop). */
     private var started = false
+    /** A tela está em primeiro plano (entre onResume e onPause). */
+    private var resumed = false
     /** Um pedido de abrir o chat (feito ao ligar no serviço) espera o adaptador ficar pronto. */
     private var opening = false
     private var engine: AgentChat? = null
@@ -145,11 +148,25 @@ class ChatActivity : JangadaActivity() {
                 }
             }
         })
+        takeShared(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        takeShared(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+        service?.chatScreenVisible = true
+    }
+
+    override fun onPause() {
+        resumed = false
+        service?.chatScreenVisible = false
+        super.onPause()
     }
 
     override fun onStart() {
@@ -192,6 +209,8 @@ class ChatActivity : JangadaActivity() {
             }
             val svc = (binder as TerminalService.LocalBinder).service
             service = svc
+            // Se a tela já estava em primeiro plano quando o serviço chegou, o onResume não pôde avisar.
+            if (resumed) svc.chatScreenVisible = true
             // Um pedido anterior (de antes de a tela parar e voltar) ainda espera o adaptador: ele abre o chat.
             if (opening) return
             val resume = intent.getStringExtra(EXTRA_RESUME)
@@ -437,6 +456,12 @@ class ChatActivity : JangadaActivity() {
             data.clipData?.let { clip -> for (i in 0 until clip.itemCount) add(clip.getItemAt(i).uri) }
             if (isEmpty()) data.data?.let { add(it) }
         }
+        prepareAttachments(uris)
+    }
+
+    /** Prepara os arquivos fora da thread principal e os põe na fila de anexos. */
+    private fun prepareAttachments(uris: List<Uri>) {
+        if (uris.isEmpty()) return
         thread(name = "attachments") {
             val prepared = uris.mapNotNull { uri -> runCatching { Attachments.prepare(this, linux, uri) }.getOrNull() }
             runOnUiThread {
@@ -446,6 +471,25 @@ class ChatActivity : JangadaActivity() {
                 renderAttachments()
             }
         }
+    }
+
+    /**
+     * Conteúdo vindo de "Compartilhar" (pela ShareActivity): o texto vai para o
+     * campo, sem enviar, e os arquivos viram anexos. Os extras são retirados do
+     * Intent para não repetir ao girar a tela.
+     */
+    private fun takeShared(source: Intent) {
+        val text = source.getStringExtra(EXTRA_SHARED_TEXT)
+        @Suppress("DEPRECATION")
+        val uris = source.getParcelableArrayListExtra<Uri>(EXTRA_SHARED_URIS)
+        source.removeExtra(EXTRA_SHARED_TEXT)
+        source.removeExtra(EXTRA_SHARED_URIS)
+        if (!text.isNullOrBlank()) {
+            val current = input.text.toString().trimEnd()
+            input.setText(if (current.isBlank()) text.trim() else current + "\n" + text.trim())
+            input.setSelection(input.text.length)
+        }
+        if (!uris.isNullOrEmpty()) prepareAttachments(uris)
     }
 
     private fun renderAttachments() {
@@ -1172,6 +1216,10 @@ class ChatActivity : JangadaActivity() {
         const val EXTRA_AGENT_ID = "agent_id"
         const val EXTRA_RESUME = "resume"
         const val EXTRA_NEW = "new"
+        /** Arquivos recebidos pelo "Compartilhar" (ArrayList<Uri>). */
+        const val EXTRA_SHARED_URIS = "shared_uris"
+        /** Texto recebido pelo "Compartilhar" (vai para o campo de mensagem, sem enviar). */
+        const val EXTRA_SHARED_TEXT = "shared_text"
         const val CLAUDE_AGENT_ID = TerminalService.CLAUDE
         private const val REQUEST_ATTACH = 7
         private val MODELS = arrayOf("", "opus", "sonnet", "haiku")
