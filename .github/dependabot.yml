@@ -6,3 +6,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # Agrupa todas as atualizações de actions num PR só por semana.
+    groups:
+      actions-github:
+        patterns:
+          - "*"
