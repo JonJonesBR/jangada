@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
@@ -58,8 +59,8 @@ class HomeActivity : JangadaActivity() {
     private var installedVersions: Map<String, String> = emptyMap()
     /** Espaço ocupado por cada agente instalado, em KB (por comando). Trocado como [installedVersions]. */
     private var installedSizes: Map<String, Long> = emptyMap()
-    /** Versão mais nova publicada, por id do agente (quando há fonte). */
-    private val latestVersions = ConcurrentHashMap<String, String>()
+    /** Versão mais nova publicada, por id do agente (quando há fonte). Fica no cache do processo. */
+    private val latestVersions = LatestVersionCache.versions
     private var service: TerminalService? = null
     /** true desde o bindService até o unbindService (feitos em onStart e onStop). */
     private var bound = false
@@ -184,7 +185,8 @@ class HomeActivity : JangadaActivity() {
         service?.homeScreenVisible = true
         if (!::agentsList.isInitialized) return
         if (askedStorage) afterStorageRequest() else renderStorage()
-        renderAgents()
+        // Sem serviço, não há o que mudar nos cartões: onServiceConnected desenha quando ligar.
+        if (service != null) renderAgents()
     }
 
     override fun onPause() {
@@ -340,13 +342,23 @@ class HomeActivity : JangadaActivity() {
         }
     }
 
-    /** Busca no npm a versão mais nova de cada agente que tem essa fonte. */
+    /**
+     * Busca no npm a versão mais nova de cada agente que tem essa fonte.
+     * Só consulta se o cache expirou; se nenhuma consulta der certo (sem rede), não marca o cache,
+     * para tentar de novo na próxima vez.
+     */
     private fun fetchLatestVersions() {
+        if (!LatestVersionCache.expired(SystemClock.elapsedRealtime())) return
         thread(name = "jangada-latest") {
+            var fetched = 0
             for (recipe in recipes) {
                 val pkg = recipe.npm ?: continue
-                Versions.latestOnNpm(pkg)?.let { latestVersions[recipe.id] = it }
+                Versions.latestOnNpm(pkg)?.let {
+                    latestVersions[recipe.id] = it
+                    fetched++
+                }
             }
+            if (fetched > 0) LatestVersionCache.checkedAt = SystemClock.elapsedRealtime()
             runOnUiThread { scheduleRender() }
         }
     }
@@ -681,4 +693,18 @@ class HomeActivity : JangadaActivity() {
         const val RENDER_GAP_MS = 300L
         const val REQUEST_STORAGE = 42
     }
+}
+
+/**
+ * Versões mais novas do npm, guardadas na memória do processo por 1 hora,
+ * para não consultar a rede a cada abertura da tela inicial.
+ * [checkedAt] é o horário de [SystemClock.elapsedRealtime] da última consulta bem-sucedida (-1 = nunca).
+ */
+private object LatestVersionCache {
+    private const val TTL_MS = 60L * 60 * 1000
+    val versions = ConcurrentHashMap<String, String>()
+    @Volatile var checkedAt = -1L
+
+    /** true se nunca consultou ou se a última consulta tem mais de [TTL_MS]. */
+    fun expired(now: Long): Boolean = checkedAt < 0 || now - checkedAt > TTL_MS
 }
