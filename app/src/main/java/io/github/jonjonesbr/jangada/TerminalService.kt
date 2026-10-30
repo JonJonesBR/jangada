@@ -7,6 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.drawable.Icon
+import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
 import android.net.Uri
 import android.os.Binder
 import android.os.Handler
@@ -17,9 +20,12 @@ import android.util.Log
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
+import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
+import io.github.jonjonesbr.jangada.chat.ChatAttention
 import io.github.jonjonesbr.jangada.linux.LinkWatcher
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
+import io.github.jonjonesbr.jangada.linux.Setup
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
@@ -45,6 +51,41 @@ class TerminalService : Service() {
     private var linkWatcher: LinkWatcher? = null
     /** Limpeza de restos antigos (onCreate); closeEverything espera por ela antes de apagar o Linux. */
     @Volatile private var legacyCleanup: Thread? = null
+    /** Vigia a rede do celular, para regravar o DNS do Debian quando ela muda. */
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    /** Último aviso de progresso da instalação do Linux (no máximo 1 por segundo). */
+    private var lastSetupNotify = 0L
+
+    /**
+     * Telas visíveis agora. Ao virar true, o aviso correspondente some (o usuário
+     * já viu). Mudadas só na thread principal.
+     */
+    var chatScreenVisible: Boolean = false
+        set(value) {
+            field = value
+            if (value) notifications().cancel(NOTIFICATION_ATTENTION)
+        }
+
+    var homeScreenVisible: Boolean = false
+        set(value) {
+            field = value
+            if (value) notifications().cancel(NOTIFICATION_TASK)
+        }
+
+    /** Acompanha a instalação do Linux (os eventos chegam na thread principal). */
+    private val setupListener: (Setup.State) -> Unit = { state ->
+        when (state) {
+            is Setup.State.Running -> {
+                val now = System.currentTimeMillis()
+                if (now - lastSetupNotify >= 1_000) {
+                    lastSetupNotify = now
+                    updateNotification()
+                }
+            }
+            is Setup.State.Done, is Setup.State.Failed -> finishSetup(state)
+            else -> {}
+        }
+    }
 
     val sessions = mutableListOf<TerminalSession>()
 
@@ -127,6 +168,8 @@ class TerminalService : Service() {
         if (!restart && current != null && chatAgentId == agentId &&
             (current.running || resume == null && !continueLast)
         ) return current
+        // O chat anterior é substituído: ele não pode mais mandar avisos.
+        current?.onAttention = null
         val linux = LinuxEnv(this)
         // A integração com o Linux é refeita pelo próprio chat, fora da thread principal.
         startLinkWatcher(linux)
@@ -141,6 +184,7 @@ class TerminalService : Service() {
                 previous?.stop()
                 chat = it
                 chatAgentId = CLAUDE
+                it.onAttention = { attention -> onChatAttention(agentId, attention) }
                 goForeground()
                 it.start(resume = resume, continueLast = continueLast, history = true, previous = previous)
             }
@@ -151,6 +195,7 @@ class TerminalService : Service() {
             io.github.jonjonesbr.jangada.chat.AcpChat(linux, recipe.acp!!.command, version).also {
                 chat = it
                 chatAgentId = agentId
+                it.onAttention = { attention -> onChatAttention(agentId, attention) }
                 goForeground()
                 it.start(resume = resume)
             }
@@ -199,6 +244,7 @@ class TerminalService : Service() {
                 if (linux.isReady) linux.cleanupLegacy()
             }
         }
+        watchNetworkDns()
     }
 
     override fun onBind(intent: Intent): IBinder = binder
@@ -206,6 +252,14 @@ class TerminalService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_EXIT) {
             exit()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_SETUP) {
+            // Instalação do Linux em primeiro plano: a notificação mostra o progresso.
+            started = true
+            // Primeiro o primeiro plano: addListener já entrega o estado atual, e o fim pode sair dele.
+            goForeground()
+            Setup.addListener(setupListener)
             return START_NOT_STICKY
         }
         // Iniciado pelas telas: só vai ao primeiro plano se houver trabalho.
@@ -221,7 +275,31 @@ class TerminalService : Service() {
         sessions.forEach { it.finishIfRunning() }
         sessions.clear()
         wakeLock?.let { if (it.isHeld) it.release() }
+        networkCallback?.let { callback ->
+            runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(callback) }
+        }
+        networkCallback = null
+        Setup.removeListener(setupListener)
         super.onDestroy()
+    }
+
+    /**
+     * Quando a rede muda (Wi-Fi, dados, VPN), regrava o DNS do Debian com os
+     * servidores da nova rede. Sem isso, apt e agentes não resolvem nomes em
+     * redes que bloqueiam o DNS público.
+     */
+    private fun watchNetworkDns() {
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
+                val servers = linkProperties.dnsServers
+                thread(name = "jangada-dns") {
+                    runCatching { LinuxEnv(this@TerminalService).takeIf { it.isReady }?.updateDns(servers) }
+                }
+            }
+        }
+        runCatching { manager.registerDefaultNetworkCallback(callback) }
+            .onSuccess { networkCallback = callback }
     }
 
     /**
@@ -310,6 +388,8 @@ class TerminalService : Service() {
             main.post {
                 onTasksChanged?.invoke()
                 updateNotification()
+                // Com a tela inicial fechada, avisa que a tarefa terminou (cancelada não avisa).
+                if (!homeScreenVisible && !task.cancelled) notifyTaskDone(task)
                 leaveForegroundIfIdle()
             }
         }
@@ -360,8 +440,9 @@ class TerminalService : Service() {
 
     private fun hasRunningTasks() = tasks.values.any { it.state == AgentTask.State.RUNNING }
 
-    /** Há algo que mantenha o serviço em primeiro plano (sessão, chat ou instalação)? */
-    private fun hasWork() = sessions.isNotEmpty() || chat != null || hasRunningTasks()
+    /** Há algo que mantenha o serviço em primeiro plano (sessão, chat, instalação ou Linux)? */
+    private fun hasWork() =
+        sessions.isNotEmpty() || chat != null || hasRunningTasks() || Setup.state is Setup.State.Running
 
     private fun leaveForegroundIfIdle() {
         if (!hasWork()) leaveForeground()
@@ -491,7 +572,13 @@ class TerminalService : Service() {
         )
         val count = sessions.size + if (chat != null) 1 else 0
         val running = tasks.values.firstOrNull { it.state == AgentTask.State.RUNNING }
+        val setup = Setup.state as? Setup.State.Running
         val text = when {
+            setup != null -> {
+                val progress = setup.progress
+                if (progress != null) getString(R.string.service_setup_progress, (progress * 100).toInt())
+                else getString(R.string.service_setup)
+            }
             running != null -> getString(
                 when {
                     running.uninstalling -> R.string.task_uninstalling
@@ -531,6 +618,71 @@ class TerminalService : Service() {
                 CHANNEL_LINKS, getString(R.string.channel_links), NotificationManager.IMPORTANCE_HIGH,
             ),
         )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ATTENTION, getString(R.string.channel_attention), NotificationManager.IMPORTANCE_HIGH,
+            ),
+        )
+    }
+
+    /** Aviso do chat: o agente precisa de você ou terminou. Com a tela do chat aberta, não avisa. */
+    private fun onChatAttention(agentId: String, attention: ChatAttention) {
+        if (chatScreenVisible) return
+        val name = AgentCatalog.load(this).firstOrNull { it.id == agentId }?.name ?: "Claude Code"
+        val (title, text) = when (attention) {
+            ChatAttention.PERMISSION -> R.string.notify_permission_title to R.string.notify_permission_text
+            ChatAttention.LOGIN -> R.string.notify_login_title to R.string.notify_login_text
+            ChatAttention.FINISHED -> R.string.notify_finished_title to R.string.notify_finished_text
+            ChatAttention.FAILED -> R.string.notify_failed_title to R.string.notify_failed_text
+        }
+        val open = Intent(this, ChatActivity::class.java)
+            .putExtra(ChatActivity.EXTRA_AGENT_ID, agentId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        attentionNotification(agentId.hashCode(), NOTIFICATION_ATTENTION, getString(title, name), getString(text), open)
+    }
+
+    /** Aviso do fim de uma instalação, atualização ou desinstalação de agente. Ao toque, abre a tela inicial. */
+    private fun notifyTaskDone(task: AgentTask) {
+        val name = task.recipe.name
+        val title = when {
+            task.state == AgentTask.State.FAILED -> getString(R.string.task_notify_failed, name)
+            task.uninstalling -> getString(R.string.task_notify_uninstalled, name)
+            task.updating -> getString(R.string.task_notify_updated, name)
+            else -> getString(R.string.task_notify_installed, name)
+        }
+        val open = Intent(this, HomeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        attentionNotification(REQUEST_HOME, NOTIFICATION_TASK, title, getString(R.string.task_notify_text), open)
+    }
+
+    /** Fim da instalação do Linux: avisa (se a tela não estiver aberta), para de acompanhar e recalcula o primeiro plano. */
+    private fun finishSetup(state: Setup.State) {
+        Setup.removeListener(setupListener)
+        if (!SetupActivity.visible) {
+            val title = getString(
+                if (state is Setup.State.Failed) R.string.setup_notify_failed else R.string.setup_notify_done,
+            )
+            val open = Intent(this, SetupActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            attentionNotification(REQUEST_SETUP, NOTIFICATION_TASK, title, getString(R.string.task_notify_text), open)
+        }
+        updateNotification()
+        leaveForegroundIfIdle()
+    }
+
+    /** Mostra um aviso no canal de atenção; ao toque, abre [target] e o aviso some. */
+    private fun attentionNotification(requestCode: Int, id: Int, title: String, text: String, target: Intent) {
+        val pending = PendingIntent.getActivity(
+            this, requestCode, target, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = Notification.Builder(this, CHANNEL_ATTENTION)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        notifications().notify(id, notification)
     }
 
     private fun notifications() = getSystemService(NotificationManager::class.java)
@@ -580,10 +732,19 @@ class TerminalService : Service() {
     companion object {
         private const val TAG = "Jangada"
         const val ACTION_EXIT = "io.github.jonjonesbr.jangada.EXIT"
+        /** Instalação do Linux em primeiro plano (startService antes do Setup.start). */
+        const val ACTION_SETUP = "io.github.jonjonesbr.jangada.SETUP"
         private const val CHANNEL_SESSIONS = "sessions"
         private const val CHANNEL_LINKS = "links"
+        private const val CHANNEL_ATTENTION = "attention"
         private const val NOTIFICATION_SESSIONS = 1
         private const val NOTIFICATION_LINK = 2
+        /** Aviso do chat (permissão, login, resposta pronta ou erro). */
+        private const val NOTIFICATION_ATTENTION = 3
+        /** Aviso de tarefa de agente ou da instalação do Linux terminada. */
+        private const val NOTIFICATION_TASK = 4
+        private const val REQUEST_HOME = 10
+        private const val REQUEST_SETUP = 11
         private const val TRANSCRIPT_ROWS = 5000
         const val DEFAULT_TITLE = "Terminal"
         const val CLAUDE = "claude-code"

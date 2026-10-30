@@ -17,8 +17,10 @@ import kotlin.concurrent.thread
 /**
  * Instalação do Linux em três passos, rodando em segundo plano.
  * A tela só observa o [state]; girar o celular ou trocar de tela não
- * interrompe nada. Cada passo concluído fica marcado, então "Tentar de
- * novo" continua de onde parou.
+ * interrompe nada. Cada etapa concluída deixa uma marca (rootfs-ok,
+ * base-ok): "Tentar de novo" pula as que já têm marca, então, se o Debian
+ * já foi extraído, só os pacotes são refeitos. O download das camadas
+ * recomeça do zero, e uma extração interrompida é refeita do início.
  */
 object Setup {
 

@@ -28,8 +28,21 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
 
     override val items = mutableListOf<ChatItem>()
 
+    /**
+     * Turno que não deve avisar ao acabar: parado pelo usuário (stop/interrupt)
+     * ou com o agente já fechado. Zera sozinho quando um turno novo começa.
+     * Só a thread principal mexe.
+     */
+    protected var silentTurn = false
+
+    /** Turno em andamento: vira false também ao acabar sozinho (aí avisa, na thread principal). */
     @Volatile override var busy = false
-        protected set
+        protected set(value) {
+            val ended = field && !value
+            field = value
+            if (value) silentTurn = false
+            if (ended && !silentTurn) main.post { turnEnded() }
+        }
     @Volatile override var running = false
         protected set
     @Volatile override var interrupted = false
@@ -37,6 +50,9 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
 
     /** Chamado (na thread principal) sempre que a conversa muda. */
     override var onChanged: (() -> Unit)? = null
+
+    /** Avisos para o usuário (na thread principal); ver [ChatAttention]. */
+    override var onAttention: ((ChatAttention) -> Unit)? = null
 
     protected val main = Handler(Looper.getMainLooper())
 
@@ -76,6 +92,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
                     settleItems()
                     onStopped()
                     add(ChatItem.Info(context.getString(R.string.chat_error_start, e.message.orEmpty()), isError = true))
+                    attention(ChatAttention.FAILED)
                 }
                 return@execute
             }
@@ -116,6 +133,8 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         val c = connection
         connection = null
         running = false
+        // Parado pelo usuário: o turno interrompido não avisa que terminou.
+        silentTurn = true
         busy = false
         settleItems()
         onStopped()
@@ -194,6 +213,8 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
                 if (connection !== c) return@post
                 finish(c)
                 onExited(code, synchronized(stderrTail) { stderrTail.joinToString("\n") })
+                // Saiu com erro sem ser parado pelo usuário: um aviso só (se o cartão de login já avisou, não repete).
+                if (code != 0 && items.lastOrNull() !is ChatItem.Login) attention(ChatAttention.FAILED)
                 settleItems()
                 onStopped()
                 changed()
@@ -206,7 +227,23 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         connection = null
         c.writer.shutdown()
         running = false
+        // O agente saiu: o fim do turno não avisa aqui (quem avisa é a falha, em readOutput).
+        silentTurn = true
         busy = false
+    }
+
+    /** O turno acabou sozinho: o aviso sai depois da mensagem atual (um erro do turno pode vir logo em seguida). */
+    private fun turnEnded() {
+        if (!running || busy) return
+        val last = items.lastOrNull()
+        // Cartão de login já avisou: o agente espera o usuário, não terminou.
+        if (last is ChatItem.Login) return
+        attention(if (last is ChatItem.Info && last.isError) ChatAttention.FAILED else ChatAttention.FINISHED)
+    }
+
+    /** Avisa o usuário (na thread principal). */
+    private fun attention(kind: ChatAttention) {
+        onAttention?.invoke(kind)
     }
 
     /**
@@ -241,6 +278,12 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
     protected fun add(item: ChatItem) {
         items += item
         changed()
+        // Pedido de permissão e cartão de login: o usuário precisa responder.
+        when (item) {
+            is ChatItem.Permission -> attention(ChatAttention.PERMISSION)
+            is ChatItem.Login -> attention(ChatAttention.LOGIN)
+            else -> Unit
+        }
     }
 
     protected fun changed(throttle: Boolean = false) {

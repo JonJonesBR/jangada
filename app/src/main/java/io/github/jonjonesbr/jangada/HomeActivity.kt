@@ -163,6 +163,7 @@ class HomeActivity : JangadaActivity() {
     override fun onResume() {
         super.onResume()
         paused = false
+        service?.homeScreenVisible = true
         if (!::agentsList.isInitialized) return
         if (askedStorage) afterStorageRequest() else renderStorage()
         renderAgents()
@@ -170,6 +171,7 @@ class HomeActivity : JangadaActivity() {
 
     override fun onPause() {
         paused = true
+        service?.homeScreenVisible = false
         super.onPause()
     }
 
@@ -225,6 +227,8 @@ class HomeActivity : JangadaActivity() {
                 return
             }
             service = svc
+            // Se a tela já estava em primeiro plano quando o serviço chegou, o onResume não pôde avisar.
+            if (!paused) svc.homeScreenVisible = true
             svc.addSessionsListener(sessionsListener)
             svc.onTasksChanged = { onTasksChanged() }
             renderSessions()
@@ -291,10 +295,14 @@ class HomeActivity : JangadaActivity() {
         publishInstalled(found.toSet())
     }
 
-    private fun publishInstalled(found: Set<String>) = runOnUiThread {
-        if (isDestroyed) return@runOnUiThread
-        installed = found
-        renderAgents()
+    private fun publishInstalled(found: Set<String>) {
+        // Guarda os comandos instalados: a ShareActivity filtra os agentes por eles, sem precisar do Debian.
+        prefs.edit().putStringSet(INSTALLED_COMMANDS, HashSet(found)).apply()
+        runOnUiThread {
+            if (isDestroyed) return@runOnUiThread
+            installed = found
+            renderAgents()
+        }
     }
 
     /** Busca no npm a versão mais nova de cada agente que tem essa fonte. */
@@ -636,5 +644,7 @@ class HomeActivity : JangadaActivity() {
         const val UPDATE_QUIET_MS = 7L * 24 * 60 * 60 * 1000
         const val RENDER_GAP_MS = 300L
         const val REQUEST_STORAGE = 42
+        /** Chave, nas preferências "agents", dos comandos instalados (lida pela ShareActivity). */
+        const val INSTALLED_COMMANDS = "installed_commands"
     }
 }

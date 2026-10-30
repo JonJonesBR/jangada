@@ -281,6 +281,8 @@ class AcpChat(
 
     override fun interrupt() {
         val id = sessionId ?: return
+        // Interrompido pelo usuário: o fim desse turno não gera aviso.
+        silentTurn = true
         notify("session/cancel", JSONObject().put("sessionId", id))
         // Pedidos de permissão em aberto são respondidos como cancelados.
         for (item in items) {

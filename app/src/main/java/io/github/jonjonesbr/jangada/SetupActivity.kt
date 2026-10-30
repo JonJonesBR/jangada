@@ -53,7 +53,7 @@ class SetupActivity : JangadaActivity() {
         logPanel = findViewById(R.id.log_panel)
         logView = findViewById(R.id.log)
 
-        action.setOnClickListener { Setup.start(this) }
+        action.setOnClickListener { startSetup() }
         toggleLog.setOnClickListener {
             val show = logPanel.visibility != View.VISIBLE
             logPanel.visibility = if (show) View.VISIBLE else View.GONE
@@ -76,12 +76,25 @@ class SetupActivity : JangadaActivity() {
 
     override fun onStart() {
         super.onStart()
+        visible = true
         Setup.addListener(listener)
     }
 
     override fun onStop() {
         Setup.removeListener(listener)
+        visible = false
         super.onStop()
+    }
+
+    /**
+     * Começa (ou tenta de novo) a instalação. Antes, põe o serviço em primeiro
+     * plano: assim a instalação continua com a tela apagada ou em outro app.
+     */
+    private fun startSetup() {
+        runCatching {
+            startService(Intent(this, TerminalService::class.java).setAction(TerminalService.ACTION_SETUP))
+        }
+        Setup.start(this)
     }
 
     private fun render(state: Setup.State) {
@@ -135,6 +148,11 @@ class SetupActivity : JangadaActivity() {
     }
 
     private enum class Status { PENDING, RUNNING, DONE, FAILED }
+
+    companion object {
+        /** true enquanto a tela está visível (entre onStart e onStop). */
+        @Volatile var visible = false
+    }
 
     private fun showStep(view: TextView, status: Status) {
         // O texto original do passo fica guardado na tag, sem o marcador.

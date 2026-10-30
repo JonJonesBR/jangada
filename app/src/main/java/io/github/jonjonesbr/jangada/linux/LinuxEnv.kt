@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada.linux
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.os.Build
 import java.io.File
 
@@ -287,11 +288,28 @@ class LinuxEnv(context: Context) {
 
         trustWorkspaceInClaude()
 
+        // DNS da rede ativa (Wi-Fi, dados ou VPN). Sem rede conhecida, fica o que já estava gravado.
+        val servers = runCatching {
+            app.getSystemService(ConnectivityManager::class.java)?.let { manager ->
+                manager.activeNetwork?.let { manager.getLinkProperties(it)?.dnsServers }
+            }
+        }.getOrNull()
+        servers?.let { updateDns(it) }
+
         // /tmp precisa do "sticky bit" (1777); sem ele o Claude Code desliga recursos.
         for (tmp in listOf(File(rootfs, "tmp"), File(rootfs, "var/tmp"))) {
             tmp.mkdirs()
             runCatching { android.system.Os.chmod(tmp.absolutePath, "1777".toInt(8)) }
         }
+    }
+
+    /**
+     * Regrava o DNS do Debian com os servidores [servers] da rede do celular
+     * (ver [resolvConf]). Só escreve se o conteúdo mudou.
+     */
+    fun updateDns(servers: List<java.net.InetAddress>): Unit = synchronized(LOCK) {
+        val etc = File(rootfs, "etc").apply { mkdirs() }
+        writeReplacing(File(etc, "resolv.conf"), resolvConf(servers))
     }
 
     /**
@@ -361,6 +379,35 @@ class LinuxEnv(context: Context) {
 
         /** A lista de assets tem o proot? Lida uma vez (os assets não mudam com o app aberto). */
         @Volatile private var prootInAssetsCache: Boolean? = null
+
+        /** DNS públicos usados quando a rede do celular não fornece servidores suficientes. */
+        private val FALLBACK_DNS = listOf("8.8.8.8", "1.1.1.1")
+
+        /** Limite de "nameserver" que a glibc lê em /etc/resolv.conf. */
+        private const val MAX_NAMESERVERS = 3
+
+        /**
+         * Conteúdo do /etc/resolv.conf. Usa até 2 servidores da rede do celular
+         * (sem loopback, link-local, any-local nem multicast, sem repetir) e
+         * completa com 8.8.8.8 e 1.1.1.1 até 3 linhas. Função pura, sem Android.
+         */
+        fun resolvConf(servers: List<java.net.InetAddress>): String {
+            val chosen = mutableListOf<String>()
+            for (server in servers) {
+                if (server.isLoopbackAddress || server.isLinkLocalAddress ||
+                    server.isAnyLocalAddress || server.isMulticastAddress
+                ) continue
+                // IPv6 com escopo vem como "fe80::1%wlan0": o %escopo não vale no resolv.conf.
+                val address = server.hostAddress?.substringBefore('%') ?: continue
+                if (address !in chosen) chosen += address
+                if (chosen.size == 2) break
+            }
+            for (fallback in FALLBACK_DNS) {
+                if (chosen.size >= MAX_NAMESERVERS) break
+                if (fallback !in chosen) chosen += fallback
+            }
+            return chosen.joinToString("") { "nameserver $it\n" } + "options timeout:2 attempts:2\n"
+        }
 
         private const val ASSET_DIR = "bootstrap/aarch64"
         const val IMAGE_REPOSITORY = "library/debian"

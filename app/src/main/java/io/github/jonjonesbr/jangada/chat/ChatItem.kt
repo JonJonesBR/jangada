@@ -39,6 +39,9 @@ sealed class ChatItem {
     class Info(val text: String, val isError: Boolean = false, val details: String? = null) : ChatItem()
 }
 
+/** Quando o chat pede a atenção do usuário (o serviço decide se mostra um aviso). */
+enum class ChatAttention { PERMISSION, LOGIN, FINISHED, FAILED }
+
 class PermissionOption(val id: String, val label: String, val kind: Kind) {
     enum class Kind { ALLOW_ONCE, ALLOW_ALWAYS, REJECT_ONCE, REJECT_ALWAYS }
     val allows get() = kind == Kind.ALLOW_ONCE || kind == Kind.ALLOW_ALWAYS
@@ -92,6 +95,11 @@ interface AgentChat {
     /** O agente lista as conversas anteriores. */
     val supportsHistory: Boolean
     var onChanged: (() -> Unit)?
+    /**
+     * Avisos para o usuário (chamado na thread principal): pedido de permissão,
+     * login, fim de um turno ou falha.
+     */
+    var onAttention: ((ChatAttention) -> Unit)?
 
     fun sendMessage(text: String, attachments: List<Attachment> = emptyList())
     fun interrupt()

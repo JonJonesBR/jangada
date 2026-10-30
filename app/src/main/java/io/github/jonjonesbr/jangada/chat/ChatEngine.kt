@@ -140,6 +140,8 @@ class ChatEngine(
     /** Interrompe o que o Claude está fazendo (como o Esc no terminal). */
     override fun interrupt() {
         if (!running) return
+        // Interrompido pelo usuário: o fim desse turno não gera aviso.
+        silentTurn = true
         send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
             .put("request", JSONObject().put("subtype", "interrupt")))
     }
