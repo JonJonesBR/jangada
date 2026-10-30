@@ -1,0 +1,1 @@
+Uninstall now removes the program of every agent, keeping settings and logins. Attachments with long names keep their extension. The backup choice survives a recreated screen. Clearer text in the chat and settings.

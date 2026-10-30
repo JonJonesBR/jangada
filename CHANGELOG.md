@@ -1,5 +1,12 @@
 # Novidades
 
+## 1.1.1
+
+- Desinstalar remove o programa de todos os agentes (Hermes, Qwen Code, Codex, Pi, OpenClaw, oh-my-pi e Antigravity), mantendo configurações e logins.
+- Anexos com nome longo mantêm a extensão, e uma cópia que falha no meio é apagada.
+- A escolha do backup (tudo ou só projetos) não se perde se a tela for recriada.
+- Textos: esforço padrão como "Padrão" e mensagem inicial do chat mais precisa.
+
 ## 1.1.0
 
 - Avisos: o celular avisa quando o agente pede permissão ou login, termina a resposta ou dá erro com o chat fora da tela, e quando uma instalação de agente acaba.

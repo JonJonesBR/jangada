@@ -1,0 +1,1 @@
+Desinstalar agora remove o programa de todos os agentes, mantendo configurações e logins. Anexos com nome longo mantêm a extensão. A escolha do backup não se perde ao recriar a tela. Textos mais precisos no chat e nos ajustes.
