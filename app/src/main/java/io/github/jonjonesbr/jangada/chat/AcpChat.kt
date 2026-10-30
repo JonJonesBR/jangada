@@ -99,6 +99,8 @@ class AcpChat(
                 // Parou durante o início: o motivo já aparece pela saída do agente.
                 if (isStopped(error)) return@request
                 add(ChatItem.Info(context.getString(R.string.chat_acp_no_init, error?.optString("message").orEmpty()), isError = true))
+                // Sem initialize o agente não serve: para (senão as mensagens ficariam esperando); o próximo envio o reinicia.
+                stop()
                 return@request
             }
             val caps = result.optJSONObject("agentCapabilities") ?: JSONObject()
@@ -230,8 +232,13 @@ class AcpChat(
         request("session/new", params) { result, error ->
             if (result == null) {
                 if (isStopped(error)) return@request
-                if (isAuthError(error)) requireLogin(null)
-                else add(ChatItem.Info(friendlyError(error), isError = true))
+                if (isAuthError(error)) {
+                    requireLogin(null)
+                } else {
+                    add(ChatItem.Info(friendlyError(error), isError = true))
+                    // Falha sem login: para o agente, para o envio não ficar parado; o próximo envio o reinicia.
+                    stop()
+                }
                 return@request
             }
             sessionId = result.optString("sessionId")
@@ -258,7 +265,14 @@ class AcpChat(
     }
 
     private fun prompt(text: String, attachments: List<Attachment>) {
-        val id = sessionId ?: return
+        val id = sessionId
+        if (id == null) {
+            // Sem sessão não há para onde enviar: mostra o erro e encerra o turno (sem ficar "pensando").
+            add(ChatItem.Info(friendlyError(null), isError = true))
+            busy = false
+            changed()
+            return
+        }
         val blocks = JSONArray()
         val note = Attachments.filesNote(attachments, includeImages = !imageSupport)
         blocks.put(JSONObject().put("type", "text").put("text", (text + note).ifBlank { " " }))
@@ -280,7 +294,17 @@ class AcpChat(
     }
 
     override fun interrupt() {
-        val id = sessionId ?: return
+        val id = sessionId
+        if (id == null) {
+            // Ainda sem sessão (iniciando ou falhou): nada a cancelar no agente; solta as mensagens na fila.
+            if (busy) {
+                silentTurn = true
+                waitingPrompts.clear()
+                busy = false
+                changed()
+            }
+            return
+        }
         // Interrompido pelo usuário: o fim desse turno não gera aviso.
         silentTurn = true
         notify("session/cancel", JSONObject().put("sessionId", id))
