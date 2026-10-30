@@ -42,14 +42,24 @@ object Links {
     fun atLocation(emulator: TerminalEmulator, column: Int, row: Int): String? {
         val screen = emulator.screen
         val word = screen.getWordAtLocation(column, row).trim()
-        if (word.length < 4) return first(word)
+        return linkAround(word) {
+            val top = maxOf(-screen.activeTranscriptRows, row - WINDOW)
+            val bottom = minOf(emulator.mRows, row + WINDOW + 1)
+            val text = screen.getSelectedText(0, top, emulator.mColumns, bottom, true, false)
+            joinHardWrapped(text.split('\n'), emulator.mColumns)
+        }
+    }
 
-        val top = maxOf(-screen.activeTranscriptRows, row - WINDOW)
-        val bottom = minOf(emulator.mRows, row + WINDOW + 1)
-        val text = screen.getSelectedText(0, top, emulator.mColumns, bottom, true, false)
-        val joined = joinHardWrapped(text.split('\n'), emulator.mColumns)
+    /**
+     * Escolhe o link para a palavra tocada. [joined] (o texto da tela em volta)
+     * só é lido se a palavra for longa o bastante para ser parte de um link.
+     */
+    internal fun linkAround(word: String, joined: () -> String): String? {
+        if (word.length < 4) return first(word)
         val core = word.trimEnd(*TRAILING)
-        return all(joined).firstOrNull { it.contains(core) } ?: first(word)
+        // Palavra só de pontuação: sem núcleo, contains("") casaria com qualquer link.
+        if (core.isEmpty()) return first(word)
+        return all(joined()).firstOrNull { it.contains(core) } ?: first(word)
     }
 
     /**
