@@ -249,8 +249,18 @@ class LinuxEnv(context: Context) {
     /**
      * Peças que ligam o Debian ao app. Reescritas a cada sessão, então
      * versões novas do app atualizam instalações antigas sem reinstalar.
+     * [trustClaude] = false deixa de fora a confiança no Claude Code (que lê
+     * o ~/.claude.json); quem chama deve então chamar [trustWorkspaceInClaude].
+     * A confiança roda fora do [LOCK], para que a leitura do JSON não segure
+     * quem só precisa das peças rápidas (ex.: o terminal na thread principal).
      */
-    fun refreshIntegration(): Unit = synchronized(LOCK) {
+    fun refreshIntegration(trustClaude: Boolean = true) {
+        writeIntegration()
+        if (trustClaude) trustWorkspaceInClaude()
+    }
+
+    /** Parte rápida de [refreshIntegration]: só gravações pequenas, sob o [LOCK]. */
+    private fun writeIntegration(): Unit = synchronized(LOCK) {
         val etc = File(rootfs, "etc")
         // Instaladores como o do Claude Code colocam o programa em ~/.local/bin;
         // BROWSER faz os agentes abrirem links pelo app.
@@ -285,8 +295,6 @@ class LinuxEnv(context: Context) {
             Fs.deleteTree(phone)
             java.nio.file.Files.createSymbolicLink(phone, java.nio.file.Paths.get("/sdcard"))
         }
-
-        trustWorkspaceInClaude()
 
         // DNS da rede ativa (Wi-Fi, dados ou VPN). Sem rede conhecida, fica o que já estava gravado.
         val servers = runCatching {
@@ -325,30 +333,33 @@ class LinuxEnv(context: Context) {
      * trabalho criada pelo próprio app; sem isso, alternar entre chat e
      * terminal faz o Claude perguntar de novo a cada abertura. Só mexe no
      * arquivo se o Claude Code já tiver sido aberto alguma vez.
+     * Lê e grava o JSON (que cresce com o uso): chame fora da thread principal.
      */
-    private fun trustWorkspaceInClaude() {
-        val file = File(rootfs, "root/.claude.json")
-        if (!file.isFile) return
-        // O arquivo pode ser grande: só lê de novo quando ele mudou desde a última conferência.
-        val seen = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
-        if (seen == claudeJsonChecked) return
-        val json = runCatching { org.json.JSONObject(file.readText()) }.getOrNull() ?: return
-        val projects = json.optJSONObject("projects") ?: org.json.JSONObject().also { json.put("projects", it) }
-        val key = "/root/$WORKSPACE"
-        val project = projects.optJSONObject(key) ?: org.json.JSONObject().also { projects.put(key, it) }
-        if (!project.optBoolean("hasTrustDialogAccepted")) {
-            project.put("hasTrustDialogAccepted", true)
-            // Nome único, para não colidir com outra gravação; apagado se não virar o arquivo.
-            val temp = File.createTempFile(".claude.json.", ".jangada", file.parentFile)
-            var moved = false
-            try {
-                temp.writeText(json.toString(2))
-                moved = temp.renameTo(file)
-            } finally {
-                if (!moved) temp.delete()
+    fun trustWorkspaceInClaude() {
+        synchronized(TRUST_LOCK) {
+            val file = File(rootfs, "root/.claude.json")
+            if (!file.isFile) return
+            // O arquivo pode ser grande: só lê de novo quando ele mudou desde a última conferência.
+            val seen = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
+            if (seen == claudeJsonChecked) return
+            val json = runCatching { org.json.JSONObject(file.readText()) }.getOrNull() ?: return
+            val projects = json.optJSONObject("projects") ?: org.json.JSONObject().also { json.put("projects", it) }
+            val key = "/root/$WORKSPACE"
+            val project = projects.optJSONObject(key) ?: org.json.JSONObject().also { projects.put(key, it) }
+            if (!project.optBoolean("hasTrustDialogAccepted")) {
+                project.put("hasTrustDialogAccepted", true)
+                // Nome único, para não colidir com outra gravação; apagado se não virar o arquivo.
+                val temp = File.createTempFile(".claude.json.", ".jangada", file.parentFile)
+                var moved = false
+                try {
+                    temp.writeText(json.toString(2))
+                    moved = temp.renameTo(file)
+                } finally {
+                    if (!moved) temp.delete()
+                }
             }
+            claudeJsonChecked = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
         }
-        claudeJsonChecked = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
     }
 
     /**
@@ -373,6 +384,9 @@ class LinuxEnv(context: Context) {
     companion object {
         /** Serializa [refreshIntegration]: ele é chamado de várias threads ao mesmo tempo. */
         private val LOCK = Any()
+
+        /** Serializa a leitura e gravação do ~/.claude.json (fora do [LOCK]). */
+        private val TRUST_LOCK = Any()
 
         /** Tamanho e data do ~/.claude.json na última conferência da pasta confiável. */
         @Volatile private var claudeJsonChecked: String? = null

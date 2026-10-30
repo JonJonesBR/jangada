@@ -308,7 +308,11 @@ class TerminalService : Service() {
     fun createSession(title: String = DEFAULT_TITLE, script: String? = null): TerminalSession {
         val linux = LinuxEnv(this)
         val session = if (linux.isReady) {
-            runCatching { linux.refreshIntegration() }.onFailure { Log.w(TAG, "integração", it) }
+            runCatching { linux.refreshIntegration(trustClaude = false) }.onFailure { Log.w(TAG, "integração", it) }
+            // O ~/.claude.json pode ser grande: a confiança na pasta é feita fora da thread principal.
+            thread(name = "jangada-trust") {
+                runCatching { linux.trustWorkspaceInClaude() }.onFailure { Log.w(TAG, "confiança no Claude", it) }
+            }
             startLinkWatcher(linux)
             val inner = if (script == null) linux.loginCommand() else linux.sessionScriptCommand(script)
             val argv = linux.prootArgv(inner)
