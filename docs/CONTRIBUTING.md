@@ -17,7 +17,7 @@ Cada agente é um arquivo JSON em [`app/src/main/assets/agents/`](../app/src/mai
   "command": "meuagente",
   "install": "curl -fsSL https://exemplo.com/install.sh | bash",
   "update": "meuagente update",
-  "uninstall": "rm -rf ~/.meuagente",
+  "uninstall": "rm -rf ~/.meuagente/versions",
   "requires": ["nodejs", "npm"],
   "homepage": "https://exemplo.com",
   "npm": "meu-agente",
@@ -29,7 +29,7 @@ Cada agente é um arquivo JSON em [`app/src/main/assets/agents/`](../app/src/mai
 
 - `command` abre o agente; o app usa esse nome para saber se ele está instalado.
 - `install` roda dentro do Debian; `requires` instala pacotes do Debian antes.
-- `update` e `uninstall` são opcionais (sem `update`, atualizar repete a instalação; o app sempre apaga o comando do agente ao desinstalar).
+- `update` e `uninstall` são opcionais (sem `update`, atualizar repete a instalação; o app sempre apaga o comando do agente ao desinstalar). `uninstall` remove o programa (pastas de versões, ambiente Python, pacote npm), nunca as configurações e os logins: quem reinstala volta como estava.
 - `npm` é opcional: o pacote no npm, usado só para descobrir a versão mais nova.
 - `acp` é opcional: como abrir o agente no modo [ACP](https://agentclientprotocol.com) para ter chat no app. Com adaptador separado: `{ "command": "pi-acp", "bin": "pi-acp", "install": "npm i -g pi-acp", "requires": ["nodejs", "npm"] }`.
 
@@ -71,7 +71,7 @@ Each agent is a JSON file in [`app/src/main/assets/agents/`](../app/src/main/ass
   "command": "myagent",
   "install": "curl -fsSL https://example.com/install.sh | bash",
   "update": "myagent update",
-  "uninstall": "rm -rf ~/.myagent",
+  "uninstall": "rm -rf ~/.myagent/versions",
   "requires": ["nodejs", "npm"],
   "homepage": "https://example.com",
   "npm": "my-agent",
@@ -83,7 +83,7 @@ Each agent is a JSON file in [`app/src/main/assets/agents/`](../app/src/main/ass
 
 - `command` opens the agent; the app uses this name to know whether it is installed.
 - `install` runs inside Debian; `requires` installs Debian packages first.
-- `update` and `uninstall` are optional (without `update`, updating reruns the install; the app always deletes the agent command when uninstalling).
+- `update` and `uninstall` are optional (without `update`, updating reruns the install; the app always deletes the agent command when uninstalling). `uninstall` removes the program (version folders, Python environment, npm package), never settings and logins, so a reinstall picks up where it left off.
 - `npm` is optional: the npm package, used only to find the latest version.
 - `acp` is optional: how to open the agent in [ACP](https://agentclientprotocol.com) mode to get chat in the app. With a separate adapter: `{ "command": "pi-acp", "bin": "pi-acp", "install": "npm i -g pi-acp", "requires": ["nodejs", "npm"] }`.
 

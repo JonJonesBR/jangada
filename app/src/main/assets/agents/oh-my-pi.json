@@ -5,6 +5,7 @@
   "vendor": "oh-my-pi",
   "command": "omp",
   "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://omp.sh/install | sh",
+  "uninstall": "if command -v bun >/dev/null; then bun remove -g @oh-my-pi/pi-coding-agent || true; fi",
   "homepage": "https://github.com/can1357/oh-my-pi",
   "npm": "@oh-my-pi/pi-coding-agent",
   "description": {

@@ -6,6 +6,7 @@
   "command": "hermes",
   "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://hermes-agent.nousresearch.com/install.sh | bash",
   "update": "hermes update",
+  "uninstall": "rm -rf ~/.hermes/hermes-agent",
   "homepage": "https://hermes-agent.nousresearch.com",
   "description": {
     "pt": "Agente da Nous Research, com vários provedores de IA.",

@@ -14,5 +14,5 @@
     "pt": "Nesta versão, só no terminal.",
     "en": "Terminal only for now."
   },
-  "uninstall": "rm -rf ~/.local/share/agy-acp"
+  "uninstall": "rm -rf ~/.local/share/agy-acp ~/.cache/antigravity"
 }

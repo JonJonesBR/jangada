@@ -5,6 +5,7 @@
   "vendor": "OpenClaw",
   "command": "openclaw",
   "install": "curl -fsSL --connect-timeout 20 --retry 3 --speed-limit 1000 --speed-time 60 https://openclaw.ai/install.sh | bash",
+  "uninstall": "npm uninstall -g openclaw || true; rm -rf ~/.openclaw/tools",
   "homepage": "https://openclaw.ai",
   "npm": "openclaw",
   "description": {

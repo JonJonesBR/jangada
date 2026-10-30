@@ -20,5 +20,5 @@
       "npm"
     ]
   },
-  "uninstall": "npm uninstall -g @agentclientprotocol/codex-acp"
+  "uninstall": "rm -rf ~/.codex/packages; npm uninstall -g @agentclientprotocol/codex-acp || true"
 }
