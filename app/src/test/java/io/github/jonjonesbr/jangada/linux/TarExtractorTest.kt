@@ -95,6 +95,29 @@ class TarExtractorTest {
     }
 
     @Test
+    fun nomeLongoPorRegistroGnuL() {
+        val long = "pasta/" + "g".repeat(150) + ".txt"
+        // Cabeçalho aceita só 100 caracteres; o nome completo vem no registro 'L'.
+        TarExtractor(root).extract(Tar().gnuRecord('L', long).file(long.take(100), "gnu").bytes())
+
+        assertEquals("gnu", File(root, long).readText())
+        assertFalse(File(root, long.take(100)).exists())
+    }
+
+    @Test
+    fun linkSimbolicoComDestinoLongoPorRegistroGnuK() {
+        val target = "lib/" + "v".repeat(130) + ".so"
+        val tar = Tar()
+            .gnuRecord('K', target)
+            .entry("link.so", '2', ByteArray(0), link = target.take(100))
+        TarExtractor(root).extract(tar.bytes())
+
+        val link = File(root, "link.so").toPath()
+        assertTrue(Files.isSymbolicLink(link))
+        assertEquals(target, Files.readSymbolicLink(link).toString())
+    }
+
+    @Test
     fun numerosOctalEBase256() {
         val octal = "0000644\u0000".toByteArray()
         assertEquals(420L, TarExtractor.parseNumber(octal, 0, 8))
@@ -127,6 +150,9 @@ class TarExtractorTest {
         fun file(name: String, text: String, mode: Int = "644".toInt(8)) = entry(name, '0', text.toByteArray(), mode = mode)
         fun symlink(name: String, target: String) = entry(name, '2', ByteArray(0), link = target)
         fun hardlink(name: String, target: String) = entry(name, '1', ByteArray(0), link = target)
+
+        /** Registro GNU ('L' = nome longo, 'K' = destino de link longo) antes da entrada real. */
+        fun gnuRecord(type: Char, text: String) = entry("././@LongLink", type, (text + "\u0000").toByteArray())
 
         fun pax(records: Map<String, String>): Tar {
             val text = records.entries.joinToString("") { (k, v) ->
