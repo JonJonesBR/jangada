@@ -240,6 +240,7 @@
     <string name="chat_claude_login_hint">%1$s\n\nFaça login pelo Terminal (botão no topo) e volte para o chat.</string>
     <string name="chat_acp_no_init">O agente não respondeu ao início: %1$s</string>
     <string name="chat_acp_reopen_failed">Não consegui reabrir essa conversa: %1$s</string>
+    <string name="chat_acp_new_context">O agente começou uma conversa nova e não lembra das mensagens acima</string>
     <string name="chat_acp_refused">O agente recusou o pedido.</string>
     <string name="chat_acp_option_failed">Não consegui mudar %1$s: %2$s</string>
     <string name="chat_acp_model_failed">Não consegui mudar o modelo: %1$s</string>

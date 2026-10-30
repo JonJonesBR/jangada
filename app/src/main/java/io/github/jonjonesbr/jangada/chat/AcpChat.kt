@@ -216,18 +216,20 @@ class AcpChat(
                     }
                     add(ChatItem.Info(context.getString(R.string.chat_acp_reopen_failed, error.optString("message")), isError = true))
                     sessionId = null
-                    newSession()
+                    newSession(forgot = true)
                     return@request
                 }
                 interrupted = items.lastOrNull().let { it is ChatItem.Tool || it is ChatItem.User }
                 becomeReady()
             }
         } else {
-            newSession()
+            // Sem loadSession, a conversa anterior não volta: o agente começa do zero.
+            newSession(forgot = resume != null)
         }
     }
 
-    private fun newSession() {
+    /** [forgot]: a conversa anterior ficou na tela, mas o agente novo não tem o contexto dela. */
+    private fun newSession(forgot: Boolean = false) {
         val params = JSONObject().put("cwd", "/root/${LinuxEnv.WORKSPACE}").put("mcpServers", JSONArray())
         request("session/new", params) { result, error ->
             if (result == null) {
@@ -243,6 +245,7 @@ class AcpChat(
             }
             sessionId = result.optString("sessionId")
             parseConfig(result)
+            if (forgot) add(ChatItem.Info(context.getString(R.string.chat_acp_new_context)))
             becomeReady()
         }
     }
