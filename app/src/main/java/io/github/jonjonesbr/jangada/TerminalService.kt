@@ -313,11 +313,23 @@ class TerminalService : Service() {
         val session = if (linux.isReady) {
             runCatching { linux.refreshIntegration(trustClaude = false) }.onFailure { Log.w(TAG, "integração", it) }
             // O ~/.claude.json pode ser grande: a confiança na pasta é feita fora da thread principal.
+            // Enquanto o arquivo-sinal existir, o script da sessão espera (até 10 s) antes de abrir
+            // o agente, para o Claude não ler o JSON antes da confiança e perguntar de novo.
+            val pending = if (script == null) null else runCatching {
+                File(linux.rootfs, "tmp/.jangada-trust-${System.nanoTime()}").takeIf { it.createNewFile() }
+            }.getOrNull()
             thread(name = "jangada-trust") {
-                runCatching { linux.trustWorkspaceInClaude() }.onFailure { Log.w(TAG, "confiança no Claude", it) }
+                try {
+                    runCatching { linux.trustWorkspaceInClaude() }.onFailure { Log.w(TAG, "confiança no Claude", it) }
+                } finally {
+                    pending?.delete()
+                }
             }
             startLinkWatcher(linux)
-            val inner = if (script == null) linux.loginCommand() else linux.sessionScriptCommand(script)
+            val waitTrust = pending?.let {
+                "i=0; while [ -e /tmp/${it.name} ] && [ \$i -lt 100 ]; do sleep 0.1; i=\$((i+1)); done; unset i\n"
+            }.orEmpty()
+            val inner = if (script == null) linux.loginCommand() else linux.sessionScriptCommand(waitTrust + script)
             val argv = linux.prootArgv(inner)
             TerminalSession(argv[0], filesDir.absolutePath, argv, linux.hostEnv(), TRANSCRIPT_ROWS, proxyClient)
         } else {
