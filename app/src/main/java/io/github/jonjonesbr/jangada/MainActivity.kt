@@ -77,8 +77,6 @@ class MainActivity : ComponentActivity() {
     private var minFontPx = 0
     private var maxFontPx = 0
 
-    private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -97,7 +95,8 @@ class MainActivity : ComponentActivity() {
 
         minFontPx = sp(6f)
         maxFontPx = sp(32f)
-        fontSizePx = prefs.getInt(PREF_FONT_SIZE, sp(12f)).coerceIn(minFontPx, maxFontPx)
+        val savedFontPx = appSettings.fontSizePx
+        fontSizePx = (if (savedFontPx > 0) savedFontPx else sp(12f)).coerceIn(minFontPx, maxFontPx)
 
         terminalView.setTerminalViewClient(JangadaViewClient(this))
         terminalView.setTextSize(fontSizePx) // precisa vir antes de setTypeface()
@@ -153,7 +152,7 @@ class MainActivity : ComponentActivity() {
                 false
             }
         }
-        setComposeVisible(prefs.getBoolean(PREF_COMPOSE, appSettings.simpleMode), focus = false)
+        setComposeVisible(appSettings.composeVisible, focus = false)
 
         // Sessão do Claude Code: botão para ver a mesma conversa no chat.
         findViewById<View>(R.id.terminal_chat).setOnClickListener { switchToChat() }
@@ -421,7 +420,7 @@ class MainActivity : ComponentActivity() {
 
     private fun setComposeVisible(visible: Boolean, focus: Boolean) {
         composeBar.visibility = if (visible) View.VISIBLE else View.GONE
-        prefs.edit().putBoolean(PREF_COMPOSE, visible).apply()
+        appSettings.composeVisible = visible
         if (!focus) return
         if (visible) focusCompose() else showKeyboard()
     }
@@ -511,7 +510,7 @@ class MainActivity : ComponentActivity() {
         val step = sp(1f).coerceAtLeast(1)
         fontSizePx = (fontSizePx + if (increase) step else -step).coerceIn(minFontPx, maxFontPx)
         terminalView.setTextSize(fontSizePx)
-        prefs.edit().putInt(PREF_FONT_SIZE, fontSizePx).apply()
+        appSettings.fontSizePx = fontSizePx
     }
 
     fun openUrl(url: String) {
@@ -588,8 +587,6 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val PREF_FONT_SIZE = "font_size_px"
-        private const val PREF_COMPOSE = "compose_visible"
         private const val PASTE_ENTER_DELAY_MS = 80L
         private const val KEY_DELAY_MS = 12L
         private const val COMMAND_ENTER_DELAY_MS = 150L

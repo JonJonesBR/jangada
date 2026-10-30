@@ -61,6 +61,16 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_WELCOME_DISMISSED, false)
         set(value) = prefs.edit().putBoolean(KEY_WELCOME_DISMISSED, value).apply()
 
+    /** Tamanho da fonte do terminal, em pixels; 0 = nunca escolhido (usa o padrão da tela). */
+    var fontSizePx: Int
+        get() = prefs.getInt(KEY_FONT_SIZE, 0)
+        set(value) = prefs.edit().putInt(KEY_FONT_SIZE, value).apply()
+
+    /** Caixa de texto do terminal visível. Sem escolha salva, segue o modo (Simples mostra). */
+    var composeVisible: Boolean
+        get() = prefs.getBoolean(KEY_COMPOSE_VISIBLE, simpleMode)
+        set(value) = prefs.edit().putBoolean(KEY_COMPOSE_VISIBLE, value).apply()
+
     companion object {
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
@@ -78,5 +88,7 @@ class AppSettings(context: Context) {
         private const val KEY_ENTER_SENDS = "enter_sends"
         private const val KEY_ASK_PERMISSIONS = "ask_permissions"
         private const val KEY_WELCOME_DISMISSED = "welcome_dismissed"
+        private const val KEY_FONT_SIZE = "font_size_px"
+        private const val KEY_COMPOSE_VISIBLE = "compose_visible"
     }
 }

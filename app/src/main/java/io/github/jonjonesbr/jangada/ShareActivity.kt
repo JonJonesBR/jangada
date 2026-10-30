@@ -78,8 +78,8 @@ class ShareActivity : ComponentActivity() {
      */
     private fun chatAgents(): List<AgentRecipe> {
         val agents = AgentCatalog.load(this).filter { it.hasChat }
-        // Mesma chave que a HomeActivity grava (INSTALLED_COMMANDS).
-        val installed = getSharedPreferences("agents", MODE_PRIVATE).getStringSet("installed_commands", null)
+        // Mesma lista que a HomeActivity grava (AgentPrefs).
+        val installed = AgentPrefs.installedCommands(this)
         return if (installed.isNullOrEmpty()) agents else agents.filter { it.command in installed }
     }
 

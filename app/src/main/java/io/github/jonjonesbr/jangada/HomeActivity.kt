@@ -78,7 +78,7 @@ class HomeActivity : JangadaActivity() {
     private val detecting = AtomicBoolean(false)
     private val detectAgain = AtomicBoolean(false)
 
-    private val prefs by lazy { getSharedPreferences("agents", MODE_PRIVATE) }
+    private val prefs by lazy { AgentPrefs.prefs(this) }
     private val sessionsListener: () -> Unit = { renderSessions() }
     private val simpleMode get() = AppSettings(this).simpleMode
     private var askedStorage = false
@@ -290,7 +290,7 @@ class HomeActivity : JangadaActivity() {
     private fun keepLastKnown() {
         runOnUiThread {
             if (isDestroyed || installed != null) return@runOnUiThread
-            installed = prefs.getStringSet(INSTALLED_COMMANDS, null)?.toSet() ?: emptySet()
+            installed = AgentPrefs.installedCommands(this) ?: emptySet()
             renderAgents()
         }
     }
@@ -330,7 +330,7 @@ class HomeActivity : JangadaActivity() {
             return
         }
         // Guarda os comandos instalados: a ShareActivity filtra os agentes por eles, sem precisar do Debian.
-        prefs.edit().putStringSet(INSTALLED_COMMANDS, HashSet(found)).apply()
+        AgentPrefs.saveInstalledCommands(this, found)
         runOnUiThread {
             if (isDestroyed) return@runOnUiThread
             installed = found
@@ -680,7 +680,5 @@ class HomeActivity : JangadaActivity() {
         const val UPDATE_QUIET_MS = 7L * 24 * 60 * 60 * 1000
         const val RENDER_GAP_MS = 300L
         const val REQUEST_STORAGE = 42
-        /** Chave, nas preferências "agents", dos comandos instalados (lida pela ShareActivity). */
-        const val INSTALLED_COMMANDS = "installed_commands"
     }
 }
