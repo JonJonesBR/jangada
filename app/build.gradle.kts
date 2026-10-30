@@ -67,7 +67,7 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     // O org.json do Android não funciona fora do celular; nos testes, usa a biblioteca original.
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260814")
 }
 
 // Mostra no log do CI o motivo de cada teste que falhar.
