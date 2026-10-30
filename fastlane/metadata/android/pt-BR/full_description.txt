@@ -11,3 +11,5 @@ O Jangada traz um Linux Debian completo para dentro do app e deixa você instala
 </ul>
 
 Sem anúncios e sem rastreamento. Cada agente usa a sua própria conta ou chave de API no serviço de IA correspondente.
+
+Requisitos: Android 8 ou mais novo, processador ARM de 64 bits e cerca de 700 MB livres. Para instalar, baixe o APK nas Releases do GitHub ou use o Obtainium, que também avisa das atualizações.

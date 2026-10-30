@@ -11,8 +11,8 @@
     "en": "Google's agent, successor to Gemini CLI."
   },
   "note": {
-    "pt": "Nesta versão, só no terminal.",
-    "en": "Terminal only for now."
+    "pt": "O chat não roda no Android; use pelo terminal.",
+    "en": "The chat doesn't run on Android; use it in the terminal."
   },
   "uninstall": "rm -rf ~/.local/share/agy-acp ~/.cache/antigravity"
 }

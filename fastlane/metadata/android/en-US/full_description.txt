@@ -11,3 +11,5 @@ Jangada brings a full Debian Linux inside the app and lets you install, open and
 </ul>
 
 No ads, no tracking. Each agent uses your own account or API key with its AI provider.
+
+Requirements: Android 8 or newer, 64-bit ARM processor and about 700 MB of free space. To install, download the APK from GitHub Releases or use Obtainium, which also tells you about updates.

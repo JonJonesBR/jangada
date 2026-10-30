@@ -13,7 +13,7 @@
     "en": "Open-source personal AI assistant."
   },
   "note": {
-    "pt": "Recursos que dependem de serviços do sistema podem não funcionar dentro do app. Nesta versão, só no terminal.",
-    "en": "Features that depend on system services may not work inside the app. Terminal only for now."
+    "pt": "Recursos que dependem de serviços do sistema podem não funcionar dentro do app. O chat depende do gateway do OpenClaw, que o app ainda não conecta; use pelo terminal.",
+    "en": "Features that depend on system services may not work inside the app. The chat needs the OpenClaw gateway, which the app doesn't connect to yet; use it in the terminal."
   }
 }
