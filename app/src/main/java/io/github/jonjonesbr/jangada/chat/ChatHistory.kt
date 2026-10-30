@@ -46,6 +46,8 @@ object ChatHistory {
             if (loaded.size > max) loaded.removeFirst()
         }
         var plan: ChatItem.Plan? = null
+        // Ações pelo id, para o resultado com erro (que vem depois) marcar a ação certa.
+        val tools = HashMap<String, ChatItem.Tool>()
         for (line in lines) {
             val json = runCatching { JSONObject(line) }.getOrNull() ?: continue
             if (json.optBoolean("isMeta") || json.optBoolean("isSidechain")) continue
@@ -58,6 +60,11 @@ object ChatHistory {
                     } else if (content is JSONArray) {
                         for (i in 0 until content.length()) {
                             val block = content.optJSONObject(i) ?: continue
+                            if (block.optString("type") == "tool_result") {
+                                // Resultado de uma ação: se deu erro, a ação aparece como falha.
+                                if (block.optBoolean("is_error")) tools[block.optString("tool_use_id")]?.failed = true
+                                continue
+                            }
                             val text = block.optString("text")
                             if (block.optString("type") == "text" && text.isNotBlank() && !isInternal(text)) {
                                 add(ChatItem.User(text))
@@ -79,12 +86,12 @@ object ChatHistory {
                                 if (current != null && loaded.any { it === current }) current.entries = entries
                                 else plan = ChatItem.Plan(entries).also { add(it) }
                             } else {
-                                add(
-                                    ChatItem.Tool(
-                                        block.optString("id"), block.optString("name"),
-                                        ToolText.summary(block.optString("name"), block.optJSONObject("input")),
-                                    ).apply { done = true },
-                                )
+                                val tool = ChatItem.Tool(
+                                    block.optString("id"), block.optString("name"),
+                                    ToolText.summary(block.optString("name"), block.optJSONObject("input")),
+                                ).apply { done = true }
+                                tools[tool.id] = tool
+                                add(tool)
                             }
                         }
                     }

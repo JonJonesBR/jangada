@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada.chat
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,6 +58,27 @@ class ChatHistoryTest {
         assertEquals(2, items.size)
         assertEquals("<div>oi</div>", (items[0] as ChatItem.User).text)
         assertEquals("<p>sim</p>", (items[1] as ChatItem.User).text)
+    }
+
+    @Test
+    fun acaoComErroAparecePorFalha() {
+        val lines = sequenceOf(
+            """{"type":"user","message":{"role":"user","content":"Roda dois comandos"}}""",
+            """{"type":"assistant","message":{"content":[{"type":"tool_use","id":"e1","name":"Bash","input":{"command":"falha"}},""" +
+                """{"type":"tool_use","id":"e2","name":"Bash","input":{"command":"ok"}}]}}""",
+            """{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"e1","is_error":true,""" +
+                """"content":"Exit code 1"},{"type":"tool_result","tool_use_id":"e2","content":"ok"}]}}""",
+        )
+
+        val items = ChatHistory.parse(lines, max = 100)
+
+        assertEquals(3, items.size)
+        val failed = items[1] as ChatItem.Tool
+        val done = items[2] as ChatItem.Tool
+        assertTrue(failed.done)
+        assertTrue(failed.failed)
+        assertTrue(done.done)
+        assertFalse(done.failed)
     }
 
     @Test
