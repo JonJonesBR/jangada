@@ -18,6 +18,7 @@ import java.io.File
 object Attachments {
 
     private const val MAX_IMAGE_SIDE = 1568
+    private const val MAX_NAME = 80
     const val DIR = "anexos"
 
     /** Lê o arquivo escolhido no Android e prepara o anexo (rodar fora da thread principal). */
@@ -27,8 +28,14 @@ object Attachments {
         val name = safeName(displayName(context, uri) ?: "anexo")
         val dir = File(linux.rootfs, "root/${LinuxEnv.WORKSPACE}/$DIR").apply { mkdirs() }
         val target = unique(dir, name)
-        resolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
-            ?: throw java.io.IOException("não consegui ler o arquivo")
+        try {
+            resolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
+                ?: throw java.io.IOException("could not read the file")
+        } catch (e: Exception) {
+            // Cópia pela metade não fica na pasta de anexos.
+            target.delete()
+            throw e
+        }
         val guestPath = "/root/${LinuxEnv.WORKSPACE}/$DIR/${target.name}"
         val image = if (mime.startsWith("image/")) encodeImage(target) else null
         return Attachment(target.name, guestPath, if (image != null) "image/jpeg" else mime, image)
@@ -66,8 +73,19 @@ object Attachments {
         }
     }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')
 
-    private fun safeName(name: String): String =
-        name.replace(Regex("""[\\/:*?"<>|\s]+"""), "_").trim('_').ifEmpty { "anexo" }.take(80)
+    /**
+     * Nome seguro para o Linux, com no máximo [MAX_NAME] caracteres. Corta só
+     * a base, para manter a extensão (".pdf"), e nunca no meio de um emoji.
+     */
+    internal fun safeName(name: String): String {
+        val clean = name.replace(Regex("""[\\/:*?"<>|\s]+"""), "_").trim('_').ifEmpty { "anexo" }
+        if (clean.codePointCount(0, clean.length) <= MAX_NAME) return clean
+        val dot = clean.lastIndexOf('.')
+        val ext = if (dot > 0 && clean.length - dot <= 10) clean.substring(dot) else ""
+        val base = clean.substring(0, clean.length - ext.length)
+        val keep = (MAX_NAME - ext.codePointCount(0, ext.length)).coerceAtLeast(1)
+        return base.substring(0, base.offsetByCodePoints(0, minOf(keep, base.codePointCount(0, base.length)))) + ext
+    }
 
     private fun unique(dir: File, name: String): File {
         var file = File(dir, name)
