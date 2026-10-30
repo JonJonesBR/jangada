@@ -146,6 +146,7 @@ class TerminalService : Service() {
     var chatAgentId: String? = null
         private set
 
+    // Os três mapas por sessão são usados só na thread principal (sem sincronização).
     /** Agente de cada sessão de terminal (id da receita), para a troca Chat ⇄ Terminal. */
     val sessionAgent = HashMap<String, String>()
     /** Quando cada sessão de terminal começou (para achar a conversa criada nela). */
@@ -269,11 +270,8 @@ class TerminalService : Service() {
     }
 
     override fun onDestroy() {
-        chat?.stop()
-        chat = null
+        tearDownSessions()?.stop()
         linkWatcher?.stopWatching()
-        sessions.forEach { it.finishIfRunning() }
-        sessions.clear()
         wakeLock?.let { if (it.isHeld) it.release() }
         networkCallback?.let { callback ->
             runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(callback) }
@@ -335,6 +333,8 @@ class TerminalService : Service() {
     fun replaceSession(old: TerminalSession): TerminalSession {
         old.finishIfRunning()
         sessions.remove(old)
+        // A nova é um shell limpo: não herda agente nem conversa da antiga (só o título).
+        forgetSession(old.mHandle)
         return createSession(old.mSessionName ?: DEFAULT_TITLE)
     }
 
@@ -343,9 +343,7 @@ class TerminalService : Service() {
         val session = session(handle) ?: return
         session.finishIfRunning()
         sessions.remove(session)
-        sessionAgent.remove(handle)
-        sessionStartedAt.remove(handle)
-        sessionConversation.remove(handle)
+        forgetSession(handle)
         sessionsChanged()
         leaveForegroundIfIdle()
     }
@@ -496,11 +494,33 @@ class TerminalService : Service() {
         notifications().notify(NOTIFICATION_LINK, notification)
     }
 
-    private fun exit() {
+    /** Tira os mapas por sessão de uma sessão que saiu. */
+    private fun forgetSession(handle: String) {
+        sessionAgent.remove(handle)
+        sessionStartedAt.remove(handle)
+        sessionConversation.remove(handle)
+    }
+
+    /**
+     * Encerra todas as sessões de terminal, limpa os mapas por sessão e solta o
+     * chat (zerando chat e chatAgentId). Devolve o chat solto para quem chama
+     * parar: cada saída espera de um jeito diferente. Não cancela tarefas nem
+     * avisa as telas; isso fica com quem chama, na ordem que cada um precisa.
+     */
+    private fun tearDownSessions(): io.github.jonjonesbr.jangada.chat.AgentChat? {
         sessions.forEach { it.finishIfRunning() }
         sessions.clear()
-        chat?.stop()
+        sessionAgent.clear()
+        sessionStartedAt.clear()
+        sessionConversation.clear()
+        val current = chat
         chat = null
+        chatAgentId = null
+        return current
+    }
+
+    private fun exit() {
+        tearDownSessions()?.stop()
         cancelRunningTasks()
         sessionListeners.forEach { it() }
         onExit?.invoke()
@@ -513,11 +533,7 @@ class TerminalService : Service() {
      * saiu e as instalações terminaram (no máximo 5 s para cada uma).
      */
     fun closeEverything(then: () -> Unit) {
-        sessions.forEach { it.finishIfRunning() }
-        sessions.clear()
-        val current = chat
-        chat = null
-        chatAgentId = null
+        val current = tearDownSessions()
         cancelRunningTasks()
         sessionListeners.forEach { it() }
         val chatGone = java.util.concurrent.CountDownLatch(1)
