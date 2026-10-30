@@ -1,0 +1,64 @@
+name: Conferir instalação dos agentes
+
+# Semanal: confere se os endereços usados nos scripts de instalação dos agentes
+# (campo "install" das receitas) continuam respondendo. Se algum cair, o GitHub
+# avisa o dono do repositório por e-mail, porque o workflow agendado falha.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  urls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Junta as URLs https de todas as receitas (uma por linha, sem repetir).
+      - name: Listar URLs das receitas
+        run: |
+          set -euo pipefail
+          python3 -I -c '
+          import glob, json, re
+          urls = set()
+          for path in sorted(glob.glob("app/src/main/assets/agents/*.json")):
+              with open(path, encoding="utf-8") as f:
+                  recipe = json.load(f)
+              text = recipe.get("install") or ""
+              urls.update(re.findall(r"https://[^\s|\x27\"&;)]+", text))
+          for url in sorted(urls):
+              print(url)
+          ' > "$RUNNER_TEMP/urls.txt"
+          echo "$(wc -l < "$RUNNER_TEMP/urls.txt") URL(s) encontrada(s)."
+
+      # Só confere se responde; não baixa nem executa nada. Se o HEAD falhar
+      # (alguns servidores recusam HEAD com 405), tenta um GET antes de desistir.
+      - name: Testar URLs
+        run: |
+          set +e
+          failed=()
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            if curl -fsSIL --connect-timeout 20 --max-time 60 -o /dev/null "$url"; then
+              echo "OK    $url"
+            elif curl -fsSL --connect-timeout 20 --max-time 60 -o /dev/null "$url"; then
+              echo "OK    $url (GET)"
+            else
+              echo "FALHA $url"
+              failed+=("$url")
+            fi
+          done < "$RUNNER_TEMP/urls.txt"
+          if [ "${#failed[@]}" -gt 0 ]; then
+            for url in "${failed[@]}"; do
+              echo "::error title=Instalação de agente::Não responde: $url"
+            done
+            echo "${#failed[@]} URL(s) não responderam. Confira as receitas em app/src/main/assets/agents/."
+            exit 1
+          fi
+          echo "Todas as URLs responderam."
