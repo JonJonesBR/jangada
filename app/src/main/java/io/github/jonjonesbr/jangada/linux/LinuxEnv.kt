@@ -3,6 +3,7 @@ package io.github.jonjonesbr.jangada.linux
 import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Build
+import android.util.Log
 import java.io.File
 
 /**
@@ -264,28 +265,30 @@ class LinuxEnv(context: Context) {
         val etc = File(rootfs, "etc")
         // Instaladores como o do Claude Code colocam o programa em ~/.local/bin;
         // BROWSER faz os agentes abrirem links pelo app.
-        val profileD = File(etc, "profile.d").apply { mkdirs() }
-        writeReplacing(File(profileD, "jangada.sh"), PROFILE_SCRIPT)
+        val profileD = File(etc, "profile.d")
+        if (ensureRealDir(profileD)) writeReplacing(File(profileD, "jangada.sh"), PROFILE_SCRIPT)
 
         // jangada-open: entrega um link ao app. Também atende como xdg-open etc.
-        val bin = File(rootfs, "usr/local/bin").apply { mkdirs() }
-        val opener = File(bin, "jangada-open")
-        writeReplacing(opener, OPEN_SCRIPT)
-        Fs.setMode(opener.toPath(), "755".toInt(8))
-        for (alias in listOf("xdg-open", "sensible-browser", "x-www-browser", "www-browser")) {
-            val link = File(bin, alias).toPath()
-            // Já é o link certo: não mexe (cada sessão passa aqui).
-            val upToDate = java.nio.file.Files.isSymbolicLink(link) &&
-                runCatching { java.nio.file.Files.readSymbolicLink(link).toString() == "jangada-open" }.getOrDefault(false)
-            if (upToDate) continue
-            Fs.deleteTree(link)
-            try {
-                java.nio.file.Files.createSymbolicLink(link, java.nio.file.Paths.get("jangada-open"))
-            } catch (e: java.nio.file.FileAlreadyExistsException) {
-                // Outra chamada criou o link ao mesmo tempo: já está certo.
+        val bin = File(rootfs, "usr/local/bin")
+        if (ensureRealDir(bin)) {
+            val opener = File(bin, "jangada-open")
+            writeReplacing(opener, OPEN_SCRIPT)
+            Fs.setMode(opener.toPath(), "755".toInt(8))
+            for (alias in listOf("xdg-open", "sensible-browser", "x-www-browser", "www-browser")) {
+                val link = File(bin, alias).toPath()
+                // Já é o link certo: não mexe (cada sessão passa aqui).
+                val upToDate = java.nio.file.Files.isSymbolicLink(link) &&
+                    runCatching { java.nio.file.Files.readSymbolicLink(link).toString() == "jangada-open" }.getOrDefault(false)
+                if (upToDate) continue
+                Fs.deleteTree(link)
+                try {
+                    java.nio.file.Files.createSymbolicLink(link, java.nio.file.Paths.get("jangada-open"))
+                } catch (e: java.nio.file.FileAlreadyExistsException) {
+                    // Outra chamada criou o link ao mesmo tempo: já está certo.
+                }
             }
         }
-        linkInbox.mkdirs()
+        ensureRealDir(linkInbox)
 
         // Pasta de trabalho dos agentes. Fora da home de propósito: o Claude Code
         // não guarda a confiança na pasta home e perguntaria toda vez.
@@ -329,6 +332,19 @@ class LinuxEnv(context: Context) {
     }
 
     /**
+     * Cria a pasta (com mkdirs) só se ela não for link simbólico. Se for, devolve
+     * false e registra aviso: quem chama pula a parte, sem gravar através do link.
+     */
+    private fun ensureRealDir(dir: File): Boolean {
+        if (java.nio.file.Files.isSymbolicLink(dir.toPath())) {
+            Log.w(TAG, "pasta ${dir.name} é link simbólico; não gravo nela")
+            return false
+        }
+        dir.mkdirs()
+        return true
+    }
+
+    /**
      * Marca ~/projetos como pasta confiável no Claude Code. É a pasta de
      * trabalho criada pelo próprio app; sem isso, alternar entre chat e
      * terminal faz o Claude perguntar de novo a cada abertura. Só mexe no
@@ -338,7 +354,8 @@ class LinuxEnv(context: Context) {
     fun trustWorkspaceInClaude() {
         synchronized(TRUST_LOCK) {
             val file = File(rootfs, "root/.claude.json")
-            if (!file.isFile) return
+            // Link não é lido nem alterado: só arquivo comum.
+            if (!java.nio.file.Files.isRegularFile(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) return
             // O arquivo pode ser grande: só lê de novo quando ele mudou desde a última conferência.
             val seen = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
             if (seen == claudeJsonChecked) return
@@ -382,6 +399,8 @@ class LinuxEnv(context: Context) {
     }
 
     companion object {
+        private const val TAG = "LinuxEnv"
+
         /** Serializa [refreshIntegration]: ele é chamado de várias threads ao mesmo tempo. */
         private val LOCK = Any()
 

@@ -8,11 +8,15 @@ import android.media.ExifInterface
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import io.github.jonjonesbr.jangada.linux.Fs
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 
 /** Arquivo maior que [Attachments.MAX_ATTACHMENT_BYTES]: a cópia é interrompida. */
 class AttachmentTooLargeException(limit: Long) : IOException("attachment larger than $limit bytes")
@@ -36,11 +40,14 @@ object Attachments {
         val resolver = context.contentResolver
         val mime = resolver.getType(uri) ?: "application/octet-stream"
         val name = safeName(displayName(context, uri) ?: "anexo")
-        val dir = File(linux.rootfs, "root/${LinuxEnv.WORKSPACE}/$DIR").apply { mkdirs() }
+        val dir = attachmentsDir(linux.rootfs)
         val target = unique(dir, name)
         try {
             resolver.openInputStream(uri)?.use { input -> copyLimited(input, target) }
                 ?: throw IOException("could not read the file")
+        } catch (e: FileAlreadyExistsException) {
+            // Apareceu outro arquivo com esse nome na corrida: não é nosso, não apaga.
+            throw e
         } catch (e: Exception) {
             // Cópia pela metade não fica na pasta de anexos.
             target.delete()
@@ -52,11 +59,27 @@ object Attachments {
     }
 
     /**
+     * Pasta de anexos dentro do Linux, criada se faltar. Recusa (IOException) se
+     * a pasta do workspace ou a de anexos for link simbólico: nunca gravamos através de link.
+     */
+    internal fun attachmentsDir(rootfs: File): File {
+        val workspace = File(rootfs, "root/${LinuxEnv.WORKSPACE}")
+        val dir = File(workspace, DIR)
+        for (path in listOf(workspace, dir)) {
+            if (Files.isSymbolicLink(path.toPath())) throw IOException("${path.name} é link simbólico")
+        }
+        Files.createDirectories(dir.toPath())
+        if (!Fs.isDir(dir.toPath())) throw IOException("${dir.name} não é uma pasta")
+        return dir
+    }
+
+    /**
      * Copia o stream para [target], parando com [AttachmentTooLargeException]
-     * se passar de [maxBytes]. Quem chama apaga o arquivo parcial.
+     * se passar de [maxBytes]. Quem chama apaga o arquivo parcial. Falha se
+     * já existir algo em [target] (inclusive link), sem seguir nem sobrescrever.
      */
     internal fun copyLimited(input: InputStream, target: File, maxBytes: Long = MAX_ATTACHMENT_BYTES) {
-        target.outputStream().use { out ->
+        Files.newOutputStream(target.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE).use { out ->
             val buffer = ByteArray(8192)
             var total = 0L
             while (true) {
@@ -146,10 +169,11 @@ object Attachments {
         return base.substring(0, base.offsetByCodePoints(0, minOf(keep, base.codePointCount(0, base.length)))) + ext
     }
 
-    private fun unique(dir: File, name: String): File {
+    /** Nome livre em [dir]. Link quebrado conta como ocupado (não é seguido). */
+    internal fun unique(dir: File, name: String): File {
         var file = File(dir, name)
         var counter = 2
-        while (file.exists()) {
+        while (Fs.exists(file.toPath())) {
             val dot = name.lastIndexOf('.')
             val base = if (dot > 0) name.substring(0, dot) else name
             val ext = if (dot > 0) name.substring(dot) else ""
