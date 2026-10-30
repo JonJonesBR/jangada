@@ -267,6 +267,18 @@ class HomeActivity : JangadaActivity() {
     }
 
     /**
+     * A detecção falhou: mantém o que já está na tela. Se ainda não havia nada (primeira rodada),
+     * usa a última lista gravada, para os cartões não ficarem em "Verificando" para sempre.
+     */
+    private fun keepLastKnown() {
+        runOnUiThread {
+            if (isDestroyed || installed != null) return@runOnUiThread
+            installed = prefs.getStringSet(INSTALLED_COMMANDS, null)?.toSet() ?: emptySet()
+            renderAgents()
+        }
+    }
+
+    /**
      * Uma rodada da detecção: manda o script ao Debian e, só se ele terminar com sucesso,
      * publica o resultado. Se o proot falhar, mantém a lista e as prefs da rodada anterior.
      */
@@ -292,10 +304,12 @@ class HomeActivity : JangadaActivity() {
             }
         }.getOrElse { error ->
             Log.w(TAG, "detecção dos agentes falhou", error)
+            keepLastKnown()
             return
         }
         if (code != 0) {
             Log.w(TAG, "detecção dos agentes terminou com código $code")
+            keepLastKnown()
             return
         }
         // Guarda os comandos instalados: a ShareActivity filtra os agentes por eles, sem precisar do Debian.
