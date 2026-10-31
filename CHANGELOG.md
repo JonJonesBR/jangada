@@ -1,5 +1,15 @@
 # Novidades
 
+## 1.8.0
+
+- Painel que sobe de baixo, no alcance do polegar, no lugar das listas em diálogo: ajustes do chat, pastas, trabalhos, histórico, ações do resumo, menu do agente e compartilhar. Cada opção tem uma frase explicando e o valor atual.
+- Chat: o título mostra o trabalho (agente, pasta e branch) e abre a troca de trabalho; o menu ⋮ tem texto (Nova conversa, Histórico, Trabalhos, Mudanças, Encerrar trabalho isolado, Ajustes do chat).
+- Chat: barra de atalhos acima da caixa de texto com a pasta, o modelo e o esforço, a visualização, o contexto (com aviso e Compactar agora a partir de 80%) e o número de mudanças do git.
+- Chat: o pedido de permissão fica fixo acima da caixa de texto, com Permitir, Recusar e Detalhes.
+- Tela inicial: botão Novo trabalho (agente, pasta e, num repositório, direto ou numa cópia isolada); quem espera você aparece primeiro e em destaque.
+- Mudanças: botão para pedir ao agente que revise e faça o commit.
+- Acessibilidade: o leitor de tela anuncia resposta pronta, pedidos de permissão e erros com o chat aberto; vibração opcional no fim da resposta; tamanho do texto do chat nas configurações; fechar um trabalho que está rodando pede confirmação.
+
 ## 1.7.0
 
 - Trabalhos: cada par agente + pasta é um trabalho, e até 3 rodam ao mesmo tempo sem um parar o outro. O botão ⇄ no chat alterna entre eles; trocar de pasta abre outro trabalho e deixa o anterior rodando. A tela inicial mostra cada trabalho com o estado (Trabalhando, Esperando você, Pronto, Parado) e, com 4 ou mais, filtros por estado e por pasta.

@@ -1,0 +1,1 @@
+Easier to use on the phone: choices in a panel that slides up from the bottom; shortcut bar above the text box (folder, model, view, context, changes); ⋮ menu with text; permission request pinned at the bottom; one-step New job on the home screen. Accessibility: screen reader announcements, optional vibration, chat text size and confirmation before closing a running job.
