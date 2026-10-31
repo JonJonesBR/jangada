@@ -31,7 +31,7 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_CHAT_EFFORT, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CHAT_EFFORT, value).apply()
 
-    /** Pasta de trabalho do chat, subpasta de ~/projetos ("" = a raiz, todos os projetos). Vale para todos os agentes. */
+    /** Última pasta de trabalho usada no chat, subpasta de ~/projetos ("" = a raiz). Abre o trabalho dessa pasta quando a tela não diz outra. */
     var chatFolder: String
         get() = prefs.getString(KEY_CHAT_FOLDER, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CHAT_FOLDER, value).apply()

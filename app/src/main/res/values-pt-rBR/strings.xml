@@ -154,10 +154,11 @@
     <string name="chat_folder_new_title">Nova pasta</string>
     <string name="chat_folder_new_hint">Nome da pasta</string>
     <string name="chat_folder_invalid">Use letras, números, ponto, hífen ou sublinhado</string>
-    <string name="chat_folder_changed">Agora trabalhando em %1$s</string>
     <string name="chat_folder_create_failed">Não foi possível criar a pasta</string>
-    <string name="chat_folder_busy">O agente está trabalhando. Parar e trocar de pasta?</string>
-    <string name="chat_folder_busy_switch">Parar e trocar</string>
+    <string name="chat_jobs">Trabalhos</string>
+    <string name="chat_jobs_new">Novo trabalho…</string>
+    <string name="chat_jobs_full_title">Já há 3 trabalhos abertos</string>
+    <string name="chat_jobs_full">Cada agente usa memória do celular. Toque em um trabalho para fechá-lo e abrir este.</string>
     <string name="chat_view_detailed">Detalhado</string>
     <string name="chat_view_normal">Normal</string>
     <string name="chat_view_summary">Resumo</string>

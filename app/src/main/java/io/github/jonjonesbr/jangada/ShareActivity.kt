@@ -12,6 +12,7 @@ import androidx.activity.ComponentActivity
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
+import io.github.jonjonesbr.jangada.linux.Workspace
 
 /**
  * Recebe o "Compartilhar" de outros apps e manda o texto e os arquivos para
@@ -95,8 +96,12 @@ class ShareActivity : ComponentActivity() {
 
     /** Abre o chat do agente já com o conteúdo recebido, e sai desta tela. */
     private fun openChat(agent: AgentRecipe) {
+        // A pasta é a última usada no chat (validada: apagada ou link volta para a raiz).
+        val linux = LinuxEnv(this)
+        val folder = Workspace.existing(linux.rootfs, AppSettings(this).chatFolder)
         val chat = Intent(this, ChatActivity::class.java)
             .putExtra(ChatActivity.EXTRA_AGENT_ID, agent.id)
+            .putExtra(ChatActivity.EXTRA_FOLDER, folder)
             .putParcelableArrayListExtra(ChatActivity.EXTRA_SHARED_URIS, ArrayList(uris))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         text?.let { chat.putExtra(ChatActivity.EXTRA_SHARED_TEXT, it) }

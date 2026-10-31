@@ -51,6 +51,14 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+        <!-- Trabalhos abertos (outros chats, em paralelo) e o novo trabalho. -->
+        <TextView
+            android:id="@+id/chat_jobs"
+            style="@style/BarButton"
+            android:contentDescription="@string/chat_jobs"
+            android:text="⇄"
+            android:textSize="18sp" />
+
         <TextView
             android:id="@+id/chat_history"
             style="@style/BarButton"
