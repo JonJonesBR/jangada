@@ -1,0 +1,1 @@
+Trabalhos: até 3 agentes rodando ao mesmo tempo, cada um na sua pasta, com o botão ⇄ para alternar e a tela inicial mostrando o estado de cada um (com filtro). Trabalho isolado com git worktree (criar, juntar ou descartar). Tela de mudanças do git com diff e commit. Permitir ou recusar pedidos do agente direto pela notificação.

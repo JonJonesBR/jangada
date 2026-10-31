@@ -1,5 +1,12 @@
 # Novidades
 
+## 1.7.0
+
+- Trabalhos: cada par agente + pasta é um trabalho, e até 3 rodam ao mesmo tempo sem um parar o outro. O botão ⇄ no chat alterna entre eles; trocar de pasta abre outro trabalho e deixa o anterior rodando. A tela inicial mostra cada trabalho com o estado (Trabalhando, Esperando você, Pronto, Parado) e, com 4 ou mais, filtros por estado e por pasta.
+- Trabalho isolado (git worktree): no seletor de pasta, cria uma cópia de trabalho do repositório numa branch própria (jangada/<nome>). Encerrar junta na branch do repositório, descarta (com confirmação) ou mantém.
+- Mudanças (git), nos ajustes do chat: arquivos alterados, diff colorido de cada um e commit com mensagem.
+- Avisos: o pedido de permissão mostra o que o agente quer fazer e tem os botões Permitir e Recusar (Permitir pede o desbloqueio do celular no Android 12 ou mais novo). Cada trabalho tem o próprio aviso.
+
 ## 1.6.0
 
 - Chat: nos ajustes do chat, a linha Pasta escolhe em que repositório de ~/projetos o agente trabalha (ou todos os projetos, como antes), mostrando a branch do git. O título do chat mostra a pasta, e dá para criar uma pasta nova ali.

@@ -1,0 +1,1 @@
+Jobs: up to 3 agents running at once, each in its own folder, with the ⇄ button to switch and the home screen showing each one's state (with a filter). Isolated jobs with git worktree (create, merge or discard). Git changes screen with diff and commit. Allow or deny agent requests right from the notification.
