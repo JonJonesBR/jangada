@@ -141,7 +141,6 @@
     <string name="chat_continue_prompt">Continue from where you stopped.</string>
     <string name="chat_queued">Queued — sends when the agent finishes</string>
     <string name="chat_dropped">Not sent — tap to edit</string>
-    <string name="chat_compact">Context almost full · Compact</string>
     <string name="chat_delete">Delete</string>
     <string name="chat_delete_title">Delete this conversation?</string>
     <string name="chat_hint_agent">Message %s</string>
@@ -172,6 +171,26 @@
     <string name="chat_menu_jobs_desc">Other chats and folders, running side by side</string>
     <string name="chat_menu_finish_desc">Merge the result or discard this working copy</string>
     <string name="chat_menu_settings_desc">Folder, model, view and the agent’s options</string>
+    <string name="chat_chip_folder_description">Folder %1$s, branch %2$s. Tap to switch.</string>
+    <string name="chat_chip_folder_plain">Folder %1$s. Tap to switch.</string>
+    <string name="chat_chip_model_description">Model %1$s, effort %2$s. Tap to change.</string>
+    <string name="chat_chip_model_plain">Model %1$s. Tap to change.</string>
+    <string name="chat_chip_view_description">View: %1$s. Tap to change.</string>
+    <string name="chat_chip_context">%1$d%%</string>
+    <string name="chat_chip_context_high">⚠ %1$d%%</string>
+    <string name="chat_chip_context_description">Context %1$d%% used. Tap for details.</string>
+    <string name="chat_model_effort_title">Model and effort</string>
+    <string name="chat_context_title">Conversation context</string>
+    <string name="chat_context_explain">%1$d%% of the conversation’s memory is in use. Compacting summarizes the conversation so it can keep going with more room.</string>
+    <string name="chat_compact_now">Compact now</string>
+    <plurals name="chat_quick_changes">
+        <item quantity="one">⎇ %d change</item>
+        <item quantity="other">⎇ %d changes</item>
+    </plurals>
+    <plurals name="chat_quick_changes_description">
+        <item quantity="one">%d changed file. Tap to open changes.</item>
+        <item quantity="other">%d changed files. Tap to open changes.</item>
+    </plurals>
     <string name="chat_setting_model">Model</string>
     <string name="chat_setting_effort">Effort</string>
     <string name="chat_setting_view">View</string>

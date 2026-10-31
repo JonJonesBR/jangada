@@ -139,7 +139,6 @@
     <string name="chat_continue_prompt">Continue de onde parou.</string>
     <string name="chat_queued">Na fila — vai quando o agente terminar</string>
     <string name="chat_dropped">Não enviada — toque para editar</string>
-    <string name="chat_compact">Contexto quase cheio · Compactar</string>
     <string name="chat_delete">Apagar</string>
     <string name="chat_delete_title">Apagar esta conversa?</string>
     <string name="chat_hint_agent">Mensagem para o %s</string>
@@ -170,6 +169,26 @@
     <string name="chat_menu_jobs_desc">Outros chats e pastas, rodando ao mesmo tempo</string>
     <string name="chat_menu_finish_desc">Juntar o resultado ou descartar esta cópia de trabalho</string>
     <string name="chat_menu_settings_desc">Pasta, modelo, visualização e opções do agente</string>
+    <string name="chat_chip_folder_description">Pasta %1$s, branch %2$s. Toque para trocar.</string>
+    <string name="chat_chip_folder_plain">Pasta %1$s. Toque para trocar.</string>
+    <string name="chat_chip_model_description">Modelo %1$s, esforço %2$s. Toque para mudar.</string>
+    <string name="chat_chip_model_plain">Modelo %1$s. Toque para mudar.</string>
+    <string name="chat_chip_view_description">Visualização: %1$s. Toque para mudar.</string>
+    <string name="chat_chip_context">%1$d%%</string>
+    <string name="chat_chip_context_high">⚠ %1$d%%</string>
+    <string name="chat_chip_context_description">Contexto %1$d%% usado. Toque para ver mais.</string>
+    <string name="chat_model_effort_title">Modelo e esforço</string>
+    <string name="chat_context_title">Contexto da conversa</string>
+    <string name="chat_context_explain">%1$d%% da memória da conversa já está em uso. Compactar resume a conversa para ela continuar com mais espaço.</string>
+    <string name="chat_compact_now">Compactar agora</string>
+    <plurals name="chat_quick_changes">
+        <item quantity="one">⎇ %d mudança</item>
+        <item quantity="other">⎇ %d mudanças</item>
+    </plurals>
+    <plurals name="chat_quick_changes_description">
+        <item quantity="one">%d arquivo alterado. Toque para abrir as mudanças.</item>
+        <item quantity="other">%d arquivos alterados. Toque para abrir as mudanças.</item>
+    </plurals>
     <string name="chat_setting_model">Modelo</string>
     <string name="chat_setting_effort">Esforço</string>
     <string name="chat_setting_view">Visualização</string>

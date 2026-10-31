@@ -61,6 +61,22 @@
         <item name="android:textStyle">bold</item>
     </style>
 
+    <!-- Atalho acima da caixa de texto do chat: pílula com o fundo chip_bg (48dp de altura). -->
+    <style name="QuickChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:maxWidth">240dp</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/chip_bg</item>
+        <item name="android:textColor">@color/setup_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
     <style name="SettingsOption">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

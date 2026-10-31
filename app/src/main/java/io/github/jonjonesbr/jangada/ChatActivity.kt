@@ -65,6 +65,7 @@ import io.github.jonjonesbr.jangada.chat.chatState
 import io.github.jonjonesbr.jangada.chat.PermissionOption
 import io.github.jonjonesbr.jangada.chat.SlashCommand
 import io.github.jonjonesbr.jangada.chat.ToolText
+import io.github.jonjonesbr.jangada.chat.friendlyModel
 import io.github.jonjonesbr.jangada.linux.Fs
 import io.github.jonjonesbr.jangada.linux.Git
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
@@ -92,7 +93,13 @@ class ChatActivity : JangadaActivity() {
     private lateinit var subtitle: TextView
     private lateinit var titleBlock: View
     private lateinit var continueChip: TextView
-    private lateinit var compactChip: TextView
+    /** Atalhos acima da caixa (ver [updateQuickbar]): a barra e os cinco chips, criados no layout. */
+    private lateinit var quickbar: View
+    private lateinit var chipFolder: TextView
+    private lateinit var chipModel: TextView
+    private lateinit var chipView: TextView
+    private lateinit var chipContext: TextView
+    private lateinit var chipChanges: TextView
     private lateinit var attachmentsRow: LinearLayout
     private lateinit var prepareActions: LinearLayout
     private lateinit var sendButton: View
@@ -134,6 +141,10 @@ class ChatActivity : JangadaActivity() {
     private var folderBranch: String? = null
     /** Repositório de origem, se a pasta é um trabalho isolado (worktree). */
     private var folderWorktreeOf: String? = null
+    /** Arquivos alterados da pasta (git status); null = não lido ou sem git. */
+    private var changedFiles: Int? = null
+    /** Número da leitura de mudanças mais nova: resultado de uma leitura anterior é descartado. */
+    private var changesGeneration = 0
     private var engine: AgentChat? = null
     private var enterAt = -1
     private val pendingAttachments = mutableListOf<Attachment>()
@@ -176,7 +187,12 @@ class ChatActivity : JangadaActivity() {
         subtitle = findViewById(R.id.chat_subtitle)
         titleBlock = findViewById(R.id.chat_title_block)
         continueChip = findViewById(R.id.chat_continue)
-        compactChip = findViewById(R.id.chat_compact)
+        quickbar = findViewById(R.id.chat_quickbar)
+        chipFolder = findViewById(R.id.chat_chip_folder)
+        chipModel = findViewById(R.id.chat_chip_model)
+        chipView = findViewById(R.id.chat_chip_view)
+        chipContext = findViewById(R.id.chat_chip_context)
+        chipChanges = findViewById(R.id.chat_chip_changes)
         attachmentsRow = findViewById(R.id.chat_attachments)
         prepareActions = findViewById(R.id.chat_prepare_actions)
         sendButton = findViewById(R.id.chat_send)
@@ -204,9 +220,13 @@ class ChatActivity : JangadaActivity() {
         findViewById<View>(R.id.chat_terminal).setOnClickListener { switchToTerminal() }
         findViewById<View>(R.id.chat_menu).setOnClickListener { showMenu() }
         continueChip.setOnClickListener { engine?.sendMessage(getString(R.string.chat_continue_prompt)) }
-        compactChip.setOnClickListener { engine?.sendMessage("/compact") }
         // Agente e pasta formam um só alvo de toque: tocar abre os trabalhos (trocar de pasta ou de agente).
         titleBlock.setOnClickListener { showJobs() }
+        chipFolder.setOnClickListener { showJobs() }
+        chipModel.setOnClickListener { showModelSheet() }
+        chipView.setOnClickListener { chooseView() }
+        chipContext.setOnClickListener { engine?.let { showContextSheet(it) } }
+        chipChanges.setOnClickListener { openChanges() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
 
         // "Enter envia" (configurações): o Enter do teclado manda a mensagem.
@@ -266,8 +286,9 @@ class ChatActivity : JangadaActivity() {
         resumed = true
         service?.visibleChat = chatKey
         applyTextScale()
-        // O branch pode ter mudado no terminal enquanto a tela estava em segundo plano.
+        // O branch e as mudanças podem ter mudado no terminal enquanto a tela estava em segundo plano.
         readFolderInfo()
+        readChanges()
         // Ao voltar com "/..." na caixa, as sugestões reaparecem (depois da janela estar pronta).
         input.post { updateCommandSuggestions() }
     }
@@ -585,6 +606,7 @@ class ChatActivity : JangadaActivity() {
         seenPermissions.clear()
         seenErrors.clear()
         refresh()
+        readChanges()
         input.requestFocus()
         flushPendingSend()
     }
@@ -644,6 +666,7 @@ class ChatActivity : JangadaActivity() {
                 folderBranch = branch
                 folderWorktreeOf = worktreeOf
                 updateTitle()
+                updateQuickbar()
             }
         }
     }
@@ -657,6 +680,8 @@ class ChatActivity : JangadaActivity() {
     private fun announceChanges(chat: AgentChat) {
         val finished = lastBusy && !chat.busy
         lastBusy = chat.busy
+        // O turno que acabou pode ter editado arquivos: a contagem do atalho de mudanças é lida de novo.
+        if (finished) readChanges()
         val items = chat.items.toList()
         val freshPermission = items.filterIsInstance<ChatItem.Permission>()
             .filter { it.chosen == null }.filter { seenPermissions.add(it) }.firstOrNull()
@@ -693,6 +718,7 @@ class ChatActivity : JangadaActivity() {
     private fun applyTextScale() {
         val scale = settings.chatTextScale
         input.textSize = INPUT_TEXT_SP * scale
+        for (chip in listOf(chipFolder, chipModel, chipView, chipContext, chipChanges)) chip.textSize = CHIP_TEXT_SP * scale
         if (adapter.chatScale != scale) {
             adapter.chatScale = scale
             adapter.notifyDataSetChanged()
@@ -718,14 +744,130 @@ class ChatActivity : JangadaActivity() {
         list.visibility = if (isEmpty) View.GONE else View.VISIBLE
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
         continueChip.visibility = if (chat.interrupted && !chat.busy) View.VISIBLE else View.GONE
-        // Contexto quase cheio: oferece compactar (só se o agente aceita e não está no meio de um turno).
-        val percent = chat.contextUsage?.percent ?: 0
-        val canCompact = isClaude || (chat as? AcpChat)?.commands?.any { it.name == "compact" } == true
-        // Um chip por vez: "Continuar" vem antes (a resposta parou no meio); compactar aparece no fim do próximo turno.
-        val showCompact = percent >= COMPACT_PERCENT && !chat.busy && canCompact && continueChip.visibility != View.VISIBLE
-        compactChip.visibility = if (showCompact) View.VISIBLE else View.GONE
+        updateQuickbar()
         // Comandos que o agente acabou de anunciar também podem entrar na sugestão.
         updateCommandSuggestions()
+    }
+
+    /**
+     * Atalhos acima da caixa: pasta, modelo, visualização, contexto e mudanças. As views são criadas
+     * no layout; aqui só mudam texto, descrição e visibilidade (sem recriar nada a cada redesenho).
+     */
+    private fun updateQuickbar() {
+        val chat = engine ?: return
+        quickbar.visibility = View.VISIBLE
+        val branch = folderBranch
+
+        // Pasta (e branch): a raiz mostra ~/projetos.
+        val name = if (folder.isEmpty()) displayPath(Workspace.ROOT) else folder
+        val label = if (branch == null) name else "$name · $branch"
+        chipFolder.text = "📁 $label"
+        chipFolder.contentDescription = when {
+            folder.isEmpty() -> getString(R.string.chat_chip_folder_plain, getString(R.string.chat_folder_root))
+            branch != null -> getString(R.string.chat_chip_folder_description, folder, branch)
+            else -> getString(R.string.chat_chip_folder_plain, folder)
+        }
+        chipFolder.visibility = View.VISIBLE
+
+        // Modelo e esforço: no Claude sempre; no ACP, só quando o agente oferece opções.
+        val acp = chat as? AcpChat
+        val options = acp?.configOptions.orEmpty()
+        val showModel = isClaude || options.isNotEmpty()
+        chipModel.visibility = if (showModel) View.VISIBLE else View.GONE
+        if (isClaude) {
+            val model = friendlyModel(chat.model) ?: getString(R.string.chat_model_default)
+            val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { effortLabel(it) } ?: getString(R.string.chat_effort_default)
+            chipModel.text = "$model · $effort"
+            chipModel.contentDescription = getString(R.string.chat_chip_model_description, model, effort)
+        } else if (acp != null && showModel) {
+            val model = acp.model.orEmpty()
+            val thought = options.firstOrNull { it.category == "thought_level" }?.currentName
+            chipModel.text = listOfNotNull(model, thought).joinToString(" · ")
+            chipModel.contentDescription = if (thought == null) {
+                getString(R.string.chat_chip_model_plain, model)
+            } else {
+                getString(R.string.chat_chip_model_description, model, thought)
+            }
+        }
+
+        // Visualização: o modo atual, como nos ajustes.
+        val viewLabel = getString(viewLabelRes(settings.chatView))
+        chipView.text = "👁 $viewLabel"
+        chipView.contentDescription = getString(R.string.chat_chip_view_description, viewLabel)
+
+        // Contexto: só quando o agente informa. Com 80% ou mais, o chip fica em destaque.
+        val usage = chat.contextUsage
+        chipContext.visibility = if (usage == null) View.GONE else View.VISIBLE
+        if (usage != null) {
+            val percent = usage.percent
+            val high = percent >= COMPACT_PERCENT
+            chipContext.text = getString(if (high) R.string.chat_chip_context_high else R.string.chat_chip_context, percent)
+            chipContext.setTextColor(getColor(if (high) R.color.setup_error else R.color.setup_text))
+            chipContext.contentDescription = getString(R.string.chat_chip_context_description, percent)
+        }
+
+        // Mudanças: só numa pasta git com arquivos alterados (a contagem vem de readChanges).
+        val changes = changedFiles ?: 0
+        val showChanges = branch != null && changes > 0
+        chipChanges.visibility = if (showChanges) View.VISIBLE else View.GONE
+        if (showChanges) {
+            chipChanges.text = resources.getQuantityString(R.plurals.chat_quick_changes, changes, changes)
+            chipChanges.contentDescription = resources.getQuantityString(R.plurals.chat_quick_changes_description, changes, changes)
+        }
+    }
+
+    /**
+     * Conta os arquivos alterados da pasta (git status) fora da thread principal. Só a leitura mais
+     * nova vale: uma anterior que termina depois é descartada pelo contador de geração.
+     */
+    private fun readChanges() {
+        val generation = ++changesGeneration
+        thread(name = "chat-changes") {
+            val result = Git.status(linux, Workspace.path(folder))
+            val count = if (result.code != 0) {
+                null
+            } else {
+                val entries = Git.parseStatus(result.output)
+                // Com a saída cortada, a última entrada pode estar pela metade: não entra na conta.
+                (if (result.cut) entries.size - 1 else entries.size).coerceAtLeast(0)
+            }
+            runOnUiThread {
+                if (isDestroyed || isFinishing || generation != changesGeneration) return@runOnUiThread
+                changedFiles = count
+                updateQuickbar()
+            }
+        }
+    }
+
+    /** Toque no chip de modelo: no Claude, as linhas Modelo e Esforço; no ACP, as opções que o agente oferece. */
+    private fun showModelSheet() {
+        if (isClaude) {
+            Sheet(this)
+                .title(getString(R.string.chat_model_effort_title))
+                .rows(listOf(claudeModelRow(), claudeEffortRow()))
+                .show()
+        } else {
+            Sheet(this).title(agentName).rows(optionRows(engine as? AcpChat)).show()
+        }
+    }
+
+    /**
+     * Toque no chip de contexto: quanto da memória da conversa já está em uso, e compactar (quando o
+     * agente aceita). Compactar fica indisponível enquanto há um turno rodando.
+     */
+    private fun showContextSheet(chat: AgentChat) {
+        val percent = chat.contextUsage?.percent ?: return
+        val canCompact = isClaude || (chat as? AcpChat)?.commands?.any { it.name == "compact" } == true
+        val rows: List<Sheet.Row> = if (canCompact) {
+            listOf(Sheet.Row(title = getString(R.string.chat_compact_now), enabled = !chat.busy) { engine?.sendMessage("/compact") })
+        } else {
+            emptyList()
+        }
+        Sheet(this)
+            .title(getString(R.string.chat_context_title))
+            .message(getString(R.string.chat_context_explain, percent))
+            .rows(rows)
+            .show()
     }
 
     // ---- Sugestões de comandos "/" (agentes ACP) ----
@@ -1119,22 +1261,28 @@ class ChatActivity : JangadaActivity() {
             showWorktreeFinish(folders)
         }
         if (isClaude) {
-            rows += Sheet.Row(title = getString(R.string.chat_setting_model), value = modelLabel(settings.chatModel), icon = "🧠") {
-                chooseClaude(R.string.chat_setting_model, MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
-            }
-            rows += Sheet.Row(title = getString(R.string.chat_setting_effort), value = effortLabel(settings.chatEffort), icon = "⚡") {
-                chooseClaude(R.string.chat_setting_effort, EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it }
-            }
+            rows += claudeModelRow()
+            rows += claudeEffortRow()
         }
         rows += viewRow()
-        if (!isClaude) {
-            // Sem ajustes do agente (ou sem chat pronto), o painel mostra a pasta e a visualização, que são do app.
-            val acp = engine as? AcpChat
-            for (option in acp?.configOptions.orEmpty()) {
-                rows += Sheet.Row(title = option.name, value = option.currentName, icon = "⚙") { chooseOption(acp, option) }
-            }
-        }
+        // Sem ajustes do agente (ou sem chat pronto), o painel mostra a pasta e a visualização, que são do app.
+        if (!isClaude) rows += optionRows(engine as? AcpChat)
         Sheet(this).title(getString(R.string.chat_settings_title)).rows(rows).show()
+    }
+
+    /** Linha do modelo do Claude (ajustes e painel do chip de modelo). */
+    private fun claudeModelRow() = Sheet.Row(title = getString(R.string.chat_setting_model), value = modelLabel(settings.chatModel), icon = "🧠") {
+        chooseClaude(R.string.chat_setting_model, MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
+    }
+
+    /** Linha do esforço do Claude (ajustes e painel do chip de modelo). */
+    private fun claudeEffortRow() = Sheet.Row(title = getString(R.string.chat_setting_effort), value = effortLabel(settings.chatEffort), icon = "⚡") {
+        chooseClaude(R.string.chat_setting_effort, EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it }
+    }
+
+    /** Linhas dos ajustes que o agente ACP oferece (modelo, raciocínio, modo...). */
+    private fun optionRows(acp: AcpChat?): List<Sheet.Row> = acp?.configOptions.orEmpty().map { option ->
+        Sheet.Row(title = option.name, value = option.currentName, icon = "⚙") { chooseOption(acp, option) }
     }
 
     /** Escolha de uma opção do agente ACP (modelo, nível de raciocínio, modo...). */
@@ -2272,9 +2420,11 @@ class ChatActivity : JangadaActivity() {
         const val COMMAND_ROW_DP = 48
         /** Tamanho padrão da caixa de texto do chat (sp), antes da escala. */
         const val INPUT_TEXT_SP = 16f
+        /** Tamanho dos atalhos acima da caixa (sp), antes da escala. */
+        const val CHIP_TEXT_SP = 14f
         /** Modo Detalhado: linhas do começo da saída de cada ação, embaixo da linha dela. */
         const val TOOL_EXCERPT_LINES = 6
-        /** A partir deste percentual do contexto usado, aparece o chip de compactar. */
+        /** A partir deste percentual do contexto usado, o chip de contexto fica em destaque (e o painel oferece compactar). */
         const val COMPACT_PERCENT = 80
         /** Hash de commit (SHA-1 ou SHA-256) como o rev-parse devolve. */
         private val SHA = Regex("[0-9a-f]{40,64}")

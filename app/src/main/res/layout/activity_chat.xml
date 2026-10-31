@@ -140,22 +140,6 @@
         android:textSize="14sp"
         android:visibility="gone" />
 
-    <!-- Contexto quase cheio: compacta a conversa (ver ChatActivity.refresh). -->
-    <TextView
-        android:id="@+id/chat_compact"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="6dp"
-        android:background="@drawable/card_bg"
-        android:gravity="center"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:text="@string/chat_compact"
-        android:textColor="@color/accent_text"
-        android:textSize="14sp"
-        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/chat_status"
@@ -202,6 +186,57 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal" />
+    </HorizontalScrollView>
+
+    <!-- Atalhos acima da caixa: pasta, modelo, visualização, contexto e mudanças (ver ChatActivity.updateQuickbar).
+         As views ficam aqui; o código só muda texto, descrição e visibilidade. -->
+    <HorizontalScrollView
+        android:id="@+id/chat_quickbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bar_bg"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/chat_chip_folder"
+                style="@style/QuickChip"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/chat_chip_model"
+                style="@style/QuickChip"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/chat_chip_view"
+                style="@style/QuickChip"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/chat_chip_context"
+                style="@style/QuickChip"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/chat_chip_changes"
+                style="@style/QuickChip"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+        </LinearLayout>
     </HorizontalScrollView>
 
     <LinearLayout
