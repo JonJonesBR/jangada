@@ -179,7 +179,10 @@ class MainActivity : ComponentActivity() {
         val svc = service ?: return
         val current = session ?: return
         val agent = svc.sessionAgent[current.mHandle] ?: return
-        val intent = Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_AGENT_ID, agent)
+        // O chat continua na pasta desta sessão (a conversa do terminal está nela).
+        val intent = Intent(this, ChatActivity::class.java)
+            .putExtra(ChatActivity.EXTRA_AGENT_ID, agent)
+            .putExtra(ChatActivity.EXTRA_FOLDER, svc.sessionFolder[current.mHandle].orEmpty())
         if (agent == TerminalService.CLAUDE) {
             val conversation = svc.claudeConversationOf(current.mHandle)
             if (conversation != null) intent.putExtra(ChatActivity.EXTRA_RESUME, conversation)
@@ -303,10 +306,12 @@ class MainActivity : ComponentActivity() {
 
         val agent = intent.getStringExtra(EXTRA_AGENT)
         val conversation = intent.getStringExtra(EXTRA_CONVERSATION)
+        val folder = intent.getStringExtra(EXTRA_FOLDER).orEmpty()
         intent.removeExtra(EXTRA_AGENT)
         intent.removeExtra(EXTRA_CONVERSATION)
+        intent.removeExtra(EXTRA_FOLDER)
         val target = when {
-            script != null -> svc.createSession(title, script).also { created ->
+            script != null -> svc.createSession(title, script, folder).also { created ->
                 if (agent != null) svc.sessionAgent[created.mHandle] = agent
                 if (conversation != null) svc.sessionConversation[created.mHandle] = conversation
             }
@@ -596,6 +601,8 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_NEW_SHELL = "new_shell"
         const val EXTRA_AGENT = "agent"
         const val EXTRA_CONVERSATION = "conversation"
+        /** Pasta de trabalho da sessão nova (nome dentro de ~/projetos; "" = a raiz). */
+        const val EXTRA_FOLDER = "folder"
         const val EXTRA_LOGIN = "io.github.jonjonesbr.jangada.LOGIN"
     }
 }

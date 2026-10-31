@@ -143,6 +143,14 @@
     <string name="chat_setting_model">Model</string>
     <string name="chat_setting_effort">Effort</string>
     <string name="chat_setting_view">View</string>
+    <string name="chat_setting_folder">Folder</string>
+    <string name="chat_folder_root">All projects (~/projetos)</string>
+    <string name="chat_folder_new">New folder…</string>
+    <string name="chat_folder_new_title">New folder</string>
+    <string name="chat_folder_new_hint">Folder name</string>
+    <string name="chat_folder_invalid">Use letters, numbers, dot, dash or underscore</string>
+    <string name="chat_folder_changed">Now working in %1$s</string>
+    <string name="chat_folder_create_failed">Could not create the folder</string>
     <string name="chat_view_detailed">Detailed</string>
     <string name="chat_view_normal">Normal</string>
     <string name="chat_view_summary">Summary</string>

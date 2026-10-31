@@ -31,6 +31,11 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_CHAT_EFFORT, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CHAT_EFFORT, value).apply()
 
+    /** Pasta de trabalho do chat, subpasta de ~/projetos ("" = a raiz, todos os projetos). Vale para todos os agentes. */
+    var chatFolder: String
+        get() = prefs.getString(KEY_CHAT_FOLDER, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_CHAT_FOLDER, value).apply()
+
     /** Visualização do chat (ver ChatView): VIEW_DETAILED, VIEW_NORMAL ou VIEW_SUMMARY. */
     var chatView: String
         get() = prefs.getString(KEY_CHAT_VIEW, VIEW_NORMAL) ?: VIEW_NORMAL
@@ -84,6 +89,7 @@ class AppSettings(context: Context) {
         const val VIEW_NORMAL = "normal"
         const val VIEW_SUMMARY = "summary"
         private const val KEY_CHAT_VIEW = "chat_view"
+        private const val KEY_CHAT_FOLDER = "chat_folder"
         private const val KEY_APP_THEME = "app_theme"
         private const val KEY_TERMINAL_THEME = "terminal_theme"
         private const val KEY_CPU_AWAKE = "keep_cpu_awake"

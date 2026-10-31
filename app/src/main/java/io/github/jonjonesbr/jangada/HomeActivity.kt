@@ -34,6 +34,7 @@ import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.agents.Versions
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
+import io.github.jonjonesbr.jangada.linux.Workspace
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -628,14 +629,16 @@ class HomeActivity : JangadaActivity() {
             val chatAgent = service?.chatAgentId ?: TerminalService.CLAUDE
             val name = recipes.firstOrNull { it.id == chatAgent }?.name ?: getString(R.string.chat_title)
             val row = inflater.inflate(R.layout.item_session, sessionsList, false)
-            row.findViewById<TextView>(R.id.session_title).text = name + " · " + getString(R.string.chat_session)
+            val folder = chatFolderSuffix(service?.chatFolder.orEmpty())
+            row.findViewById<TextView>(R.id.session_title).text = name + folder + " · " + getString(R.string.chat_session)
             row.setOnClickListener { openChat(chatAgent) }
             row.findViewById<Button>(R.id.session_close).setOnClickListener { service?.closeChat() }
             sessionsList.addView(row)
         }
         for (session in sessions) {
             val row = inflater.inflate(R.layout.item_session, sessionsList, false)
-            row.findViewById<TextView>(R.id.session_title).text = session.mSessionName ?: TerminalService.DEFAULT_TITLE
+            val folder = chatFolderSuffix(service?.sessionFolder?.get(session.mHandle).orEmpty())
+            row.findViewById<TextView>(R.id.session_title).text = (session.mSessionName ?: TerminalService.DEFAULT_TITLE) + folder
             row.setOnClickListener { showSession(session.mHandle) }
             row.findViewById<Button>(R.id.session_close).setOnClickListener {
                 service?.closeSession(session.mHandle)
@@ -644,11 +647,18 @@ class HomeActivity : JangadaActivity() {
         }
     }
 
-    /** Abrir um agente que já tem sessão aberta volta para ela, em vez de abrir outra. */
+    /** " · pasta" depois do nome da sessão; vazio na raiz dos projetos. */
+    private fun chatFolderSuffix(folder: String) = if (folder.isEmpty()) "" else " · $folder"
+
+    /** Abrir um agente que já tem sessão aberta na pasta atual volta para ela, em vez de abrir outra. */
     private fun openAgent(recipe: AgentRecipe) {
-        val existing = service?.sessions?.lastOrNull { it.mSessionName == recipe.name }
+        val folder = AppSettings(this).chatFolder
+        val svc = service
+        val existing = svc?.sessions?.lastOrNull {
+            it.mSessionName == recipe.name && svc?.sessionFolder?.get(it.mHandle).orEmpty() == folder
+        }
         if (existing != null) showSession(existing.mHandle)
-        else openTerminal(recipe.name, recipe.launchScript(), agent = recipe.id)
+        else openTerminal(recipe.name, recipe.launchScript(Workspace.path(folder)), agent = recipe.id, folder = folder)
     }
 
     private fun openChat(agentId: String) {
@@ -659,11 +669,12 @@ class HomeActivity : JangadaActivity() {
         startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SESSION, handle))
     }
 
-    private fun openTerminal(title: String? = null, script: String? = null, agent: String? = null) {
+    private fun openTerminal(title: String? = null, script: String? = null, agent: String? = null, folder: String = "") {
         val intent = Intent(this, MainActivity::class.java)
         if (script != null) {
             intent.putExtra(MainActivity.EXTRA_TITLE, title)
             intent.putExtra(MainActivity.EXTRA_SCRIPT, script)
+            intent.putExtra(MainActivity.EXTRA_FOLDER, folder)
             if (agent != null) intent.putExtra(MainActivity.EXTRA_AGENT, agent)
         } else {
             intent.putExtra(MainActivity.EXTRA_NEW_SHELL, true)
