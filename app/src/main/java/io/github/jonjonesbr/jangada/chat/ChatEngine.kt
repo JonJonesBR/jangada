@@ -4,7 +4,6 @@ import android.util.Log
 import io.github.jonjonesbr.jangada.R
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
-import io.github.jonjonesbr.jangada.linux.Workspace
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -87,7 +86,7 @@ class ChatEngine(
     }
 
     private fun command(resume: String?): String {
-        val args = StringBuilder("${AgentRecipe.enterDir(cwd)} && exec claude")
+        val args = StringBuilder(AgentRecipe.claudeIn(cwd, exec = true))
         args.append(" --output-format stream-json --verbose --input-format stream-json")
         args.append(" --include-partial-messages")
         if (askPermissions) {
@@ -98,8 +97,6 @@ class ChatEngine(
         if (modelAlias.isNotEmpty()) args.append(" --model ").append(AgentRecipe.q(modelAlias))
         if (effort.isNotEmpty()) args.append(" --effort ").append(AgentRecipe.q(effort))
         if (resume != null) args.append(" --resume=").append(AgentRecipe.q(resume))
-        // Numa subpasta, os anexos (na raiz) ficam fora do alcance do Claude: libera a pasta deles.
-        if (cwd != Workspace.ROOT) args.append(" --add-dir ").append(AgentRecipe.q(Workspace.ATTACHMENTS))
         return args.toString()
     }
 

@@ -130,6 +130,18 @@ data class AgentRecipe(
         fun enterDir(cwd: String): String =
             if (cwd == Workspace.ROOT) "mkdir -p ${q(cwd)} && cd ${q(cwd)}" else "cd ${q(cwd)}"
 
+        /**
+         * Entra em [cwd] e chama o Claude Code ([exec]: no lugar do shell). Numa subpasta,
+         * libera a pasta dos anexos (na raiz; criada se faltar). O --add-dir vem logo depois
+         * de "claude": ele aceita vários caminhos e engoliria um argumento solto depois dele.
+         */
+        fun claudeIn(cwd: String, exec: Boolean): String {
+            val claude = (if (exec) "exec " else "") + "claude"
+            if (cwd == Workspace.ROOT) return "${enterDir(cwd)} && $claude"
+            val attachments = q(Workspace.ATTACHMENTS)
+            return "mkdir -p $attachments 2>/dev/null; ${enterDir(cwd)} && $claude --add-dir $attachments"
+        }
+
         fun parse(json: JSONObject): AgentRecipe {
             fun strings(key: String): Map<String, String> {
                 val obj = json.optJSONObject(key) ?: return emptyMap()

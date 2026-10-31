@@ -373,10 +373,10 @@ class LinuxEnv(context: Context) {
                     changed = true
                 }
             }
+            var moved = false
             if (changed) {
                 // Nome único, para não colidir com outra gravação; apagado se não virar o arquivo.
                 val temp = File.createTempFile(".claude.json.", ".jangada", file.parentFile)
-                var moved = false
                 try {
                     temp.writeText(json.toString(2))
                     moved = temp.renameTo(file)
@@ -384,6 +384,8 @@ class LinuxEnv(context: Context) {
                     if (!moved) temp.delete()
                 }
             }
+            // Gravação que falhou não conta como confiada: a próxima chamada tenta de novo.
+            if (changed && !moved) return
             claudeJsonChecked = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
             claudeTrustedFolders = previous + folders
         }

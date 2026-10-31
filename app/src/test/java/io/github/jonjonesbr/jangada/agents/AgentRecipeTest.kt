@@ -43,6 +43,7 @@ class AgentRecipeTest {
             }
             checkSyntax("${recipe.id} uninstall", recipe.uninstallScript())
             checkSyntax("${recipe.id} launch", recipe.launchScript())
+            checkSyntax("${recipe.id} launch pasta", recipe.launchScript("/root/projetos/it's"))
             recipe.acp?.installScript()?.let { checkSyntax("${recipe.id} acp", it) }
         }
         checkSyntax("detect", AgentCatalog.detectScript(recipes))
@@ -87,6 +88,16 @@ class AgentRecipeTest {
         val output = runBash(broken.backgroundScript(false))
         assertFalse("instalação com download quebrado não pode dar certo", output.contains("JANGADA_OK"))
         assertTrue(output.contains("JANGADA_FAIL 1"))
+    }
+
+    @Test
+    fun claudeNaRaizENaSubpasta() {
+        assertEquals("mkdir -p '/root/projetos' && cd '/root/projetos' && exec claude", AgentRecipe.claudeIn("/root/projetos", exec = true))
+        // Numa subpasta, o --add-dir vem logo depois de "claude": o que vier depois não é engolido por ele.
+        val sub = AgentRecipe.claudeIn("/root/projetos/meu app", exec = false)
+        assertEquals("mkdir -p '/root/projetos/anexos' 2>/dev/null; cd '/root/projetos/meu app' && claude --add-dir '/root/projetos/anexos'", sub)
+        checkSyntax("claude subpasta", "$sub --resume 'id' 'continue'")
+        checkSyntax("claude subpasta continue", "$sub --continue")
     }
 
     @Test

@@ -149,6 +149,8 @@
     <string name="chat_folder_invalid">Use letras, números, ponto, hífen ou sublinhado</string>
     <string name="chat_folder_changed">Agora trabalhando em %1$s</string>
     <string name="chat_folder_create_failed">Não foi possível criar a pasta</string>
+    <string name="chat_folder_busy">O agente está trabalhando. Parar e trocar de pasta?</string>
+    <string name="chat_folder_busy_switch">Parar e trocar</string>
     <string name="chat_view_detailed">Detalhado</string>
     <string name="chat_view_normal">Normal</string>
     <string name="chat_view_summary">Resumo</string>

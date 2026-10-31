@@ -151,6 +151,8 @@
     <string name="chat_folder_invalid">Use letters, numbers, dot, dash or underscore</string>
     <string name="chat_folder_changed">Now working in %1$s</string>
     <string name="chat_folder_create_failed">Could not create the folder</string>
+    <string name="chat_folder_busy">The agent is working. Stop it and switch folders?</string>
+    <string name="chat_folder_busy_switch">Stop and switch</string>
     <string name="chat_view_detailed">Detailed</string>
     <string name="chat_view_normal">Normal</string>
     <string name="chat_view_summary">Summary</string>

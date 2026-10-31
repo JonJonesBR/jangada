@@ -652,10 +652,10 @@ class HomeActivity : JangadaActivity() {
 
     /** Abrir um agente que já tem sessão aberta na pasta atual volta para ela, em vez de abrir outra. */
     private fun openAgent(recipe: AgentRecipe) {
-        val folder = AppSettings(this).chatFolder
-        val svc = service
-        val existing = svc?.sessions?.lastOrNull {
-            it.mSessionName == recipe.name && svc?.sessionFolder?.get(it.mHandle).orEmpty() == folder
+        // A pasta do chat vale para o terminal; apagada ou trocada por link, volta para a raiz.
+        val folder = Workspace.existing(linux.rootfs, AppSettings(this).chatFolder)
+        val existing = service?.let { svc ->
+            svc.sessions.lastOrNull { it.mSessionName == recipe.name && svc.sessionFolder[it.mHandle].orEmpty() == folder }
         }
         if (existing != null) showSession(existing.mHandle)
         else openTerminal(recipe.name, recipe.launchScript(Workspace.path(folder)), agent = recipe.id, folder = folder)

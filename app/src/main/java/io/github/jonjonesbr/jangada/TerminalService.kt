@@ -357,8 +357,10 @@ class TerminalService : Service() {
 
     fun session(handle: String): TerminalSession? = sessions.firstOrNull { it.mHandle == handle }
 
-    /** Há uma sessão de terminal do Claude Code rodando agora? */
-    fun hasClaudeTerminal(): Boolean = sessions.any { sessionAgent[it.mHandle] == CLAUDE && it.isRunning }
+    /** Há uma sessão de terminal do Claude Code rodando agora (na pasta [folder], se dada)? */
+    fun hasClaudeTerminal(folder: String? = null): Boolean = sessions.any {
+        sessionAgent[it.mHandle] == CLAUDE && it.isRunning && (folder == null || sessionFolder[it.mHandle].orEmpty() == folder)
+    }
 
     /** Troca uma sessão encerrada por uma nova (Enter depois de "exit"). */
     fun replaceSession(old: TerminalSession): TerminalSession {

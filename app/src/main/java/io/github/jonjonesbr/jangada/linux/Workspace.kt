@@ -21,6 +21,7 @@ object Workspace {
 
     private const val MAX_NAME = 64
     private const val MAX_READ = 4096
+    private const val MAX_BRANCH = 100
     private const val GITDIR = "gitdir:"
     private const val HEAD_REF = "ref: refs/heads/"
     private val NAME = Regex("[A-Za-z0-9._-]+")
@@ -33,12 +34,31 @@ object Workspace {
     /** Caminho absoluto dentro do Debian da pasta [folder] ("" = a raiz). */
     fun path(folder: String): String = if (folder.isEmpty()) ROOT else "$ROOT/$folder"
 
+    /** O contrário de [path]: o nome da subpasta do caminho [cwd] ("" = a raiz ou outro caminho). */
+    fun folderOf(cwd: String): String = cwd.removePrefix("$ROOT/").takeIf { it != cwd && isListable(it) }.orEmpty()
+
     /** Caminho no Android de um caminho do Debian ([guestPath] começa com "/"). */
     fun hostPath(rootfs: File, guestPath: String): File = File(rootfs, guestPath.removePrefix("/"))
 
     /** Nome de pasta aceito: letras, números, ponto, hífen e sublinhado; não começa com ponto; não é "anexos". */
     fun isValidName(name: String): Boolean =
         name.length in 1..MAX_NAME && !name.startsWith(".") && name != Attachments.DIR && NAME.matches(name)
+
+    /** Nome de subpasta que existe e pode aparecer na lista: sem barra, não oculta e não é "anexos". */
+    internal fun isListable(name: String): Boolean =
+        name.isNotEmpty() && !name.startsWith(".") && name != Attachments.DIR && '/' !in name && '\u0000' !in name
+
+    /**
+     * [folder] se ele ainda é uma pasta de verdade dentro da raiz (nem link, nem apagada); senão, a raiz ("").
+     * Só confere dois caminhos (sem ler conteúdo): pode rodar na thread principal.
+     */
+    fun existing(rootfs: File, folder: String): String {
+        if (folder.isEmpty()) return ""
+        if (!isListable(folder)) return ""
+        val root = hostPath(rootfs, ROOT).toPath()
+        val dir = hostPath(rootfs, path(folder)).toPath()
+        return if (Fs.isDir(root) && Fs.isDir(dir)) folder else ""
+    }
 
     /** Nome da pasta de conversas do Claude Code para [path] (ex.: "/root/projetos" vira "-root-projetos"). */
     fun claudeProjectKey(path: String) = path.replace(NOT_ALNUM, "-")
@@ -55,7 +75,7 @@ object Workspace {
         if (!Fs.isDir(root.toPath())) return emptyList()
         val children = root.listFiles() ?: return emptyList()
         return children
-            .filter { !it.name.startsWith(".") && it.name != Attachments.DIR && Fs.isDir(it.toPath()) }
+            .filter { isListable(it.name) && Fs.isDir(it.toPath()) }
             .sortedBy { it.name.lowercase() }
             .map { Folder(it.name, gitBranch(rootfs, it)) }
     }
@@ -78,15 +98,22 @@ object Workspace {
         val line = readSmall(dotGit)?.lineSequence()?.firstOrNull()?.trim().orEmpty()
         if (!line.startsWith(GITDIR)) return null
         val guest = line.removePrefix(GITDIR).trim()
-        // Só caminho absoluto dentro do Debian, sem subir de pasta.
-        if (!guest.startsWith("/") || guest.split('/').contains("..")) return null
-        return hostPath(rootfs, guest)
+        // Só caminho absoluto dentro do Debian, sem subir de pasta (relativo não é lido).
+        val parts = guest.split('/').filter { it.isNotEmpty() && it != "." }
+        if (!guest.startsWith("/") || parts.isEmpty() || parts.contains("..")) return null
+        // Nenhum pedaço do caminho pode ser link: fora do proot, um link absoluto apontaria para o Android.
+        var current = rootfs.toPath()
+        for (part in parts) {
+            current = current.resolve(part)
+            if (!Fs.isDir(current)) return null
+        }
+        return current.toFile()
     }
 
     /** Branch (ou hash curto) do HEAD da pasta do git [gitDir]. */
     private fun headOf(gitDir: File): String? {
-        val head = readSmall(File(gitDir, "HEAD").toPath())?.trim() ?: return null
-        if (head.startsWith(HEAD_REF)) return head.removePrefix(HEAD_REF).takeIf { it.isNotEmpty() }
+        val head = readSmall(File(gitDir, "HEAD").toPath())?.lineSequence()?.firstOrNull()?.trim() ?: return null
+        if (head.startsWith(HEAD_REF)) return head.removePrefix(HEAD_REF).takeIf { it.isNotEmpty() && it.length <= MAX_BRANCH }
         return if (HASH.matches(head)) head.take(7) else null
     }
 

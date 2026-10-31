@@ -96,6 +96,51 @@ class WorkspaceTest {
     }
 
     @Test
+    fun worktreeComGitdirQueSobeDePastaOuRelativoNaoELido() {
+        val rootfs = tmp.newFolder("rootfs")
+        File(rootfs, "root/projetos/principal/.git/worktrees/tarefa").apply { mkdirs() }
+            .let { File(it, "HEAD").writeText("ref: refs/heads/x\n") }
+        val worktree = File(rootfs, "root/projetos/tarefa").apply { mkdirs() }
+        File(worktree, ".git").writeText("gitdir: /root/projetos/tarefa/../principal/.git/worktrees/tarefa\n")
+        assertNull(Workspace.gitBranch(rootfs, worktree))
+        File(worktree, ".git").writeText("gitdir: ../principal/.git/worktrees/tarefa\n")
+        assertNull(Workspace.gitBranch(rootfs, worktree))
+    }
+
+    @Test
+    fun worktreeComLinkNoCaminhoDoGitdirNaoELido() {
+        val rootfs = tmp.newFolder("rootfs")
+        val outside = File(tmp.newFolder("fora"), "worktrees/tarefa").apply { mkdirs() }
+        File(outside, "HEAD").writeText("ref: refs/heads/segredo\n")
+        val root = File(rootfs, "root/projetos").apply { mkdirs() }
+        // Um link no meio do caminho (como o /root/celular) levaria para fora do Debian.
+        Files.createSymbolicLink(File(root, "atalho").toPath(), outside.parentFile.parentFile.toPath())
+        val worktree = File(root, "tarefa").apply { mkdirs() }
+        File(worktree, ".git").writeText("gitdir: /root/projetos/atalho/worktrees/tarefa\n")
+        assertNull(Workspace.gitBranch(rootfs, worktree))
+    }
+
+    @Test
+    fun pastaGuardadaSoValeSeAindaForPastaDeVerdade() {
+        val rootfs = tmp.newFolder("rootfs")
+        val root = File(rootfs, "root/projetos").apply { mkdirs() }
+        File(root, "jangada").mkdirs()
+        Files.createSymbolicLink(File(root, "link").toPath(), tmp.newFolder("fora").toPath())
+        assertEquals("jangada", Workspace.existing(rootfs, "jangada"))
+        assertEquals("", Workspace.existing(rootfs, "apagada"))
+        assertEquals("", Workspace.existing(rootfs, "link"))
+        assertEquals("", Workspace.existing(rootfs, "../etc"))
+        assertEquals("", Workspace.existing(rootfs, ""))
+    }
+
+    @Test
+    fun pastaDoCaminho() {
+        assertEquals("", Workspace.folderOf("/root/projetos"))
+        assertEquals("jangada", Workspace.folderOf("/root/projetos/jangada"))
+        assertEquals("", Workspace.folderOf("/root/outra"))
+    }
+
+    @Test
     fun pastaSemGitDaNull() {
         val rootfs = tmp.newFolder("rootfs")
         val plain = File(rootfs, "root/projetos/notas").apply { mkdirs() }
