@@ -1,5 +1,11 @@
 # Novidades
 
+## 1.6.0
+
+- Chat: nos ajustes do chat, a linha Pasta escolhe em que repositório de ~/projetos o agente trabalha (ou todos os projetos, como antes), mostrando a branch do git. O título do chat mostra a pasta, e dá para criar uma pasta nova ali.
+- Cada pasta tem o próprio histórico de conversas; o terminal aberto a partir do chat (e o agente aberto pela tela inicial) entra na mesma pasta, e o Claude confia nela sem perguntar.
+- Trocar de pasta com o agente trabalhando pede confirmação. Os anexos continuam em ~/projetos/anexos, e o Claude os lê de qualquer pasta.
+
 ## 1.5.0
 
 - Chat: modos de visualização nos ajustes do chat. Detalhado mostra o raciocínio do agente e o começo da saída de cada ação; Normal fica como antes; Resumo junta as ações de cada resposta numa linha ("9 ações · 5× Comando, 3× Editar"), que abre a lista num toque.

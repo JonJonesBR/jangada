@@ -1,0 +1,1 @@
+Chat: escolha a pasta (repositório de ~/projetos) em que o agente trabalha, nos ajustes do chat; cada pasta tem o próprio histórico, mostra a branch do git e o terminal aberto do chat entra nela. Dá para criar uma pasta nova ali mesmo.

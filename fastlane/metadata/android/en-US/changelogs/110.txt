@@ -1,0 +1,1 @@
+Chat: choose the folder (a repository in ~/projetos) the agent works in, from the chat settings; each folder has its own history, shows the git branch, and the terminal opened from the chat starts there. You can create a new folder right there.
