@@ -1,0 +1,1 @@
+Chat: modos de visualização (Detalhado com o raciocínio do agente e o começo da saída de cada ação, Normal, e Resumo com as ações de cada resposta numa linha só). Mensagens enviadas com o agente ocupado esperam na fila. O título mostra quanto do contexto a conversa usa, com atalho para compactar quando está quase cheio.

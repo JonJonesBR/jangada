@@ -1,5 +1,11 @@
 # Novidades
 
+## 1.5.0
+
+- Chat: modos de visualização nos ajustes do chat. Detalhado mostra o raciocínio do agente e o começo da saída de cada ação; Normal fica como antes; Resumo junta as ações de cada resposta numa linha ("9 ações · 5× Comando, 3× Editar"), que abre a lista num toque.
+- Chat: mensagens enviadas com o agente ocupado esperam na fila e saem quando ele termina. Parar, ou um erro no turno, descarta a fila; a mensagem não enviada volta para a caixa com um toque.
+- Chat: o título mostra quanto do contexto a conversa já usa (Claude e agentes ACP que informam), e um atalho para compactar aparece quando passa de 80%.
+
 ## 1.4.0
 
 - Chat: tocar numa ação mostra o resultado dela (saída do comando, arquivo lido, resposta da ferramenta), já limpo e cortado no começo e no fim quando é grande. Ações que falharam mostram a primeira linha do erro na própria conversa. Vale para o Claude, os agentes ACP e as conversas reabertas.

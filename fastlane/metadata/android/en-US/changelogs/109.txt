@@ -1,0 +1,1 @@
+Chat: view modes (Detailed with the agent's thinking and the start of each action's output, Normal, and Summary with each answer's actions on a single line). Messages sent while the agent is busy wait in a queue. The title shows how much of the context the conversation uses, with a shortcut to compact when it is almost full.
