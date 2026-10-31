@@ -677,7 +677,12 @@ class HomeActivity : JangadaActivity() {
             val name = recipes.firstOrNull { it.id == slot.agentId }?.name ?: getString(R.string.chat_title)
             row.findViewById<TextView>(R.id.session_title).text = jobTitle(this, name, slot.folder, state)
             row.setOnClickListener { openChat(slot.agentId, slot.folder) }
-            row.findViewById<Button>(R.id.session_close).setOnClickListener { service?.closeChat(slot.agentId, slot.folder) }
+            row.findViewById<Button>(R.id.session_close).setOnClickListener {
+                // Trabalho rodando ou esperando você para na hora: pergunta antes. Parado ou pronto fecha direto.
+                val now = chatState(slot.chat)
+                if (now == ChatState.WORKING || now == ChatState.WAITING) confirmCloseJob(slot.agentId, slot.folder)
+                else service?.closeChat(slot.agentId, slot.folder)
+            }
             sessionsList.addView(row)
         }
         for (session in sessions) {
@@ -694,6 +699,16 @@ class HomeActivity : JangadaActivity() {
         }
         drawnJobStates = jobs.map { (slot, state) -> TerminalService.chatKey(slot.agentId, slot.folder) to state }
         scheduleJobsTick()
+    }
+
+    /** Fechar um trabalho que está rodando: avisa que o agente para (a conversa fica no histórico). */
+    private fun confirmCloseJob(agentId: String, folder: String) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.home_close_job_title)
+            .setMessage(R.string.home_close_job_message)
+            .setPositiveButton(R.string.home_close_job_confirm) { _, _ -> service?.closeChat(agentId, folder) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Trabalhos abertos agora (chave e estado), para o [jobsTicker] comparar. */

@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.Editable
@@ -58,6 +59,9 @@ class ChangesActivity : JangadaActivity() {
     private lateinit var commitBar: View
     private lateinit var messageField: EditText
     private lateinit var commitButton: Button
+    private lateinit var askAgentButton: Button
+    /** Agente da tela de chat que abriu esta tela (null = nenhum: sem o botão de pedir o commit). */
+    private var agentId: String? = null
     private val adapter = ChangesAdapter()
     private var changes: List<Git.Change> = emptyList()
     private var isRepo = false
@@ -91,11 +95,14 @@ class ChangesActivity : JangadaActivity() {
         commitBar = findViewById(R.id.changes_commit_bar)
         messageField = findViewById(R.id.changes_message)
         commitButton = findViewById(R.id.changes_commit)
+        askAgentButton = findViewById(R.id.changes_ask_agent)
+        agentId = intent.getStringExtra(ChatActivity.EXTRA_AGENT_ID)
         list.adapter = adapter
         list.setOnItemClickListener { _, _, position, _ -> changes.getOrNull(position)?.let { openChange(it) } }
         findViewById<View>(R.id.changes_back).setOnClickListener { finish() }
         findViewById<View>(R.id.changes_refresh).setOnClickListener { load() }
         commitButton.setOnClickListener { commit() }
+        askAgentButton.setOnClickListener { askAgentToCommit() }
         messageField.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -156,6 +163,7 @@ class ChangesActivity : JangadaActivity() {
         isRepo = read.isRepo
         hasHead = read.hasHead
         changes = read.changes
+        askAgentButton.visibility = if (read.isRepo && changes.isNotEmpty() && agentId != null) View.VISIBLE else View.GONE
         val label = Workspace.label(folder, getString(R.string.chat_folder_root))
         subtitle.text = read.branch?.let { "$label · $it" } ?: label
         if (!read.isRepo) {
@@ -180,6 +188,22 @@ class ChangesActivity : JangadaActivity() {
         empty.visibility = if (any) View.GONE else View.VISIBLE
         adapter.notifyDataSetChanged()
         updateCommit()
+    }
+
+    /**
+     * Abre o chat do agente desta tela com o pedido de commit na caixa e o envia (ver ChatActivity.EXTRA_SEND).
+     * A tela de mudanças sai: o chat fica no lugar dela.
+     */
+    private fun askAgentToCommit() {
+        val agent = agentId ?: return
+        startActivity(
+            Intent(this, ChatActivity::class.java)
+                .putExtra(ChatActivity.EXTRA_AGENT_ID, agent)
+                .putExtra(ChatActivity.EXTRA_FOLDER, folder)
+                .putExtra(ChatActivity.EXTRA_SEND, getString(R.string.changes_ask_agent_prompt))
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        )
+        finish()
     }
 
     /** Commit só com repositório, mudanças e mensagem; e sem outro commit rodando. */

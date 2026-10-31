@@ -128,6 +128,8 @@ class ChatActivity : JangadaActivity() {
     private var engine: AgentChat? = null
     private var enterAt = -1
     private val pendingAttachments = mutableListOf<Attachment>()
+    /** Texto pedido por [EXTRA_SEND] (ex.: pedir o commit), enviado quando o chat deste trabalho estiver ligado. */
+    private var pendingSend: String? = null
     /** Seletor de arquivos do sistema (vários arquivos, qualquer tipo). */
     private val attachPicker = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty()) prepareAttachments(uris)
@@ -179,6 +181,13 @@ class ChatActivity : JangadaActivity() {
         empty.text = getString(R.string.chat_empty, agentName)
         input.hint = getString(R.string.chat_hint_agent, agentName)
 
+        // Pedido de envio (Mudanças). Girar a tela não repete o extra: vale o que ficou guardado.
+        pendingSend = if (savedInstanceState != null) {
+            savedInstanceState.getString(STATE_PENDING_SEND)
+        } else {
+            intent.getStringExtra(EXTRA_SEND)
+        }
+        intent.removeExtra(EXTRA_SEND)
         findViewById<View>(R.id.chat_home).setOnClickListener { goHome() }
         sendButton.setOnClickListener { send() }
         findViewById<View>(R.id.chat_attach).setOnClickListener { pickAttachment() }
@@ -233,7 +242,16 @@ class ChatActivity : JangadaActivity() {
         // Mesmo trabalho: a pasta já é a desta tela.
         intent.removeExtra(EXTRA_FOLDER)
         setIntent(intent)
+        // O pedido de envio vale só para este trabalho (a troca de trabalho acima leva o extra junto).
+        intent.getStringExtra(EXTRA_SEND)?.let { pendingSend = it }
+        intent.removeExtra(EXTRA_SEND)
         takeShared(intent)
+        flushPendingSend()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_PENDING_SEND, pendingSend)
     }
 
     override fun onResume() {
@@ -571,6 +589,27 @@ class ChatActivity : JangadaActivity() {
         seenPermissions.clear()
         refresh()
         input.requestFocus()
+        flushPendingSend()
+    }
+
+    /**
+     * Envia o pedido de [EXTRA_SEND] pelo mesmo caminho do botão Enviar, quando o chat deste
+     * trabalho está ligado. Com texto já digitado na caixa, o pedido vai para o fim dela, em
+     * linha nova, e não é enviado.
+     */
+    private fun flushPendingSend() {
+        val text = pendingSend ?: return
+        if (engine == null || service == null || preparing) return
+        pendingSend = null
+        val typed = input.text.toString().trimEnd()
+        if (typed.isNotBlank()) {
+            input.setText(typed + "\n" + text)
+            input.setSelection(input.text.length)
+            return
+        }
+        input.setText(text)
+        input.setSelection(input.text.length)
+        send()
     }
 
     /** Título: o agente e, numa subpasta, a pasta (repositório) em que ele trabalha. */
@@ -1071,7 +1110,11 @@ class ChatActivity : JangadaActivity() {
 
     /** Mudanças (git) da pasta do trabalho: arquivos alterados, diff e commit. */
     private fun openChanges() {
-        startActivity(Intent(this, ChangesActivity::class.java).putExtra(ChangesActivity.EXTRA_FOLDER, folder))
+        startActivity(
+            Intent(this, ChangesActivity::class.java)
+                .putExtra(ChangesActivity.EXTRA_FOLDER, folder)
+                .putExtra(EXTRA_AGENT_ID, agentId),
+        )
     }
 
     /** Linha "Pasta: ..." dos ajustes: o nome (ou "Todos os projetos") e o branch, se a pasta tiver git. */
@@ -2239,6 +2282,9 @@ class ChatActivity : JangadaActivity() {
         const val EXTRA_SHARED_URIS = "shared_uris"
         /** Texto recebido pelo "Compartilhar" (vai para o campo de mensagem, sem enviar). */
         const val EXTRA_SHARED_TEXT = "shared_text"
+        /** Texto que a tela envia ao agente assim que o chat deste trabalho estiver ligado (ex.: pedir o commit). */
+        const val EXTRA_SEND = "send_text"
+        private const val STATE_PENDING_SEND = "pending_send"
         private val MODELS = arrayOf("", "opus", "sonnet", "haiku")
         private val EFFORTS = arrayOf("", "low", "medium", "high", "xhigh", "max")
     }

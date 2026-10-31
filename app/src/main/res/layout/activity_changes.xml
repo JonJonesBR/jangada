@@ -89,6 +89,18 @@
         android:textSize="15sp"
         android:visibility="gone" />
 
+    <!-- Com mudanças e um agente na tela: pede a ele o commit (abre o chat com a mensagem pronta). -->
+    <Button
+        android:id="@+id/changes_ask_agent"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:text="@string/changes_ask_agent"
+        android:textAllCaps="false"
+        android:textColor="@color/accent_text"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/changes_commit_bar"
         android:layout_width="match_parent"

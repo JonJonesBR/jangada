@@ -58,6 +58,9 @@
     <string name="agent_site">Website</string>
     <string name="session_back">Tap to go back</string>
     <string name="session_close">Close</string>
+    <string name="home_close_job_title">Close this job?</string>
+    <string name="home_close_job_message">The agent is working and will stop. The conversation stays in the history.</string>
+    <string name="home_close_job_confirm">Close</string>
 
     <string name="agent_installing">Installing…</string>
     <string name="agent_updating">Updating…</string>
@@ -432,6 +435,8 @@
     <string name="changes_commit">Commit</string>
     <string name="changes_committed">Committed %1$s</string>
     <string name="changes_identity">Git needs a name and an e-mail to commit. In the terminal, set them with git config --global user.name and git config --global user.email.</string>
+    <string name="changes_ask_agent">Ask the agent to commit</string>
+    <string name="changes_ask_agent_prompt">Review the changes with git status and git diff, write a clear commit message and commit them.</string>
     <string name="changes_diff_empty">No text differences</string>
     <string name="changes_diff_cut">… the rest is not shown here</string>
     <string name="changes_list_cut">list cut short</string>

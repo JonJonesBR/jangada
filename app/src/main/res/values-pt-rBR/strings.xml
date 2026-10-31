@@ -56,6 +56,9 @@
     <string name="agent_site">Site</string>
     <string name="session_back">Toque para voltar</string>
     <string name="session_close">Fechar</string>
+    <string name="home_close_job_title">Fechar este trabalho?</string>
+    <string name="home_close_job_message">O agente está trabalhando e vai parar. A conversa fica no histórico.</string>
+    <string name="home_close_job_confirm">Fechar</string>
 
     <string name="agent_installing">Instalando…</string>
     <string name="agent_updating">Atualizando…</string>
@@ -430,6 +433,8 @@
     <string name="changes_commit">Fazer commit</string>
     <string name="changes_committed">Commit feito: %1$s</string>
     <string name="changes_identity">O git precisa de nome e e-mail para fazer commit. No terminal, configure com git config --global user.name e git config --global user.email.</string>
+    <string name="changes_ask_agent">Pedir ao agente para fazer o commit</string>
+    <string name="changes_ask_agent_prompt">Revise as mudanças com git status e git diff, escreva uma mensagem de commit clara e faça o commit.</string>
     <string name="changes_diff_empty">Sem diferenças de texto</string>
     <string name="changes_diff_cut">… o resto não aparece aqui</string>
     <string name="changes_list_cut">lista cortada</string>
