@@ -252,12 +252,13 @@ class LinuxEnv(context: Context) {
      * versões novas do app atualizam instalações antigas sem reinstalar.
      * [trustClaude] = false deixa de fora a confiança no Claude Code (que lê
      * o ~/.claude.json); quem chama deve então chamar [trustWorkspaceInClaude].
+     * [trustFolder]: pasta do chat (além da raiz) a marcar como confiável.
      * A confiança roda fora do [LOCK], para que a leitura do JSON não segure
      * quem só precisa das peças rápidas (ex.: o terminal na thread principal).
      */
-    fun refreshIntegration(trustClaude: Boolean = true) {
+    fun refreshIntegration(trustClaude: Boolean = true, trustFolder: String? = null) {
         writeIntegration()
-        if (trustClaude) trustWorkspaceInClaude()
+        if (trustClaude) trustWorkspaceInClaude(trustFolder)
     }
 
     /** Parte rápida de [refreshIntegration]: só gravações pequenas, sob o [LOCK]. */
@@ -345,26 +346,34 @@ class LinuxEnv(context: Context) {
     }
 
     /**
-     * Marca ~/projetos como pasta confiável no Claude Code. É a pasta de
-     * trabalho criada pelo próprio app; sem isso, alternar entre chat e
+     * Marca a raiz dos projetos (~/projetos) como pasta confiável no Claude Code
+     * e, se [extra] for dada, essa pasta também. Sem isso, alternar entre chat e
      * terminal faz o Claude perguntar de novo a cada abertura. Só mexe no
      * arquivo se o Claude Code já tiver sido aberto alguma vez.
      * Lê e grava o JSON (que cresce com o uso): chame fora da thread principal.
      */
-    fun trustWorkspaceInClaude() {
+    fun trustWorkspaceInClaude(extra: String? = null) {
         synchronized(TRUST_LOCK) {
             val file = File(rootfs, "root/.claude.json")
             // Link não é lido nem alterado: só arquivo comum.
             if (!java.nio.file.Files.isRegularFile(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) return
-            // O arquivo pode ser grande: só lê de novo quando ele mudou desde a última conferência.
-            val seen = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
-            if (seen == claudeJsonChecked) return
+            val folders = listOfNotNull(Workspace.ROOT, extra?.takeIf { it.isNotBlank() }).distinct()
+            // O arquivo pode ser grande: só lê de novo quando ele mudou ou quando falta alguma pasta.
+            val signature = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
+            // Pastas já marcadas neste mesmo arquivo (se ele mudou, nenhuma conta).
+            val previous = if (signature == claudeJsonChecked) claudeTrustedFolders else emptySet()
+            if (previous.containsAll(folders)) return
             val json = runCatching { org.json.JSONObject(file.readText()) }.getOrNull() ?: return
             val projects = json.optJSONObject("projects") ?: org.json.JSONObject().also { json.put("projects", it) }
-            val key = "/root/$WORKSPACE"
-            val project = projects.optJSONObject(key) ?: org.json.JSONObject().also { projects.put(key, it) }
-            if (!project.optBoolean("hasTrustDialogAccepted")) {
-                project.put("hasTrustDialogAccepted", true)
+            var changed = false
+            for (key in folders) {
+                val project = projects.optJSONObject(key) ?: org.json.JSONObject().also { projects.put(key, it) }
+                if (!project.optBoolean("hasTrustDialogAccepted")) {
+                    project.put("hasTrustDialogAccepted", true)
+                    changed = true
+                }
+            }
+            if (changed) {
                 // Nome único, para não colidir com outra gravação; apagado se não virar o arquivo.
                 val temp = File.createTempFile(".claude.json.", ".jangada", file.parentFile)
                 var moved = false
@@ -376,6 +385,7 @@ class LinuxEnv(context: Context) {
                 }
             }
             claudeJsonChecked = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
+            claudeTrustedFolders = previous + folders
         }
     }
 
@@ -407,8 +417,11 @@ class LinuxEnv(context: Context) {
         /** Serializa a leitura e gravação do ~/.claude.json (fora do [LOCK]). */
         private val TRUST_LOCK = Any()
 
-        /** Tamanho e data do ~/.claude.json na última conferência da pasta confiável. */
+        /** Tamanho e data do ~/.claude.json na última conferência da confiança (só com [TRUST_LOCK]). */
         @Volatile private var claudeJsonChecked: String? = null
+
+        /** Pastas que já estavam marcadas como confiáveis nesse arquivo (só com [TRUST_LOCK]). */
+        @Volatile private var claudeTrustedFolders: Set<String> = emptySet()
 
         /** A lista de assets tem o proot? Lida uma vez (os assets não mudam com o app aberto). */
         @Volatile private var prootInAssetsCache: Boolean? = null

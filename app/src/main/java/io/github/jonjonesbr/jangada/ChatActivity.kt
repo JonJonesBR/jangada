@@ -62,6 +62,7 @@ import io.github.jonjonesbr.jangada.chat.SlashCommand
 import io.github.jonjonesbr.jangada.chat.ToolText
 import io.github.jonjonesbr.jangada.chat.friendlyModel
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
+import io.github.jonjonesbr.jangada.linux.Workspace
 import java.io.File
 import java.util.WeakHashMap
 import kotlin.concurrent.thread
@@ -118,6 +119,8 @@ class ChatActivity : JangadaActivity() {
 
     private val isClaude get() = agentId == TerminalService.CLAUDE
     private val agentName get() = recipe?.name ?: getString(R.string.chat_title)
+    /** Pasta de trabalho do chat (caminho dentro do Debian). */
+    private val chatCwd: String get() = engine?.cwd ?: Workspace.ROOT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -647,8 +650,9 @@ class ChatActivity : JangadaActivity() {
     private fun showHistory() {
         val chat = engine
         if (isClaude) {
+            val cwd = chatCwd
             thread(name = "chat-history") {
-                val found = ChatHistory.list(linux)
+                val found = ChatHistory.list(linux, cwd)
                 runOnUiThread { if (!isDestroyed) showHistoryDialog(found, canDelete = true) }
             }
         } else if (chat is AcpChat && chat.supportsHistory) {
@@ -757,9 +761,10 @@ class ChatActivity : JangadaActivity() {
 
     /** Apaga a conversa do Claude fora da thread principal (a pasta de anexos pode ser grande); [then] volta à principal. */
     private fun deleteClaudeFiles(id: String, then: () -> Unit) {
+        val cwd = chatCwd
         thread(name = "chat-delete") {
             // Um erro aqui (arquivo preso, por exemplo) não pode derrubar o app.
-            runCatching { ChatHistory.delete(linux, id) }
+            runCatching { ChatHistory.delete(linux, cwd, id) }
             runOnUiThread { if (!isDestroyed) then() }
         }
     }

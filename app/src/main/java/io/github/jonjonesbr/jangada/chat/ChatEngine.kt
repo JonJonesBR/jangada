@@ -4,6 +4,7 @@ import android.util.Log
 import io.github.jonjonesbr.jangada.R
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
+import io.github.jonjonesbr.jangada.linux.Workspace
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -24,6 +25,8 @@ class ChatEngine(
     private val modelAlias: String = "",
     /** Esforço ("low" ... "max") ou vazio para o padrão. */
     private val effort: String = "",
+    /** Pasta de trabalho (caminho dentro do Debian). */
+    override val cwd: String,
 ) : ProcessChat(linux, TAG) {
 
     @Volatile override var sessionId: String? = null
@@ -62,16 +65,16 @@ class ChatEngine(
         val previousItems = previous?.items?.toList().orEmpty()
         if (resume != null) sessionId = resume
         launch(interactive = false) {
-            runCatching { linux.refreshIntegration() }.onFailure { Log.w(TAG, "integração", it) }
+            runCatching { linux.refreshIntegration(trustFolder = cwd) }.onFailure { Log.w(TAG, "integração", it) }
             // "Continuar a última" vira o id da conversa mais recente: mais seguro que
             // o --continue do Claude, que nem sempre enxerga conversas do outro modo.
-            val id = resume ?: if (continueLast) ChatHistory.list(linux, limit = 1).firstOrNull()?.id else null
+            val id = resume ?: if (continueLast) ChatHistory.list(linux, cwd, limit = 1).firstOrNull()?.id else null
             if (id != null) sessionId = id
             if (history && id != null) {
                 if (id == previousId && previousItems.isNotEmpty()) {
                     main.post { showHistory(previousItems, markInterrupted = false) }
                 } else {
-                    ChatHistory.file(linux, id)?.let { file ->
+                    ChatHistory.file(linux, cwd, id)?.let { file ->
                         val loaded = ChatHistory.read(file, MAX_HISTORY)
                         main.post { showHistory(loaded, markInterrupted = true) }
                     }
@@ -84,7 +87,7 @@ class ChatEngine(
     }
 
     private fun command(resume: String?): String {
-        val args = StringBuilder("mkdir -p ~/${LinuxEnv.WORKSPACE}; cd ~/${LinuxEnv.WORKSPACE} && exec claude")
+        val args = StringBuilder("${AgentRecipe.enterDir(cwd)} && exec claude")
         args.append(" --output-format stream-json --verbose --input-format stream-json")
         args.append(" --include-partial-messages")
         if (askPermissions) {
@@ -95,6 +98,8 @@ class ChatEngine(
         if (modelAlias.isNotEmpty()) args.append(" --model ").append(AgentRecipe.q(modelAlias))
         if (effort.isNotEmpty()) args.append(" --effort ").append(AgentRecipe.q(effort))
         if (resume != null) args.append(" --resume=").append(AgentRecipe.q(resume))
+        // Numa subpasta, os anexos (na raiz) ficam fora do alcance do Claude: libera a pasta deles.
+        if (cwd != Workspace.ROOT) args.append(" --add-dir ").append(AgentRecipe.q(Workspace.ATTACHMENTS))
         return args.toString()
     }
 

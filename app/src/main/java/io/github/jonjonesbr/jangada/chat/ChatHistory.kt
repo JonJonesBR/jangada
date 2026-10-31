@@ -1,23 +1,24 @@
 package io.github.jonjonesbr.jangada.chat
 
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
+import io.github.jonjonesbr.jangada.linux.Workspace
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
 /**
- * Conversas anteriores do Claude Code na pasta de projetos. O próprio
- * Claude guarda cada conversa num arquivo .jsonl; aqui só listamos e
- * damos um título (o resumo que ele grava, ou a primeira mensagem).
+ * Conversas anteriores do Claude Code numa pasta de trabalho ([cwd], caminho
+ * dentro do Debian). O próprio Claude guarda cada conversa num arquivo .jsonl;
+ * aqui só listamos e damos um título (o resumo que ele grava, ou a primeira mensagem).
  */
 object ChatHistory {
 
     class Conversation(val id: String, val title: String, val updatedAt: Long)
 
-    fun dir(linux: LinuxEnv) = File(linux.rootfs, "root/.claude/projects/-root-${LinuxEnv.WORKSPACE}")
+    fun dir(linux: LinuxEnv, cwd: String) = File(linux.rootfs, "root/.claude/projects/${Workspace.claudeProjectKey(cwd)}")
 
-    fun list(linux: LinuxEnv, limit: Int = 50): List<Conversation> =
-        (dir(linux).listFiles() ?: emptyArray())
+    fun list(linux: LinuxEnv, cwd: String, limit: Int = 50): List<Conversation> =
+        (dir(linux, cwd).listFiles() ?: emptyArray())
             .filter { it.name.endsWith(".jsonl") && it.length() > 0 }
             .sortedByDescending { it.lastModified() }
             .take(limit)
@@ -27,7 +28,7 @@ object ChatHistory {
             }
 
     /** Arquivo da conversa [id], se existir. */
-    fun file(linux: LinuxEnv, id: String): File? = File(dir(linux), "$id.jsonl").takeIf { it.isFile }
+    fun file(linux: LinuxEnv, cwd: String, id: String): File? = File(dir(linux, cwd), "$id.jsonl").takeIf { it.isFile }
 
     /**
      * O que já foi conversado, lido do arquivo que o próprio Claude Code
@@ -107,8 +108,8 @@ object ChatHistory {
     }
 
     /** Apaga uma conversa (o arquivo e a pasta de anexos que o Claude cria com o mesmo id). */
-    fun delete(linux: LinuxEnv, id: String) {
-        val dir = dir(linux)
+    fun delete(linux: LinuxEnv, cwd: String, id: String) {
+        val dir = dir(linux, cwd)
         File(dir, "$id.jsonl").delete()
         val extra = File(dir, id)
         if (extra.exists()) io.github.jonjonesbr.jangada.linux.Fs.deleteTree(extra.toPath())

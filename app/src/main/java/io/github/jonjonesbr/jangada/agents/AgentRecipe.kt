@@ -2,7 +2,7 @@ package io.github.jonjonesbr.jangada.agents
 
 import android.content.Context
 import io.github.jonjonesbr.jangada.R
-import io.github.jonjonesbr.jangada.linux.LinuxEnv.Companion.WORKSPACE
+import io.github.jonjonesbr.jangada.linux.Workspace
 import org.json.JSONObject
 import java.util.Locale
 
@@ -114,8 +114,8 @@ data class AgentRecipe(
         """.trimIndent()
     }
 
-    /** Abre o agente na pasta de trabalho (~/projetos), não na home. */
-    fun launchScript(): String = "mkdir -p ~/$WORKSPACE && cd ~/$WORKSPACE && $command"
+    /** Abre o agente na pasta de trabalho [cwd] (a raiz dos projetos por padrão), não na home. */
+    fun launchScript(cwd: String = Workspace.ROOT): String = "${enterDir(cwd)} && $command"
 
     private fun localized(map: Map<String, String>): String {
         val lang = Locale.getDefault().language
@@ -125,6 +125,10 @@ data class AgentRecipe(
     companion object {
         /** Aspas simples seguras para o shell. */
         fun q(text: String) = "'" + text.replace("'", "'\\''") + "'"
+
+        /** Entra na pasta [cwd]; a raiz dos projetos é criada se faltar (subpasta tem que existir). */
+        fun enterDir(cwd: String): String =
+            if (cwd == Workspace.ROOT) "mkdir -p ${q(cwd)} && cd ${q(cwd)}" else "cd ${q(cwd)}"
 
         fun parse(json: JSONObject): AgentRecipe {
             fun strings(key: String): Map<String, String> {

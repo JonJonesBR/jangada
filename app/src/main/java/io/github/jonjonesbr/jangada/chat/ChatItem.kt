@@ -116,6 +116,8 @@ class Attachment(
  */
 interface AgentChat {
     val items: MutableList<ChatItem>
+    /** Pasta de trabalho do agente (caminho dentro do Debian). */
+    val cwd: String
     val sessionId: String?
     /** Nome curto do modelo, quando o agente informa. */
     val model: String?

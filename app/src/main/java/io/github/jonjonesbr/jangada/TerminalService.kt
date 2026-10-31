@@ -24,9 +24,11 @@ import com.termux.terminal.TerminalSessionClient
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.chat.ChatAttention
+import io.github.jonjonesbr.jangada.chat.ChatHistory
 import io.github.jonjonesbr.jangada.linux.LinkWatcher
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Setup
+import io.github.jonjonesbr.jangada.linux.Workspace
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
@@ -148,28 +150,34 @@ class TerminalService : Service() {
         private set
     var chatAgentId: String? = null
         private set
+    /** Pasta de trabalho do chat aberto (nome dentro de ~/projetos; "" = a raiz). */
+    var chatFolder: String = ""
+        private set
 
-    // Os três mapas por sessão são usados só na thread principal (sem sincronização).
+    // Os mapas por sessão são usados só na thread principal (sem sincronização).
     /** Agente de cada sessão de terminal (id da receita), para a troca Chat ⇄ Terminal. */
     val sessionAgent = HashMap<String, String>()
     /** Quando cada sessão de terminal começou (para achar a conversa criada nela). */
     val sessionStartedAt = HashMap<String, Long>()
     /** Conversa que a sessão de terminal retomou (claude --resume), se houver. */
     val sessionConversation = HashMap<String, String>()
+    /** Pasta de trabalho de cada sessão de terminal (nome dentro de ~/projetos; "" = a raiz). */
+    val sessionFolder = HashMap<String, String>()
 
     /**
-     * Abre (ou devolve) o chat do agente [agentId]. [continueLast] retoma a
-     * conversa mais recente; [resume] uma conversa específica; [restart]
-     * força reabrir mesmo com o chat rodando.
+     * Abre (ou devolve) o chat do agente [agentId], na pasta [folder] ("" = a raiz).
+     * [continueLast] retoma a conversa mais recente; [resume] uma conversa específica;
+     * [restart] força reabrir mesmo com o chat rodando. Outra pasta reabre o chat.
      */
     fun openChat(
         agentId: String = CLAUDE,
+        folder: String = "",
         continueLast: Boolean = false,
         resume: String? = null,
         restart: Boolean = false,
     ): io.github.jonjonesbr.jangada.chat.AgentChat {
         val current = chat
-        if (!restart && current != null && chatAgentId == agentId &&
+        if (!restart && current != null && chatAgentId == agentId && chatFolder == folder &&
             (current.running || resume == null && !continueLast)
         ) return current
         // O chat anterior é substituído: ele não pode mais mandar avisos.
@@ -183,11 +191,12 @@ class TerminalService : Service() {
             val previous = if (chatAgentId == agentId) current else null
             val settings = AppSettings(this)
             io.github.jonjonesbr.jangada.chat.ChatEngine(
-                linux, settings.askPermissions, settings.chatModel, settings.chatEffort,
+                linux, settings.askPermissions, settings.chatModel, settings.chatEffort, Workspace.path(folder),
             ).also {
                 previous?.stop()
                 chat = it
                 chatAgentId = CLAUDE
+                chatFolder = folder
                 it.onAttention = { attention -> onChatAttention(agentId, attention) }
                 goForeground()
                 it.start(resume = resume, continueLast = continueLast, history = true, previous = previous)
@@ -196,9 +205,10 @@ class TerminalService : Service() {
             val recipe = io.github.jonjonesbr.jangada.agents.AgentCatalog.load(this).first { it.id == agentId }
             if (chatAgentId == agentId) current?.stop()
             val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
-            io.github.jonjonesbr.jangada.chat.AcpChat(linux, recipe.acp!!.command, version).also {
+            io.github.jonjonesbr.jangada.chat.AcpChat(linux, recipe.acp!!.command, version, Workspace.path(folder)).also {
                 chat = it
                 chatAgentId = agentId
+                chatFolder = folder
                 it.onAttention = { attention -> onChatAttention(agentId, attention) }
                 goForeground()
                 it.start(resume = resume)
@@ -215,7 +225,7 @@ class TerminalService : Service() {
      */
     fun claudeConversationOf(handle: String): String? {
         val started = sessionStartedAt[handle] ?: 0L
-        val dir = File(LinuxEnv(this).rootfs, "root/.claude/projects/-root-${LinuxEnv.WORKSPACE}")
+        val dir = ChatHistory.dir(LinuxEnv(this), Workspace.path(sessionFolder[handle].orEmpty()))
         val touched = dir.listFiles()
             ?.filter { it.name.endsWith(".jsonl") && it.lastModified() >= started - 2_000 }
             ?.maxByOrNull { it.lastModified() }
@@ -227,6 +237,7 @@ class TerminalService : Service() {
         val current = chat
         chat = null
         chatAgentId = null
+        chatFolder = ""
         sessionsChanged()
         if (current == null) {
             then?.invoke()
@@ -308,7 +319,7 @@ class TerminalService : Service() {
      * Com [script], roda o script primeiro (ex.: abrir um agente) e depois
      * deixa um shell aberto na mesma sessão.
      */
-    fun createSession(title: String = DEFAULT_TITLE, script: String? = null): TerminalSession {
+    fun createSession(title: String = DEFAULT_TITLE, script: String? = null, folder: String = ""): TerminalSession {
         val linux = LinuxEnv(this)
         val session = if (linux.isReady) {
             runCatching { linux.refreshIntegration(trustClaude = false) }.onFailure { Log.w(TAG, "integração", it) }
@@ -320,7 +331,7 @@ class TerminalService : Service() {
             }.getOrNull()
             thread(name = "jangada-trust") {
                 try {
-                    runCatching { linux.trustWorkspaceInClaude() }.onFailure { Log.w(TAG, "confiança no Claude", it) }
+                    runCatching { linux.trustWorkspaceInClaude(Workspace.path(folder)) }.onFailure { Log.w(TAG, "confiança no Claude", it) }
                 } finally {
                     pending?.delete()
                 }
@@ -337,6 +348,7 @@ class TerminalService : Service() {
         }
         session.mSessionName = title
         sessionStartedAt[session.mHandle] = System.currentTimeMillis()
+        sessionFolder[session.mHandle] = folder
         sessions += session
         goForeground()
         sessionsChanged()
@@ -529,6 +541,7 @@ class TerminalService : Service() {
         sessionAgent.remove(handle)
         sessionStartedAt.remove(handle)
         sessionConversation.remove(handle)
+        sessionFolder.remove(handle)
     }
 
     /**
@@ -543,9 +556,11 @@ class TerminalService : Service() {
         sessionAgent.clear()
         sessionStartedAt.clear()
         sessionConversation.clear()
+        sessionFolder.clear()
         val current = chat
         chat = null
         chatAgentId = null
+        chatFolder = ""
         return current
     }
 

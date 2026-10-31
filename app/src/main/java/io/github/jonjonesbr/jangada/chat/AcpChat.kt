@@ -2,6 +2,7 @@ package io.github.jonjonesbr.jangada.chat
 
 import android.util.Log
 import io.github.jonjonesbr.jangada.R
+import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import org.json.JSONArray
 import org.json.JSONObject
@@ -20,6 +21,8 @@ class AcpChat(
     /** Comando que inicia o agente em modo ACP (ex.: "opencode acp"). */
     private val command: String,
     private val appVersion: String,
+    /** Pasta de trabalho (caminho dentro do Debian). */
+    override val cwd: String,
 ) : ProcessChat(linux, TAG) {
 
     @Volatile override var sessionId: String? = null
@@ -84,8 +87,8 @@ class AcpChat(
         if (running) return
         contextUsage = null
         launch(interactive = true) {
-            runCatching { linux.refreshIntegration() }.onFailure { Log.w(TAG, "integração", it) }
-            "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && exec $command"
+            runCatching { linux.refreshIntegration(trustFolder = cwd) }.onFailure { Log.w(TAG, "integração", it) }
+            "${AgentRecipe.enterDir(cwd)} && exec $command"
         }
 
         val capabilities = JSONObject()
@@ -198,11 +201,11 @@ class AcpChat(
     fun terminalLoginScript(option: AuthOption): String {
         val exports = option.env.entries.joinToString("") { (k, v) -> "export $k=${io.github.jonjonesbr.jangada.agents.AgentRecipe.q(v)}; " }
         val args = option.args.joinToString(" ") { io.github.jonjonesbr.jangada.agents.AgentRecipe.q(it) }
-        return "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && $exports$command $args"
+        return "${AgentRecipe.enterDir(cwd)} && $exports$command $args"
     }
 
     private fun openSession(resume: String?) {
-        val params = JSONObject().put("cwd", "/root/${LinuxEnv.WORKSPACE}").put("mcpServers", JSONArray())
+        val params = JSONObject().put("cwd", cwd).put("mcpServers", JSONArray())
         if (resume != null && canLoad) {
             loadingHistory = true
             sessionId = resume
@@ -235,7 +238,7 @@ class AcpChat(
 
     /** [forgot]: a conversa anterior ficou na tela, mas o agente novo não tem o contexto dela. */
     private fun newSession(forgot: Boolean = false) {
-        val params = JSONObject().put("cwd", "/root/${LinuxEnv.WORKSPACE}").put("mcpServers", JSONArray())
+        val params = JSONObject().put("cwd", cwd).put("mcpServers", JSONArray())
         request("session/new", params) { result, error ->
             if (result == null) {
                 if (isStopped(error)) return@request
@@ -469,7 +472,7 @@ class AcpChat(
      */
     fun listSessions(callback: (List<ChatHistory.Conversation>?) -> Unit) {
         if (!canList) return callback(emptyList())
-        request("session/list", JSONObject().put("cwd", "/root/${LinuxEnv.WORKSPACE}")) { result, _ ->
+        request("session/list", JSONObject().put("cwd", cwd)) { result, _ ->
             if (result == null) return@request callback(null)
             val sessions = result.optJSONArray("sessions") ?: JSONArray()
             val list = (0 until sessions.length()).mapNotNull { i ->
