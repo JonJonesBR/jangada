@@ -947,53 +947,53 @@ class ChatActivity : JangadaActivity() {
             .show()
     }
 
+    /** Uma linha dos ajustes: o texto e o que o toque faz. */
+    private class SettingRow(val label: String, val action: () -> Unit)
+
     private fun showSettingsDialog(folders: List<Workspace.Folder>) {
-        val folderRow = getString(R.string.chat_setting_folder) + ": " + folderLabel(folders)
+        // Cada linha leva a sua ação; a ordem da lista é a da tela.
+        val rows = mutableListOf<SettingRow>()
+        rows += SettingRow(getString(R.string.chat_setting_folder) + ": " + folderLabel(folders)) { chooseFolder(folders) }
+        val current = folders.firstOrNull { it.name == folder }
+        if (current?.branch != null) rows += SettingRow(getString(R.string.chat_setting_changes)) { openChanges() }
         if (isClaude) {
-            val rows = arrayOf(
-                folderRow,
-                getString(R.string.chat_setting_model) + ": " + modelLabel(settings.chatModel),
-                getString(R.string.chat_setting_effort) + ": " + effortLabel(settings.chatEffort),
-                viewRow(),
-            )
-            AlertDialog.Builder(this)
-                .setTitle(R.string.chat_settings_title)
-                .setItems(rows) { _, which ->
-                    when (which) {
-                        0 -> chooseFolder(folders)
-                        1 -> chooseClaude(MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
-                        2 -> chooseClaude(EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it }
-                        else -> chooseView()
-                    }
-                }
-                .show()
-            return
+            rows += SettingRow(getString(R.string.chat_setting_model) + ": " + modelLabel(settings.chatModel)) {
+                chooseClaude(MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
+            }
+            rows += SettingRow(getString(R.string.chat_setting_effort) + ": " + effortLabel(settings.chatEffort)) {
+                chooseClaude(EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it }
+            }
+            rows += SettingRow(viewRow()) { chooseView() }
+        } else {
+            // Sem ajustes do agente (ou sem chat pronto), o diálogo mostra a pasta e a visualização, que são do app.
+            rows += SettingRow(viewRow()) { chooseView() }
+            val acp = engine as? AcpChat
+            for (option in acp?.configOptions.orEmpty()) {
+                rows += SettingRow("${option.name}: ${option.currentName}") { chooseOption(acp, option) }
+            }
         }
-        // Sem ajustes do agente (ou sem chat pronto), o diálogo mostra a pasta e a visualização, que são do app.
-        val acp = engine as? AcpChat
-        val options = acp?.configOptions.orEmpty()
-        val rows = (listOf(folderRow, viewRow()) + options.map { "${it.name}: ${it.currentName}" }).toTypedArray()
         AlertDialog.Builder(this)
             .setTitle(R.string.chat_settings_title)
-            .setItems(rows) { _, which ->
-                if (which == 0) {
-                    chooseFolder(folders)
-                } else if (which == 1) {
-                    chooseView()
-                } else {
-                    val option = options[which - 2]
-                    val labels = option.choices.map { it.second }.toTypedArray()
-                    val current = option.choices.indexOfFirst { it.first == option.current }
-                    AlertDialog.Builder(this)
-                        .setTitle(option.name)
-                        .setSingleChoiceItems(labels, current) { dialog, choice ->
-                            dialog.dismiss()
-                            acp?.setOption(option, option.choices[choice].first)
-                        }
-                        .show()
-                }
+            .setItems(rows.map { it.label }.toTypedArray()) { _, which -> rows[which].action() }
+            .show()
+    }
+
+    /** Escolha de uma opção do agente ACP (modelo, nível de raciocínio, modo...). */
+    private fun chooseOption(acp: AcpChat?, option: AcpChat.ConfigOption) {
+        val labels = option.choices.map { it.second }.toTypedArray()
+        val current = option.choices.indexOfFirst { it.first == option.current }
+        AlertDialog.Builder(this)
+            .setTitle(option.name)
+            .setSingleChoiceItems(labels, current) { dialog, choice ->
+                dialog.dismiss()
+                acp?.setOption(option, option.choices[choice].first)
             }
             .show()
+    }
+
+    /** Mudanças (git) da pasta do trabalho: arquivos alterados, diff e commit. */
+    private fun openChanges() {
+        startActivity(Intent(this, ChangesActivity::class.java).putExtra(ChangesActivity.EXTRA_FOLDER, folder))
     }
 
     /** Linha "Pasta: ..." dos ajustes: o nome (ou "Todos os projetos") e o branch, se a pasta tiver git. */

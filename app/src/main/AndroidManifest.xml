@@ -47,6 +47,14 @@
             android:theme="@style/Theme.Jangada.Setup"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Mudanças do git de uma pasta do trabalho: arquivos, diff e commit. -->
+        <activity
+            android:name=".ChangesActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:theme="@style/Theme.Jangada.Setup"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".AboutActivity"
             android:exported="false"

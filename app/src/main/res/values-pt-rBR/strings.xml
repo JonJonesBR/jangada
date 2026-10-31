@@ -394,4 +394,31 @@
     <string name="share_nothing_usable">Nada que o Jangada possa receber</string>
     <string name="share_too_many">Só os primeiros %1$d itens foram enviados</string>
     <string name="chat_effort_default">Padrão</string>
+    <!-- Mudanças (git) da pasta do trabalho -->
+    <string name="chat_setting_changes">Mudanças (git)</string>
+    <string name="changes_title">Mudanças</string>
+    <string name="changes_back">‹  Voltar</string>
+    <string name="changes_refresh">Atualizar</string>
+    <string name="changes_modified">Modificado</string>
+    <string name="changes_added">Novo</string>
+    <string name="changes_deleted">Apagado</string>
+    <string name="changes_renamed">Renomeado</string>
+    <string name="changes_untracked">Não rastreado</string>
+    <plurals name="changes_count">
+        <item quantity="one">%d arquivo alterado</item>
+        <item quantity="other">%d arquivos alterados</item>
+    </plurals>
+    <plurals name="changes_ahead">
+        <item quantity="one">%d commit à frente do remoto</item>
+        <item quantity="other">%d commits à frente do remoto</item>
+    </plurals>
+    <string name="changes_none">Nada para fazer commit</string>
+    <string name="changes_not_repo">Esta pasta não é um repositório git</string>
+    <string name="changes_message_hint">Mensagem do commit</string>
+    <string name="changes_commit">Fazer commit</string>
+    <string name="changes_committed">Commit feito: %1$s</string>
+    <string name="changes_identity">O git precisa de nome e e-mail para fazer commit. No terminal, configure com git config --global user.name e git config --global user.email.</string>
+    <string name="changes_diff_empty">Sem diferenças de texto</string>
+    <string name="changes_diff_cut">… o resto não aparece aqui</string>
+    <string name="git_failed_title">O git falhou</string>
 </resources>
