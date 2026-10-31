@@ -43,6 +43,8 @@ class ChangesActivity : JangadaActivity() {
         val changes: List<Git.Change>,
         /** Commits à frente do upstream; null sem upstream. */
         val ahead: Int?,
+        /** A saída do status foi cortada: a lista não está completa. */
+        val cut: Boolean = false,
     )
 
     private lateinit var linux: LinuxEnv
@@ -61,8 +63,12 @@ class ChangesActivity : JangadaActivity() {
     private var isRepo = false
     /** Há pelo menos um commit (sem ele, o diff compara com o indexado). */
     private var hasHead = false
-    /** Número da leitura mais recente; a resposta de uma leitura anterior é descartada. */
-    private var generation = 0
+    /** Uma leitura está rodando; outro pedido nesse meio tempo só marca [reloadWanted]. */
+    private var loading = false
+    /** Pedido de leitura que chegou durante outra: roda quando ela terminar (uma thread por vez). */
+    private var reloadWanted = false
+    /** Um diff (ou a lista de uma pasta) está sendo lido: um toque por vez. */
+    private var reading = false
     /** Um commit está rodando (não deixa mandar dois). */
     private var committing = false
 
@@ -86,7 +92,7 @@ class ChangesActivity : JangadaActivity() {
         messageField = findViewById(R.id.changes_message)
         commitButton = findViewById(R.id.changes_commit)
         list.adapter = adapter
-        list.setOnItemClickListener { _, _, position, _ -> showDiff(changes[position]) }
+        list.setOnItemClickListener { _, _, position, _ -> changes.getOrNull(position)?.let { openChange(it) } }
         findViewById<View>(R.id.changes_back).setOnClickListener { finish() }
         findViewById<View>(R.id.changes_refresh).setOnClickListener { load() }
         commitButton.setOnClickListener { commit() }
@@ -102,13 +108,27 @@ class ChangesActivity : JangadaActivity() {
         load()
     }
 
-    /** Lê a pasta no git fora da thread principal e mostra o resultado (se ainda for o mais recente). */
+    /**
+     * Lê a pasta no git fora da thread principal e mostra o resultado. Só uma leitura roda por
+     * vez (onResume, atualizar e o fim do commit podem pedir juntos); um pedido no meio de outra
+     * descarta o resultado dela e lê de novo, então a tela nunca desenha uma leitura velha por cima.
+     */
     private fun load() {
-        val mine = ++generation
+        if (loading) {
+            reloadWanted = true
+            return
+        }
+        loading = true
         thread(name = "changes-load") {
             val read = readState()
             runOnUiThread {
-                if (isDestroyed || isFinishing || mine != generation) return@runOnUiThread
+                loading = false
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                if (reloadWanted) {
+                    reloadWanted = false
+                    load()
+                    return@runOnUiThread
+                }
                 show(read)
             }
         }
@@ -120,13 +140,15 @@ class ChangesActivity : JangadaActivity() {
         // Sem .git dentro da pasta, o git subiria para um repositório pai: não é repositório desta pasta.
         if (!Fs.exists(File(hostDir, ".git").toPath())) return State(false, null, false, emptyList(), null)
         val branch = Workspace.gitBranch(linux.rootfs, hostDir)
-        val status = Git.run(linux, cwd, "status", "--porcelain=v1", "--untracked-files=all")
+        val status = Git.status(linux, cwd)
         if (status.code != 0) return State(false, branch, false, emptyList(), null)
+        // Saída cortada: a última entrada pode ter vindo pela metade.
+        val parsed = Git.parseStatus(status.output).let { if (status.cut) it.dropLast(1) else it }
         val hasHead = Git.run(linux, cwd, "rev-parse", "--verify", "-q", "HEAD").code == 0
         // Sem upstream o git erra: não é um problema a mostrar, só não há contagem.
         val ahead = Git.run(linux, cwd, "rev-list", "--count", "@{u}..HEAD")
             .takeIf { it.code == 0 }?.output?.trim()?.toIntOrNull()
-        return State(true, branch, hasHead, Git.parseStatus(status.output), ahead)
+        return State(true, branch, hasHead, parsed, ahead, status.cut)
     }
 
     /** Mostra a leitura: título, resumo, lista ou o aviso de vazio, e o campo de commit. */
@@ -147,6 +169,7 @@ class ChangesActivity : JangadaActivity() {
             return
         }
         val parts = mutableListOf(resources.getQuantityString(R.plurals.changes_count, changes.size, changes.size))
+        if (read.cut) parts += getString(R.string.changes_list_cut)
         read.ahead?.let { parts += resources.getQuantityString(R.plurals.changes_ahead, it, it) }
         summary.text = parts.joinToString(" · ")
         summary.visibility = View.VISIBLE
@@ -172,6 +195,7 @@ class ChangesActivity : JangadaActivity() {
         updateCommit()
         thread(name = "changes-commit") {
             val added = Git.run(linux, cwd, "add", "-A")
+            // A mensagem vai como um argumento só, entre aspas simples: nada nela vira comando.
             val done = if (added.code == 0) Git.run(linux, cwd, "commit", "-m", message) else added
             val hash = if (done.code == 0) Git.run(linux, cwd, "rev-parse", "--short", "HEAD").output.trim() else ""
             runOnUiThread {
@@ -183,32 +207,81 @@ class ChangesActivity : JangadaActivity() {
                     load()
                 } else {
                     val identity = Git.identityMissing(done.output)
-                    val body = if (identity) getString(R.string.changes_identity) + "\n\n" + done.output else done.output
+                    val body = if (identity) getString(R.string.changes_identity) + "\n\n" + done.shown else done.shown
                     showText(R.string.git_failed_title, body.ifBlank { getString(R.string.git_failed_title) })
+                    // O add -A pode ter mudado o índice: a lista mostra o estado de agora.
+                    load()
                     updateCommit()
                 }
             }
         }
     }
 
-    /** Diff do arquivo, numa thread. Sem commit ainda, compara com o indexado e com o não indexado. */
+    /** Toque numa linha: pasta não rastreada mostra os arquivos dela; o resto, o diff. */
+    private fun openChange(change: Git.Change) {
+        if (change.isUntrackedDir) showFolderFiles(change.path) else showDiff(change)
+    }
+
+    /**
+     * Diff do arquivo, numa thread. Renomeação compara os dois caminhos (-M). Sem commit
+     * ainda, compara com o indexado e com o não indexado.
+     */
     private fun showDiff(change: Git.Change) {
+        if (reading) return
+        reading = true
         val head = hasHead
+        val paths = listOfNotNull(change.from, change.path).toTypedArray()
         thread(name = "changes-diff") {
-            val output = when {
-                change.code == "??" -> Git.run(linux, cwd, "diff", "--no-index", "--", "/dev/null", change.path).output
-                head -> Git.run(linux, cwd, "diff", "HEAD", "--", change.path).output
-                else -> Git.run(linux, cwd, "diff", "--cached", "--", change.path).output +
-                    Git.run(linux, cwd, "diff", "--", change.path).output
+            val result = when {
+                change.code == "??" -> Git.run(linux, cwd, "diff", "--no-index", "--", "/dev/null", change.path)
+                head -> Git.run(linux, cwd, "diff", "-M", "HEAD", "--", *paths)
+                else -> {
+                    val staged = Git.run(linux, cwd, "diff", "--cached", "-M", "--", *paths)
+                    val unstaged = Git.run(linux, cwd, "diff", "--", *paths)
+                    Git.Result(0, staged.output + unstaged.output, staged.cut || unstaged.cut)
+                }
             }
             runOnUiThread {
-                if (!isDestroyed && !isFinishing) showDiffDialog(change.path, output)
+                reading = false
+                if (!isDestroyed && !isFinishing) showDiffDialog(change.path, result.output, result.cut)
+            }
+        }
+    }
+
+    /**
+     * Pasta não rastreada: os arquivos dela (sem os ignorados), até [MAX_FOLDER_FILES]. Tocar
+     * num arquivo mostra o conteúdo dele como diff.
+     */
+    private fun showFolderFiles(dir: String) {
+        if (reading) return
+        reading = true
+        thread(name = "changes-folder") {
+            val result = Git.run(linux, cwd, "ls-files", "--others", "--exclude-standard", "-z", "--", dir)
+            // Saída cortada: a última entrada pode ter vindo pela metade.
+            val all = Git.parseNul(result.output).let { if (result.cut) it.dropLast(1) else it }
+            runOnUiThread {
+                reading = false
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                if (result.code != 0) {
+                    showText(R.string.git_failed_title, result.shown.ifBlank { getString(R.string.git_failed_title) })
+                    return@runOnUiThread
+                }
+                val files = all.take(MAX_FOLDER_FILES)
+                val labels = files.map { it.removePrefix(dir).ifEmpty { it } }.toMutableList()
+                if (result.cut || all.size > files.size) labels += getString(R.string.changes_diff_cut)
+                AlertDialog.Builder(this)
+                    .setTitle(dir)
+                    .setItems(labels.toTypedArray()) { _, which ->
+                        files.getOrNull(which)?.let { showDiff(Git.Change(it, "??")) }
+                    }
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
             }
         }
     }
 
     /** O diff numa caixa selecionável e rolável, com cor por tipo de linha; corta em [MAX_DIFF_LINES]. */
-    private fun showDiffDialog(path: String, output: String) {
+    private fun showDiffDialog(path: String, output: String, cut: Boolean) {
         val lines = output.lines().dropLastWhile { it.isEmpty() }
         val spanned = SpannableStringBuilder()
         for (line in lines.take(MAX_DIFF_LINES)) {
@@ -216,7 +289,7 @@ class ChangesActivity : JangadaActivity() {
             spanned.append(line).append('\n')
             spanned.setSpan(ForegroundColorSpan(getColor(diffColor(line))), start, spanned.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
-        if (lines.size > MAX_DIFF_LINES) spanned.append(getString(R.string.changes_diff_cut)).append('\n')
+        if (lines.size > MAX_DIFF_LINES || cut) spanned.append(getString(R.string.changes_diff_cut)).append('\n')
         if (lines.isEmpty()) spanned.append(getString(R.string.changes_diff_empty))
         val view = TextView(this).apply {
             text = spanned
@@ -298,7 +371,7 @@ class ChangesActivity : JangadaActivity() {
                         .apply { marginEnd = dp(12) }
                 })
                 addView(TextView(this@ChangesActivity).apply {
-                    text = change.path
+                    text = change.from?.let { "$it → ${change.path}" } ?: change.path
                     textSize = 14f
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.MIDDLE
@@ -314,5 +387,7 @@ class ChangesActivity : JangadaActivity() {
         const val EXTRA_FOLDER = "folder"
         /** Acima disso o diff é cortado (a tela não precisa de mais). */
         private const val MAX_DIFF_LINES = 3000
+        /** Arquivos mostrados de uma pasta não rastreada. */
+        private const val MAX_FOLDER_FILES = 500
     }
 }

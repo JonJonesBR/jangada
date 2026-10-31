@@ -112,7 +112,7 @@
             android:importantForAutofill="no"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="4"
-            android:minHeight="44dp"
+            android:minHeight="48dp"
             android:paddingStart="12dp"
             android:paddingTop="8dp"
             android:paddingEnd="12dp"

@@ -420,13 +420,14 @@
     <string name="changes_identity">O git precisa de nome e e-mail para fazer commit. No terminal, configure com git config --global user.name e git config --global user.email.</string>
     <string name="changes_diff_empty">Sem diferenças de texto</string>
     <string name="changes_diff_cut">… o resto não aparece aqui</string>
+    <string name="changes_list_cut">lista cortada</string>
     <string name="git_failed_title">O git falhou</string>
     <!-- Trabalho isolado (git worktree) -->
     <string name="chat_worktree_new">Novo trabalho isolado (worktree)…</string>
     <string name="chat_worktree_pick_base">Repositório base</string>
     <string name="chat_worktree_explain">Cria uma cópia de trabalho do %1$s numa branch própria. O agente mexe só nela; o %1$s fica como está até você juntar.</string>
     <string name="chat_worktree_name_hint">Nome do trabalho</string>
-    <string name="chat_worktree_name_invalid">Use até 40 letras, números, ponto, hífen ou sublinhado</string>
+    <string name="chat_worktree_name_invalid">Use até %1$d letras, números, pontos, hífens ou sublinhados (sem começar com ponto)</string>
     <string name="chat_worktree_of">worktree de %1$s</string>
     <string name="chat_worktree_finish">Encerrar trabalho isolado…</string>
     <string name="chat_worktree_title">Trabalho isolado</string>
@@ -442,4 +443,11 @@
     <string name="chat_worktree_merged">Juntado em %1$s</string>
     <string name="chat_worktree_discard_confirm">Serão apagados os commits (%1$d) e os arquivos sem commit (%2$d) deste trabalho. Não tem volta.</string>
     <string name="chat_worktree_branch_kept">A branch %1$s foi mantida</string>
+    <string name="chat_worktree_detached">Juntar não está disponível: este trabalho não está numa branch (HEAD solto). Crie uma branch para ele no terminal ou descarte.</string>
+    <string name="chat_worktree_base_detached">Juntar não está disponível: o repositório %1$s não está numa branch (HEAD solto). Volte para uma branch lá primeiro.</string>
+    <string name="chat_worktree_moved">Uma branch mudou em %1$s ou neste trabalho desde que o resumo abriu. Nada foi juntado; abra Encerrar trabalho isolado de novo.</string>
+    <string name="chat_worktree_closing">Fechando os chats e terminais desta pasta…</string>
+    <string name="chat_worktree_remove_failed">Não deu para tirar o trabalho isolado. Os chats desta pasta já foram fechados; reabra o trabalho para continuar ou vá para o repositório base.</string>
+    <string name="chat_worktree_reopen">Reabrir o trabalho</string>
+    <string name="chat_worktree_open_base">Abrir %1$s</string>
 </resources>

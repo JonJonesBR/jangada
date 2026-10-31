@@ -422,13 +422,14 @@
     <string name="changes_identity">Git needs a name and an e-mail to commit. In the terminal, set them with git config --global user.name and git config --global user.email.</string>
     <string name="changes_diff_empty">No text differences</string>
     <string name="changes_diff_cut">… the rest is not shown here</string>
+    <string name="changes_list_cut">list cut short</string>
     <string name="git_failed_title">Git failed</string>
     <!-- Trabalho isolado (git worktree) -->
     <string name="chat_worktree_new">New isolated job (worktree)…</string>
     <string name="chat_worktree_pick_base">Base repository</string>
     <string name="chat_worktree_explain">Creates a working copy of %1$s on its own branch. The agent only changes that copy; %1$s stays as it is until you merge.</string>
     <string name="chat_worktree_name_hint">Job name</string>
-    <string name="chat_worktree_name_invalid">Use up to 40 letters, numbers, dot, dash or underscore</string>
+    <string name="chat_worktree_name_invalid">Use up to %1$d letters, numbers, dots, dashes or underscores (not starting with a dot)</string>
     <string name="chat_worktree_of">worktree of %1$s</string>
     <string name="chat_worktree_finish">End isolated job…</string>
     <string name="chat_worktree_title">Isolated job</string>
@@ -444,4 +445,11 @@
     <string name="chat_worktree_merged">Merged into %1$s</string>
     <string name="chat_worktree_discard_confirm">The commits (%1$d) and the files not committed (%2$d) of this job will be deleted. This cannot be undone.</string>
     <string name="chat_worktree_branch_kept">Branch %1$s was kept</string>
+    <string name="chat_worktree_detached">Merging is not available: this job is not on a branch (detached HEAD). Create a branch for it in the terminal, or discard it.</string>
+    <string name="chat_worktree_base_detached">Merging is not available: the %1$s repository is not on a branch (detached HEAD). Check out a branch there first.</string>
+    <string name="chat_worktree_moved">A branch changed in %1$s or in this job since the summary was shown. Nothing was merged; open End isolated job again.</string>
+    <string name="chat_worktree_closing">Closing the chats and terminals of this folder…</string>
+    <string name="chat_worktree_remove_failed">The isolated job could not be removed. The chats of this folder were already closed; reopen the job to keep working, or go to the base repository.</string>
+    <string name="chat_worktree_reopen">Reopen the job</string>
+    <string name="chat_worktree_open_base">Open %1$s</string>
 </resources>

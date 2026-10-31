@@ -201,6 +201,36 @@ class WorkspaceTest {
     }
 
     @Test
+    fun worktreeOfNaoSegueLinkNoPontoGit() {
+        val rootfs = tmp.newFolder("rootfs")
+        val outside = tmp.newFile("gitdir-fora")
+        outside.writeText("gitdir: /root/projetos/principal/.git/worktrees/tarefa\n")
+        val worktree = File(rootfs, "root/projetos/tarefa").apply { mkdirs() }
+        Files.createSymbolicLink(File(worktree, ".git").toPath(), outside.toPath())
+        assertNull(Workspace.worktreeOf(worktree))
+    }
+
+    @Test
+    fun repositorioDoWorktreeComNomeLongoNoLimite() {
+        // A pasta do trabalho é <repo>--<nome>, com até 64 caracteres no total.
+        val name = "r--" + "x".repeat(61)
+        assertTrue(Workspace.isValidName(name))
+        assertEquals("r", Workspace.worktreeRepo("gitdir: /root/projetos/r/.git/worktrees/$name"))
+        assertFalse(Workspace.isValidName(name + "y"))
+    }
+
+    @Test
+    fun pastaDoTrabalhoIsoladoCabeEm64Caracteres() {
+        assertEquals("jangada--tela-nova", Workspace.worktreeFolder("jangada", "tela-nova"))
+        assertEquals(64 - 7 - 2, Workspace.maxWorktreeName("jangada"))
+        assertEquals(64, Workspace.worktreeFolder("jangada", "x".repeat(55))?.length)
+        assertNull(Workspace.worktreeFolder("jangada", "x".repeat(56)))
+        assertNull(Workspace.worktreeFolder("jangada", ".oculto"))
+        assertNull(Workspace.worktreeFolder("jangada", "com espaço"))
+        assertNull(Workspace.worktreeFolder("jangada", ""))
+    }
+
+    @Test
     fun listaMostraORepositorioDeOrigemDoWorktree() {
         val rootfs = tmp.newFolder("rootfs")
         val root = File(rootfs, "root/projetos").apply { mkdirs() }

@@ -23,6 +23,8 @@ object Workspace {
     private const val MAX_READ = 4096
     private const val MAX_BRANCH = 100
     private const val GITDIR = "gitdir:"
+    /** Entre o repositório e o nome na pasta de um trabalho isolado. */
+    private const val WORKTREE_SEP = "--"
     private const val HEAD_REF = "ref: refs/heads/"
     private val NAME = Regex("[A-Za-z0-9._-]+")
     private val NOT_ALNUM = Regex("[^A-Za-z0-9]")
@@ -46,6 +48,18 @@ object Workspace {
     /** Nome de pasta aceito: letras, números, ponto, hífen e sublinhado; não começa com ponto; não é "anexos". */
     fun isValidName(name: String): Boolean =
         name.length in 1..MAX_NAME && !name.startsWith(".") && name != Attachments.DIR && NAME.matches(name)
+
+    /** Maior nome de trabalho isolado para o repositório [repo]: a pasta <repo>--<nome> cabe em 64 caracteres. */
+    fun maxWorktreeName(repo: String): Int = (MAX_NAME - repo.length - WORKTREE_SEP.length).coerceAtLeast(0)
+
+    /**
+     * Pasta do trabalho isolado [name] do repositório [repo] ("<repo>--<nome>"), se o nome e a
+     * pasta são válidos (a pasta precisa passar em [isValidName] para aparecer na lista); senão null.
+     */
+    fun worktreeFolder(repo: String, name: String): String? {
+        if (!isValidName(repo) || !isValidName(name)) return null
+        return "$repo$WORKTREE_SEP$name".takeIf { isValidName(it) }
+    }
 
     /** Nome de subpasta que existe e pode aparecer na lista: sem barra, não oculta e não é "anexos". */
     internal fun isListable(name: String): Boolean =
