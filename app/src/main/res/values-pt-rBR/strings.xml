@@ -421,4 +421,25 @@
     <string name="changes_diff_empty">Sem diferenças de texto</string>
     <string name="changes_diff_cut">… o resto não aparece aqui</string>
     <string name="git_failed_title">O git falhou</string>
+    <!-- Trabalho isolado (git worktree) -->
+    <string name="chat_worktree_new">Novo trabalho isolado (worktree)…</string>
+    <string name="chat_worktree_pick_base">Repositório base</string>
+    <string name="chat_worktree_explain">Cria uma cópia de trabalho do %1$s numa branch própria. O agente mexe só nela; o %1$s fica como está até você juntar.</string>
+    <string name="chat_worktree_name_hint">Nome do trabalho</string>
+    <string name="chat_worktree_name_invalid">Use até 40 letras, números, ponto, hífen ou sublinhado</string>
+    <string name="chat_worktree_of">worktree de %1$s</string>
+    <string name="chat_worktree_finish">Encerrar trabalho isolado…</string>
+    <string name="chat_worktree_title">Trabalho isolado</string>
+    <string name="chat_worktree_summary">Commits nesta cópia que não estão em %1$s: %2$d\nArquivos sem commit: %3$d</string>
+    <string name="chat_worktree_base_missing">O repositório de origem deste trabalho não está mais em ~/projetos como pasta git, então não dá para juntar nem apagar daqui.</string>
+    <string name="chat_worktree_merge">Juntar em %1$s</string>
+    <string name="chat_worktree_discard">Descartar</string>
+    <string name="chat_worktree_keep">Manter</string>
+    <string name="chat_worktree_uncommitted">Este trabalho ainda tem arquivos sem commit. Faça o commit em Mudanças e depois junte.</string>
+    <string name="chat_worktree_open_changes">Abrir Mudanças</string>
+    <string name="chat_worktree_base_dirty">O repositório %1$s tem mudanças sem commit. Faça o commit ou guarde-as lá e depois junte.</string>
+    <string name="chat_worktree_merge_failed">A junção não deu certo, provavelmente por conflito. Peça ao agente para atualizar a branch do trabalho com a branch base e tente de novo. Nada foi alterado em %1$s.</string>
+    <string name="chat_worktree_merged">Juntado em %1$s</string>
+    <string name="chat_worktree_discard_confirm">Serão apagados os commits (%1$d) e os arquivos sem commit (%2$d) deste trabalho. Não tem volta.</string>
+    <string name="chat_worktree_branch_kept">A branch %1$s foi mantida</string>
 </resources>

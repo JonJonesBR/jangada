@@ -171,6 +171,51 @@ class WorkspaceTest {
         assertEquals(listOf("alfa", "Zeta"), Workspace.listIn(rootfs).map { it.name })
     }
 
+    @Test
+    fun repositorioDoWorktreeSaiDaLinhaGitdir() {
+        assertEquals("jangada", Workspace.worktreeRepo("gitdir: /root/projetos/jangada/.git/worktrees/jangada--x"))
+        assertEquals("jangada", Workspace.worktreeRepo("gitdir: /root/projetos/jangada/.git/worktrees/x\n"))
+    }
+
+    @Test
+    fun linhaGitdirDeOutroLugarNaoEWorktree() {
+        assertNull(Workspace.worktreeRepo("gitdir: /root/outra/.git/worktrees/x"))
+        assertNull(Workspace.worktreeRepo("gitdir: ../principal/.git/worktrees/x"))
+        assertNull(Workspace.worktreeRepo("gitdir: /root/projetos/a/b/.git/worktrees/x"))
+        assertNull(Workspace.worktreeRepo("gitdir: /root/projetos/jangada/.git"))
+        assertNull(Workspace.worktreeRepo("gitdir: /root/projetos/jangada/.git/worktrees/"))
+        assertNull(Workspace.worktreeRepo("gitdir: /root/projetos/../x/.git/worktrees/y"))
+        assertNull(Workspace.worktreeRepo("ref: refs/heads/main"))
+    }
+
+    @Test
+    fun worktreeOfLeOGitdirDoArquivoEPastaComGitNaoE() {
+        val rootfs = tmp.newFolder("rootfs")
+        File(rootfs, "root/projetos/principal/.git/worktrees/tarefa").mkdirs()
+        val worktree = File(rootfs, "root/projetos/tarefa").apply { mkdirs() }
+        File(worktree, ".git").writeText("gitdir: /root/projetos/principal/.git/worktrees/tarefa\n")
+        assertEquals("principal", Workspace.worktreeOf(worktree))
+        val main = repo(rootfs, "principal")
+        assertNull(Workspace.worktreeOf(main))
+        assertNull(Workspace.worktreeOf(File(rootfs, "root/projetos/sem-git").apply { mkdirs() }))
+    }
+
+    @Test
+    fun listaMostraORepositorioDeOrigemDoWorktree() {
+        val rootfs = tmp.newFolder("rootfs")
+        val root = File(rootfs, "root/projetos").apply { mkdirs() }
+        repo(rootfs, "principal")
+        File(root, "principal/.git/HEAD").writeText("ref: refs/heads/main\n")
+        val worktree = File(root, "principal--x").apply { mkdirs() }
+        File(worktree, ".git").writeText("gitdir: /root/projetos/principal/.git/worktrees/principal--x\n")
+        File(root, "principal/.git/worktrees/principal--x").mkdirs()
+        File(root, "principal/.git/worktrees/principal--x/HEAD").writeText("ref: refs/heads/jangada/x\n")
+        val folders = Workspace.listIn(rootfs).associateBy { it.name }
+        assertEquals(null, folders.getValue("principal").worktreeOf)
+        assertEquals("principal", folders.getValue("principal--x").worktreeOf)
+        assertEquals("jangada/x", folders.getValue("principal--x").branch)
+    }
+
     private fun repo(rootfs: File, name: String): File =
         File(rootfs, "root/projetos/$name").apply { File(this, ".git").mkdirs() }
 }

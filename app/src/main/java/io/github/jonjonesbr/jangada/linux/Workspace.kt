@@ -28,8 +28,11 @@ object Workspace {
     private val NOT_ALNUM = Regex("[^A-Za-z0-9]")
     private val HASH = Regex("[0-9a-f]{40,64}")
 
-    /** Uma subpasta de projetos e o branch do git dela (null = não é repositório ou não deu para ler). */
-    class Folder(val name: String, val branch: String?)
+    /**
+     * Uma subpasta de projetos, o branch do git dela (null = não é repositório ou não deu para ler) e,
+     * se for um worktree (trabalho isolado), o nome do repositório de origem.
+     */
+    class Folder(val name: String, val branch: String?, val worktreeOf: String?)
 
     /** Caminho absoluto dentro do Debian da pasta [folder] ("" = a raiz). */
     fun path(folder: String): String = if (folder.isEmpty()) ROOT else "$ROOT/$folder"
@@ -77,7 +80,7 @@ object Workspace {
         return children
             .filter { isListable(it.name) && Fs.isDir(it.toPath()) }
             .sortedBy { it.name.lowercase() }
-            .map { Folder(it.name, gitBranch(rootfs, it)) }
+            .map { Folder(it.name, gitBranch(rootfs, it), worktreeOf(it)) }
     }
 
     /**
@@ -90,6 +93,31 @@ object Workspace {
         val gitDir = gitDirOf(rootfs, dir) ?: return@runCatching null
         headOf(gitDir)
     }.getOrNull()
+
+    /**
+     * Repositório de origem de [dir], se ela é um worktree (o .git é arquivo com o gitdir do
+     * repositório). Qualquer falha ou pasta que não é worktree: null.
+     */
+    fun worktreeOf(dir: File): String? = runCatching {
+        val dotGit = File(dir, ".git").toPath()
+        if (Fs.isDir(dotGit)) null else readSmall(dotGit)?.lineSequence()?.firstOrNull()?.let { worktreeRepo(it.trim()) }
+    }.getOrNull()
+
+    /**
+     * Nome do repositório pela linha "gitdir: /root/projetos/<repo>/.git/worktrees/<x>"; null
+     * se a linha aponta para outro lugar (ou tem caminho relativo ou com "..").
+     */
+    internal fun worktreeRepo(gitdirLine: String): String? {
+        val line = gitdirLine.trim()
+        if (!line.startsWith(GITDIR)) return null
+        val guest = line.removePrefix(GITDIR).trim()
+        val prefix = "$ROOT/"
+        if (!guest.startsWith(prefix)) return null
+        val parts = guest.removePrefix(prefix).split('/')
+        if (parts.size != 4 || parts[1] != ".git" || parts[2] != "worktrees") return null
+        if (!isListable(parts[0]) || !isListable(parts[3])) return null
+        return parts[0]
+    }
 
     /** Pasta do git de [dir]: a .git (pasta) ou, em worktree, a que o .git (arquivo) aponta. */
     private fun gitDirOf(rootfs: File, dir: File): File? {

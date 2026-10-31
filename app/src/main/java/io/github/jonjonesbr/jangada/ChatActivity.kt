@@ -63,6 +63,7 @@ import io.github.jonjonesbr.jangada.chat.SlashCommand
 import io.github.jonjonesbr.jangada.chat.ToolText
 import io.github.jonjonesbr.jangada.chat.friendlyModel
 import io.github.jonjonesbr.jangada.linux.Fs
+import io.github.jonjonesbr.jangada.linux.Git
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
 import java.io.File
@@ -956,6 +957,7 @@ class ChatActivity : JangadaActivity() {
         rows += SettingRow(getString(R.string.chat_setting_folder) + ": " + folderLabel(folders)) { chooseFolder(folders) }
         val current = folders.firstOrNull { it.name == folder }
         if (current?.branch != null) rows += SettingRow(getString(R.string.chat_setting_changes)) { openChanges() }
+        if (current?.worktreeOf != null) rows += SettingRow(getString(R.string.chat_worktree_finish)) { showWorktreeFinish(folders) }
         if (isClaude) {
             rows += SettingRow(getString(R.string.chat_setting_model) + ": " + modelLabel(settings.chatModel)) {
                 chooseClaude(MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
@@ -1003,21 +1005,104 @@ class ChatActivity : JangadaActivity() {
         return if (branch == null) label else "$label ($branch)"
     }
 
-    /** Escolha da pasta: a raiz, cada subpasta (com o branch) e, por último, criar uma nova. */
+    /**
+     * Escolha da pasta: a raiz, cada subpasta (com o branch), criar uma nova e, se há
+     * repositório para isso, um trabalho isolado (worktree).
+     */
     private fun chooseFolder(folders: List<Workspace.Folder>) {
-        // Mesma ordem dos itens: a raiz, as pastas e "Nova pasta" (a última, que não é uma escolha).
-        val names = listOf("") + folders.map { it.name }
-        val labels = (listOf(getString(R.string.chat_folder_root)) +
-            folders.map { folder -> folder.name + (folder.branch?.let { " · $it" } ?: "") } +
-            getString(R.string.chat_folder_new)).toTypedArray()
+        val rows = mutableListOf<SettingRow>()
+        rows += SettingRow(getString(R.string.chat_folder_root)) { pickFolder("") }
+        for (item in folders) rows += SettingRow(folderChoiceLabel(item)) { pickFolder(item.name) }
+        rows += SettingRow(getString(R.string.chat_folder_new)) { newFolderDialog() }
+        if (folders.any { canBeWorktreeBase(it) }) rows += SettingRow(getString(R.string.chat_worktree_new)) { chooseWorktreeBase(folders) }
+        val checked = (listOf("") + folders.map { it.name }).indexOf(folder)
         AlertDialog.Builder(this)
             .setTitle(R.string.chat_setting_folder)
-            .setSingleChoiceItems(labels, names.indexOf(folder)) { dialog, which ->
+            .setSingleChoiceItems(rows.map { it.label }.toTypedArray(), checked) { dialog, which ->
                 dialog.dismiss()
-                if (which == names.size) newFolderDialog() else pickFolder(names[which])
+                rows[which].action()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /** Nome da pasta na escolha, com o branch e, num worktree, de qual repositório ele veio. */
+    private fun folderChoiceLabel(item: Workspace.Folder): String =
+        listOfNotNull(item.name, item.branch, item.worktreeOf?.let { getString(R.string.chat_worktree_of, it) })
+            .joinToString(" · ")
+
+    /** Repositório que pode ser a base de um trabalho isolado: pasta git que não é worktree. */
+    private fun canBeWorktreeBase(item: Workspace.Folder) = item.branch != null && item.worktreeOf == null
+
+    /** Escolha do repositório base do novo trabalho isolado. */
+    private fun chooseWorktreeBase(folders: List<Workspace.Folder>) {
+        val bases = folders.filter { canBeWorktreeBase(it) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.chat_worktree_pick_base)
+            .setItems(bases.map { folderChoiceLabel(it) }.toTypedArray()) { _, which -> newWorktreeDialog(bases[which]) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Nome do novo trabalho isolado, com a explicação de como ele funciona. */
+    private fun newWorktreeDialog(base: Workspace.Folder) {
+        val explain = TextView(this).apply {
+            text = getString(R.string.chat_worktree_explain, base.name)
+            textSize = 14f
+            setTextColor(getColor(R.color.setup_muted))
+            setPadding(0, 0, 0, dp(8))
+        }
+        val field = EditText(this).apply {
+            hint = getString(R.string.chat_worktree_name_hint)
+            setSingleLine(true)
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(explain)
+            addView(field)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.chat_worktree_new)
+            .setView(content)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        // Como em Nova pasta: o OK é ligado depois de mostrar o diálogo; nome inválido o mantém aberto.
+        dialog.setOnShowListener {
+            val ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            ok.setOnClickListener {
+                val name = field.text.toString().trim()
+                if (name.length > MAX_WORKTREE_NAME || !Workspace.isValidName(name)) {
+                    field.error = getString(R.string.chat_worktree_name_invalid)
+                    return@setOnClickListener
+                }
+                createWorktree(base.name, name, dialog, ok)
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * Cria a cópia de trabalho (`git worktree add -b jangada/<nome>`) fora da thread principal.
+     * Deu certo, abre o trabalho nela; falhou, mostra a saída e deixa tentar de novo.
+     */
+    private fun createWorktree(baseName: String, name: String, dialog: AlertDialog, ok: View) {
+        ok.isEnabled = false
+        val worktree = "$baseName--$name"
+        thread(name = "chat-worktree-new") {
+            val made = Git.run(linux, Workspace.path(baseName), "worktree", "add", "-b", "jangada/$name", Workspace.path(worktree))
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                if (made.code == 0) {
+                    dialog.dismiss()
+                    pickFolder(worktree)
+                } else {
+                    ok.isEnabled = true
+                    showDetails(R.string.git_failed_title, made.output.ifBlank { getString(R.string.git_failed_title) })
+                }
+            }
+        }
     }
 
     /**
@@ -1027,6 +1112,166 @@ class ChatActivity : JangadaActivity() {
     private fun pickFolder(name: String) {
         if (name == folder) return
         openJobScreen(agentId, name)
+    }
+
+    /** Trabalho isolado (worktree) desta tela: a pasta dele, o repositório de origem, as branches. */
+    private class WorktreeJob(val folder: String, val base: String, val baseBranch: String, val branch: String?)
+
+    /**
+     * Encerrar trabalho isolado: lê (numa thread) os commits desta cópia que não estão na
+     * branch do repositório base e os arquivos sem commit, e mostra o que dá para fazer.
+     */
+    private fun showWorktreeFinish(folders: List<Workspace.Folder>) {
+        val worktree = folders.firstOrNull { it.name == folder } ?: return
+        val baseName = worktree.worktreeOf ?: return
+        val baseBranch = folders.firstOrNull { it.name == baseName && canBeWorktreeBase(it) }?.branch
+        if (baseBranch == null) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.chat_worktree_title)
+                .setMessage(R.string.chat_worktree_base_missing)
+                .setPositiveButton(R.string.chat_worktree_keep, null)
+                .show()
+            return
+        }
+        val job = WorktreeJob(folder, baseName, baseBranch, worktree.branch)
+        val path = Workspace.path(folder)
+        thread(name = "chat-worktree-check") {
+            val commits = Git.run(linux, path, "rev-list", "--count", "$baseBranch..HEAD")
+            val status = Git.run(linux, path, "status", "--porcelain=v1", "--untracked-files=all")
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                val failed = listOf(commits, status).firstOrNull { it.code != 0 }
+                if (failed != null) showDetails(R.string.git_failed_title, failed.output)
+                else showWorktreeDialog(job, commits.output.trim().toIntOrNull() ?: 0, Git.parseStatus(status.output).size)
+            }
+        }
+    }
+
+    /** O resumo do trabalho e as três saídas: juntar (se a branch existe), descartar ou manter. */
+    private fun showWorktreeDialog(job: WorktreeJob, commits: Int, files: Int) {
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.chat_worktree_title)
+            .setMessage(getString(R.string.chat_worktree_summary, job.baseBranch, commits, files))
+            .setNeutralButton(R.string.chat_worktree_discard) { _, _ -> confirmDiscard(job, commits, files) }
+            .setNegativeButton(R.string.chat_worktree_keep, null)
+        if (job.branch != null) {
+            builder.setPositiveButton(getString(R.string.chat_worktree_merge, job.baseBranch)) { _, _ -> mergeWorktree(job) }
+        }
+        builder.show()
+    }
+
+    /**
+     * Junta o trabalho na branch do repositório base (`git merge --no-ff`). Recusa se há
+     * arquivos sem commit aqui ou mudanças no base; conflito desfaz a junção e mostra a saída.
+     * Deu certo, tira o trabalho sem perguntar de novo.
+     */
+    private fun mergeWorktree(job: WorktreeJob) {
+        val branch = job.branch ?: return
+        val path = Workspace.path(job.folder)
+        val basePath = Workspace.path(job.base)
+        thread(name = "chat-worktree-merge") {
+            val mine = Git.run(linux, path, "status", "--porcelain=v1", "--untracked-files=all")
+            val theirs = Git.run(linux, basePath, "status", "--porcelain=v1")
+            if (mine.code != 0 || theirs.code != 0) {
+                val failed = if (mine.code != 0) mine else theirs
+                runOnUiThread { if (!isDestroyed && !isFinishing) showDetails(R.string.git_failed_title, failed.output) }
+                return@thread
+            }
+            if (Git.parseStatus(mine.output).isNotEmpty()) {
+                runOnUiThread { if (!isDestroyed && !isFinishing) showUncommitted() }
+                return@thread
+            }
+            if (Git.parseStatus(theirs.output).isNotEmpty()) {
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.chat_worktree_title)
+                        .setMessage(getString(R.string.chat_worktree_base_dirty, job.base))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                }
+                return@thread
+            }
+            val merged = Git.run(linux, basePath, "merge", "--no-ff", "--no-edit", branch)
+            if (merged.code != 0) {
+                Git.run(linux, basePath, "merge", "--abort")
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    val explain = getString(R.string.chat_worktree_merge_failed, job.base) + "\n\n" + merged.output
+                    val body = if (Git.identityMissing(merged.output)) getString(R.string.changes_identity) + "\n\n" + explain else explain
+                    showDetails(R.string.chat_worktree_title, body)
+                }
+                return@thread
+            }
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                Toast.makeText(this, getString(R.string.chat_worktree_merged, job.baseBranch), Toast.LENGTH_SHORT).show()
+                service?.let { removeWorktree(it, job, force = false) }
+            }
+        }
+    }
+
+    /** Recusa a junção: há arquivos sem commit no trabalho. Oferece abrir Mudanças. */
+    private fun showUncommitted() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.chat_worktree_title)
+            .setMessage(R.string.chat_worktree_uncommitted)
+            .setPositiveButton(R.string.chat_worktree_open_changes) { _, _ -> openChanges() }
+            .setNegativeButton(R.string.chat_worktree_keep, null)
+            .show()
+    }
+
+    /** Confirmação destrutiva: diz quantos commits e arquivos vão embora. */
+    private fun confirmDiscard(job: WorktreeJob, commits: Int, files: Int) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.chat_worktree_discard)
+            .setMessage(getString(R.string.chat_worktree_discard_confirm, commits, files))
+            .setPositiveButton(R.string.chat_worktree_discard) { _, _ -> service?.let { removeWorktree(it, job, force = true) } }
+            .setNegativeButton(R.string.chat_worktree_keep, null)
+            .show()
+    }
+
+    /**
+     * Tira o trabalho isolado: antes, fecha os chats (de todos os agentes) e as sessões de
+     * terminal dessa pasta; quando todos saírem, remove o worktree e a branch no repositório base.
+     */
+    private fun removeWorktree(svc: TerminalService, job: WorktreeJob, force: Boolean) {
+        svc.sessionFolder.filterValues { it == job.folder }.keys.toList().forEach { svc.closeSession(it) }
+        val slots = svc.chats.values.filter { it.folder == job.folder }
+        if (slots.isEmpty()) {
+            removeFromGit(job, force)
+            return
+        }
+        var waiting = slots.size
+        // Os avisos de saída chegam na thread principal, quando cada agente já parou.
+        for (slot in slots) {
+            svc.closeChat(slot.agentId, slot.folder) {
+                waiting--
+                if (waiting == 0) removeFromGit(job, force)
+            }
+        }
+    }
+
+    /** `git worktree remove` e `git branch -d` (ou -D) no repositório base; ao fim, abre o chat dele. */
+    private fun removeFromGit(job: WorktreeJob, force: Boolean) {
+        val basePath = Workspace.path(job.base)
+        val removeArgs = listOfNotNull("worktree", "remove", if (force) "--force" else null, Workspace.path(job.folder))
+        thread(name = "chat-worktree-remove") {
+            val removed = Git.run(linux, basePath, *removeArgs.toTypedArray())
+            if (removed.code != 0) {
+                runOnUiThread { if (!isDestroyed && !isFinishing) showDetails(R.string.git_failed_title, removed.output) }
+                return@thread
+            }
+            val branch = job.branch
+            val deleted = if (branch == null) null else Git.run(linux, basePath, "branch", if (force) "-D" else "-d", branch)
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                if (deleted != null && deleted.code != 0) {
+                    Toast.makeText(this, getString(R.string.chat_worktree_branch_kept, branch), Toast.LENGTH_LONG).show()
+                }
+                openJobScreen(agentId, job.base)
+            }
+        }
     }
 
     /**
@@ -1833,6 +2078,8 @@ class ChatActivity : JangadaActivity() {
         const val TOOL_EXCERPT_LINES = 6
         /** A partir deste percentual do contexto usado, aparece o chip de compactar. */
         const val COMPACT_PERCENT = 80
+        /** Tamanho máximo do nome de um trabalho isolado (a pasta fica <repo>--<nome>). */
+        const val MAX_WORKTREE_NAME = 40
         const val EXTRA_AGENT_ID = "agent_id"
         const val EXTRA_RESUME = "resume"
         const val EXTRA_NEW = "new"

@@ -423,4 +423,25 @@
     <string name="changes_diff_empty">No text differences</string>
     <string name="changes_diff_cut">… the rest is not shown here</string>
     <string name="git_failed_title">Git failed</string>
+    <!-- Trabalho isolado (git worktree) -->
+    <string name="chat_worktree_new">New isolated job (worktree)…</string>
+    <string name="chat_worktree_pick_base">Base repository</string>
+    <string name="chat_worktree_explain">Creates a working copy of %1$s on its own branch. The agent only changes that copy; %1$s stays as it is until you merge.</string>
+    <string name="chat_worktree_name_hint">Job name</string>
+    <string name="chat_worktree_name_invalid">Use up to 40 letters, numbers, dot, dash or underscore</string>
+    <string name="chat_worktree_of">worktree of %1$s</string>
+    <string name="chat_worktree_finish">End isolated job…</string>
+    <string name="chat_worktree_title">Isolated job</string>
+    <string name="chat_worktree_summary">Commits in this copy that are not in %1$s: %2$d\nFiles not committed: %3$d</string>
+    <string name="chat_worktree_base_missing">The repository this job came from is no longer a git folder in ~/projetos, so it cannot be merged or removed from here.</string>
+    <string name="chat_worktree_merge">Merge into %1$s</string>
+    <string name="chat_worktree_discard">Discard</string>
+    <string name="chat_worktree_keep">Keep</string>
+    <string name="chat_worktree_uncommitted">This job still has files that are not committed. Commit them in Changes, then merge.</string>
+    <string name="chat_worktree_open_changes">Open changes</string>
+    <string name="chat_worktree_base_dirty">The %1$s repository has changes that are not committed. Commit or set them aside there, then merge.</string>
+    <string name="chat_worktree_merge_failed">The merge did not work, probably because of a conflict. Ask the agent to update the job’s branch with the base branch, then try again. Nothing was changed in %1$s.</string>
+    <string name="chat_worktree_merged">Merged into %1$s</string>
+    <string name="chat_worktree_discard_confirm">The commits (%1$d) and the files not committed (%2$d) of this job will be deleted. This cannot be undone.</string>
+    <string name="chat_worktree_branch_kept">Branch %1$s was kept</string>
 </resources>
