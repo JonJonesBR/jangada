@@ -153,6 +153,12 @@ class ChatActivity : JangadaActivity() {
     private var changedFiles: Int? = null
     /** Número da leitura de mudanças mais nova: resultado de uma leitura anterior é descartado. */
     private var changesGeneration = 0
+    /** O branch e o repositório de origem da pasta já foram lidos (o menu espera por isso). */
+    private var folderInfoRead = false
+    /** busy do último redesenho (a contagem de mudanças é relida quando o turno acaba). */
+    private var changesBusy = false
+    /** Tela baixa (teclado aberto ou paisagem): os atalhos saem e a faixa de permissão encolhe. */
+    private var compactLayout = false
     /** Pedido de permissão que a faixa fixa mostra agora (o primeiro pendente); null = faixa escondida. */
     private var barPermission: ChatItem.Permission? = null
     private var engine: AgentChat? = null
@@ -247,6 +253,20 @@ class ChatActivity : JangadaActivity() {
         permissionAllow.setOnClickListener { answerBarPermission(PermissionOption.Kind.ALLOW_ONCE) }
         permissionDeny.setOnClickListener { answerBarPermission(PermissionOption.Kind.REJECT_ONCE) }
         permissionDetails.setOnClickListener { showBarPermission() }
+        // Com o teclado aberto (adjustResize) ou em paisagem sobra pouca altura: a conversa tem prioridade.
+        // Usa a altura da janela (não depende do que está dentro dela), então não há vai e volta.
+        findViewById<View>(android.R.id.content).addOnLayoutChangeListener { v, _, top, _, bottom, _, _, _, _ ->
+            val compact = (bottom - top) < dp(COMPACT_HEIGHT_DP)
+            if (compact != compactLayout) {
+                compactLayout = compact
+                // Mexer na visibilidade dentro do próprio layout não vale: adia para depois dele.
+                v.post {
+                    if (isDestroyed) return@post
+                    engine?.let { updatePermissionBar(it) }
+                    updateQuickbar()
+                }
+            }
+        }
         onBackPressedDispatcher.addCallback(this) { goHome() }
 
         // "Enter envia" (configurações): o Enter do teclado manda a mensagem.
@@ -306,9 +326,9 @@ class ChatActivity : JangadaActivity() {
         resumed = true
         service?.visibleChat = chatKey
         applyTextScale()
-        // O branch e as mudanças podem ter mudado no terminal enquanto a tela estava em segundo plano.
+        // O branch e as mudanças podem ter mudado no terminal enquanto a tela estava em segundo plano
+        // (as mudanças são lidas quando o branch chega: só pasta git conta).
         readFolderInfo()
-        readChanges()
         // Ao voltar com "/..." na caixa, as sugestões reaparecem (depois da janela estar pronta).
         input.post { updateCommandSuggestions() }
     }
@@ -676,7 +696,7 @@ class ChatActivity : JangadaActivity() {
      * Lê o branch e o repositório de origem da pasta (só arquivos do git, sem o programa) fora da
      * thread principal, e atualiza o título. Chamado ao voltar para a tela.
      */
-    private fun readFolderInfo() {
+    private fun readFolderInfo(then: (() -> Unit)? = null) {
         val dir = Workspace.hostPath(linux.rootfs, Workspace.path(folder))
         thread(name = "chat-folder-info") {
             val branch = Workspace.gitBranch(linux.rootfs, dir)
@@ -685,8 +705,11 @@ class ChatActivity : JangadaActivity() {
                 if (isDestroyed || isFinishing) return@runOnUiThread
                 folderBranch = branch
                 folderWorktreeOf = worktreeOf
+                folderInfoRead = true
                 updateTitle()
                 updateQuickbar()
+                readChanges()
+                then?.invoke()
             }
         }
     }
@@ -700,8 +723,6 @@ class ChatActivity : JangadaActivity() {
     private fun announceChanges(chat: AgentChat) {
         val finished = lastBusy && !chat.busy
         lastBusy = chat.busy
-        // O turno que acabou pode ter editado arquivos: a contagem do atalho de mudanças é lida de novo.
-        if (finished) readChanges()
         val items = chat.items.toList()
         val freshPermission = items.filterIsInstance<ChatItem.Permission>()
             .filter { it.chosen == null }.filter { seenPermissions.add(it) }.firstOrNull()
@@ -758,6 +779,9 @@ class ChatActivity : JangadaActivity() {
         adapter.snapshot = ArrayList(ChatView.arrange(chat.items, mode))
         adapter.notifyDataSetChanged()
         announceChanges(chat)
+        // O turno que acabou pode ter editado arquivos: a contagem do atalho de mudanças é lida de novo.
+        if (changesBusy && !chat.busy) readChanges()
+        changesBusy = chat.busy
         // Vazia é o que a tela mostra (só raciocínio, no Normal, não deve deixar a lista em branco).
         val isEmpty = adapter.snapshot.isEmpty()
         empty.visibility = if (isEmpty) View.VISIBLE else View.GONE
@@ -782,6 +806,9 @@ class ChatActivity : JangadaActivity() {
         permissionBar.visibility = if (first == null) View.GONE else View.VISIBLE
         if (first == null) return
         permissionTitle.text = getString(R.string.chat_permission_bar_title, agentName)
+        // Tela baixa: sem a linha do título, e o texto em até duas linhas (a faixa não empurra a conversa para fora).
+        permissionTitle.visibility = if (compactLayout) View.GONE else View.VISIBLE
+        permissionText.maxLines = if (compactLayout) 2 else 3
         permissionText.text = listOf(first.title, first.summary).filter { it.isNotBlank() }.joinToString("\n")
         val more = pending.size - 1
         permissionMore.visibility = if (more > 0) View.VISIBLE else View.GONE
@@ -793,6 +820,8 @@ class ChatActivity : JangadaActivity() {
     /** Permitir ou Recusar pela faixa: o mesmo caminho do cartão (engine.answer). */
     private fun answerBarPermission(kind: PermissionOption.Kind) {
         val item = barPermission ?: return
+        // Já respondido pelo cartão (a faixa ainda não foi redesenhada): nada a fazer.
+        if (item.chosen != null) return
         val option = item.options.firstOrNull { it.kind == kind } ?: return
         engine?.answer(item, option)
     }
@@ -803,9 +832,11 @@ class ChatActivity : JangadaActivity() {
      */
     private fun showBarPermission() {
         val item = barPermission ?: return
+        // Posição no que a lista mostra (no Resumo os itens são reagrupados), não na conversa.
         val index = adapter.snapshot.indexOfFirst { it === item }
         if (index >= 0) {
-            list.smoothScrollToPosition(index)
+            // O começo do cartão no topo da lista (um cartão alto, com o diff, não fica cortado em cima).
+            list.smoothScrollToPositionFromTop(index, 0)
         } else {
             val body = listOf(item.title, item.summary, item.detail, item.diff.orEmpty())
                 .filter { it.isNotBlank() }
@@ -820,7 +851,7 @@ class ChatActivity : JangadaActivity() {
      */
     private fun updateQuickbar() {
         val chat = engine ?: return
-        quickbar.visibility = View.VISIBLE
+        quickbar.visibility = if (compactLayout) View.GONE else View.VISIBLE
         val branch = folderBranch
 
         // Pasta (e branch): a raiz mostra ~/projetos.
@@ -840,12 +871,15 @@ class ChatActivity : JangadaActivity() {
         val showModel = isClaude || options.isNotEmpty()
         chipModel.visibility = if (showModel) View.VISIBLE else View.GONE
         if (isClaude) {
-            val model = friendlyModel(chat.model) ?: getString(R.string.chat_model_default)
-            val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { effortLabel(it) } ?: getString(R.string.chat_effort_default)
-            chipModel.text = "$model · $effort"
-            chipModel.contentDescription = getString(R.string.chat_chip_model_description, model, effort)
+            // Modelo e esforço no padrão: só "Modelo padrão". O esforço no padrão não aparece no chip.
+            val model = friendlyModel(chat.model) ?: getString(R.string.chat_chip_model_default)
+            val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { effortLabel(it) }
+            chipModel.text = if (effort == null) model else "$model · $effort"
+            chipModel.contentDescription = getString(
+                R.string.chat_chip_model_description, model, effort ?: getString(R.string.chat_effort_default),
+            )
         } else if (acp != null && showModel) {
-            val model = acp.model.orEmpty()
+            val model = acp.model ?: getString(R.string.chat_chip_model_default)
             val thought = options.firstOrNull { it.category == "thought_level" }?.currentName
             chipModel.text = listOfNotNull(model, thought).joinToString(" · ")
             chipModel.contentDescription = if (thought == null) {
@@ -887,6 +921,14 @@ class ChatActivity : JangadaActivity() {
      */
     private fun readChanges() {
         val generation = ++changesGeneration
+        // Sem branch conhecido a pasta não é repositório git: não há o que contar (e o git nem roda).
+        if (folderBranch == null) {
+            if (changedFiles != null) {
+                changedFiles = null
+                updateQuickbar()
+            }
+            return
+        }
         thread(name = "chat-changes") {
             val result = Git.status(linux, Workspace.path(folder))
             val count = if (result.code != 0) {
@@ -1279,18 +1321,23 @@ class ChatActivity : JangadaActivity() {
      * só aparece numa pasta git; encerrar, só num trabalho isolado (worktree).
      */
     private fun showMenu() {
+        // O branch e o trabalho isolado decidem o que cabe no menu: se ainda não foram lidos, lê antes.
+        if (!folderInfoRead) {
+            readFolderInfo { showMenu() }
+            return
+        }
         val rows = mutableListOf<Sheet.Row>()
         rows += Sheet.Row(title = getString(R.string.chat_new), description = getString(R.string.chat_menu_new_desc), icon = "＋") {
             newConversation()
         }
-        rows += Sheet.Row(title = getString(R.string.chat_history), description = getString(R.string.chat_menu_history_desc), icon = "🕘") {
+        rows += Sheet.Row(title = getString(R.string.chat_menu_history), description = getString(R.string.chat_menu_history_desc), icon = "🕘") {
             showHistory()
         }
         rows += Sheet.Row(title = getString(R.string.chat_jobs), description = getString(R.string.chat_menu_jobs_desc), icon = "⇄") {
             showJobs()
         }
         if (folderBranch != null) rows += Sheet.Row(
-            title = getString(R.string.chat_setting_changes),
+            title = getString(R.string.chat_menu_changes),
             description = getString(R.string.sheet_desc_changes),
             icon = "⎇",
         ) { openChanges() }
@@ -1300,7 +1347,7 @@ class ChatActivity : JangadaActivity() {
             icon = "⏏",
         ) { loadFolders { folders -> showWorktreeFinish(folders) } }
         rows += Sheet.Row(
-            title = getString(R.string.chat_settings_title),
+            title = getString(R.string.chat_menu_settings),
             description = getString(R.string.chat_menu_settings_desc),
             icon = "⚙",
         ) { showChatSettings() }
@@ -2487,6 +2534,8 @@ class ChatActivity : JangadaActivity() {
         const val INPUT_TEXT_SP = 16f
         /** Tamanho dos atalhos acima da caixa (sp), antes da escala. */
         const val CHIP_TEXT_SP = 14f
+        /** Abaixo desta altura da janela (teclado aberto, paisagem) os atalhos somem e a faixa de permissão encolhe. */
+        const val COMPACT_HEIGHT_DP = 420
         /** Modo Detalhado: linhas do começo da saída de cada ação, embaixo da linha dela. */
         const val TOOL_EXCERPT_LINES = 6
         /** A partir deste percentual do contexto usado, o chip de contexto fica em destaque (e o painel oferece compactar). */

@@ -18,7 +18,7 @@
             style="@style/BarButton"
             android:text="@string/terminal_home_arrow" />
 
-        <!-- Título e subtítulo formam um só alvo de toque (48dp): tocar abre os ajustes. -->
+        <!-- Título e subtítulo formam um só alvo de toque (48dp): tocar abre os trabalhos (trocar de pasta ou de agente). -->
         <LinearLayout
             android:id="@+id/chat_title_block"
             android:layout_width="0dp"

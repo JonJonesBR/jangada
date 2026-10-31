@@ -166,6 +166,9 @@
     <string name="chat_title_description">%1$s, folder %2$s, branch %3$s. Tap to switch job.</string>
     <string name="chat_title_description_plain">%1$s, folder %2$s. Tap to switch job.</string>
     <string name="chat_menu">More options</string>
+    <string name="chat_menu_history">History</string>
+    <string name="chat_menu_changes">Changes</string>
+    <string name="chat_menu_settings">Chat settings</string>
     <string name="chat_menu_new_desc">Starts from scratch; this conversation stays in the history</string>
     <string name="chat_menu_history_desc">Resume or delete earlier conversations</string>
     <string name="chat_menu_jobs_desc">Other chats and folders, running side by side</string>
@@ -176,8 +179,9 @@
     <string name="chat_chip_model_description">Model %1$s, effort %2$s. Tap to change.</string>
     <string name="chat_chip_model_plain">Model %1$s. Tap to change.</string>
     <string name="chat_chip_view_description">View: %1$s. Tap to change.</string>
-    <string name="chat_chip_context">%1$d%%</string>
-    <string name="chat_chip_context_high">⚠ %1$d%%</string>
+    <string name="chat_chip_context">Context %1$d%%</string>
+    <string name="chat_chip_context_high">⚠ Context %1$d%%</string>
+    <string name="chat_chip_model_default">Default model</string>
     <string name="chat_chip_context_description">Context %1$d%% used. Tap for details.</string>
     <string name="chat_model_effort_title">Model and effort</string>
     <string name="chat_context_title">Conversation context</string>

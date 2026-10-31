@@ -164,6 +164,9 @@
     <string name="chat_title_description">%1$s, pasta %2$s, branch %3$s. Toque para trocar de trabalho.</string>
     <string name="chat_title_description_plain">%1$s, pasta %2$s. Toque para trocar de trabalho.</string>
     <string name="chat_menu">Mais opções</string>
+    <string name="chat_menu_history">Histórico</string>
+    <string name="chat_menu_changes">Mudanças</string>
+    <string name="chat_menu_settings">Ajustes do chat</string>
     <string name="chat_menu_new_desc">Começa do zero; a conversa atual fica no histórico</string>
     <string name="chat_menu_history_desc">Retoma ou apaga conversas anteriores</string>
     <string name="chat_menu_jobs_desc">Outros chats e pastas, rodando ao mesmo tempo</string>
@@ -174,8 +177,9 @@
     <string name="chat_chip_model_description">Modelo %1$s, esforço %2$s. Toque para mudar.</string>
     <string name="chat_chip_model_plain">Modelo %1$s. Toque para mudar.</string>
     <string name="chat_chip_view_description">Visualização: %1$s. Toque para mudar.</string>
-    <string name="chat_chip_context">%1$d%%</string>
-    <string name="chat_chip_context_high">⚠ %1$d%%</string>
+    <string name="chat_chip_context">Contexto %1$d%%</string>
+    <string name="chat_chip_context_high">⚠ Contexto %1$d%%</string>
+    <string name="chat_chip_model_default">Modelo padrão</string>
     <string name="chat_chip_context_description">Contexto %1$d%% usado. Toque para ver mais.</string>
     <string name="chat_model_effort_title">Modelo e esforço</string>
     <string name="chat_context_title">Contexto da conversa</string>
