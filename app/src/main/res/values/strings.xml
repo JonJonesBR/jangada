@@ -469,4 +469,5 @@
     <string name="chat_worktree_remove_failed">The isolated job could not be removed. The chats of this folder were already closed; reopen the job to keep working, or go to the base repository.</string>
     <string name="chat_worktree_reopen">Reopen the job</string>
     <string name="chat_worktree_open_base">Open %1$s</string>
+    <string name="sheet_selected">selected</string>
 </resources>

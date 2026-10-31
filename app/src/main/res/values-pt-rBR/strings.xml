@@ -467,4 +467,5 @@
     <string name="chat_worktree_remove_failed">Não deu para tirar o trabalho isolado. Os chats desta pasta já foram fechados; reabra o trabalho para continuar ou vá para o repositório base.</string>
     <string name="chat_worktree_reopen">Reabrir o trabalho</string>
     <string name="chat_worktree_open_base">Abrir %1$s</string>
+    <string name="sheet_selected">selecionado</string>
 </resources>
