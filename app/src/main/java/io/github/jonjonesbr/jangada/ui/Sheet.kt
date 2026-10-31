@@ -18,8 +18,13 @@ import android.view.Window
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import io.github.jonjonesbr.jangada.R
 import kotlin.math.min
 
@@ -62,21 +67,30 @@ class Sheet(private val activity: Activity) {
     fun show(): Dialog? {
         if (activity.isFinishing || activity.isDestroyed) return null
         var picked = false
+        // A tela foi destruída com o painel aberto: fecha sem rodar nada (evita janela vazada).
+        var gone = false
         val dialog = Dialog(activity)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setCanceledOnTouchOutside(true)
-        dialog.setOnDismissListener { if (!picked) onDismissAction?.invoke() }
-        dialog.window?.apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setGravity(Gravity.BOTTOM)
-            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            setWindowAnimations(android.R.style.Animation_InputMethod)
+        val owner = activity as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_DESTROY) {
+                gone = true
+                dialog.dismiss()
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        dialog.setOnDismissListener {
+            owner?.lifecycle?.removeObserver(observer)
+            if (!picked && !gone) onDismissAction?.invoke()
         }
         // Fecha o painel e só então roda a ação (ela pode abrir outro painel ou diálogo).
         val choose: (Row) -> Unit = { row ->
-            picked = true
-            dialog.dismiss()
-            handler.post { if (!activity.isDestroyed) row.action() }
+            if (!picked) {
+                picked = true
+                dialog.dismiss()
+                handler.post { if (!activity.isFinishing && !activity.isDestroyed) row.action() }
+            }
         }
 
         val root = LinearLayout(activity).apply {
@@ -137,13 +151,19 @@ class Sheet(private val activity: Activity) {
             root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
 
+        // O título da janela é anunciado pelo leitor de tela quando o painel aparece (API 28+).
+        if (Build.VERSION.SDK_INT >= 28) titleText?.let { root.accessibilityPaneTitle = it }
+
         dialog.setContentView(root, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        dialog.show()
-        // O título é anunciado ao abrir (depois de mostrar, para o leitor de tela já ter a janela).
-        titleText?.let { t ->
-            if (Build.VERSION.SDK_INT >= 28) root.accessibilityPaneTitle = t
-            else root.announceForAccessibility(t)
+        // Depois do conteúdo: o tema de diálogo não pode impor moldura, fundo nem largura menor.
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setGravity(Gravity.BOTTOM)
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setWindowAnimations(android.R.style.Animation_InputMethod)
         }
+        dialog.show()
+        if (Build.VERSION.SDK_INT < 28) titleText?.let { root.announceForAccessibility(it) }
         return dialog
     }
 
@@ -162,6 +182,13 @@ class Sheet(private val activity: Activity) {
             alpha = if (row.enabled) 1f else 0.4f
             contentDescription = describe(row)
             if (row.enabled) setOnClickListener { choose(row) }
+            // Anunciada como botão (a linha é um LinearLayout).
+            ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.className = android.widget.Button::class.java.name
+                }
+            })
 
             row.icon?.let { icon ->
                 addView(

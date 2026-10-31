@@ -944,7 +944,7 @@ class ChatActivity : JangadaActivity() {
             Sheet.Row(title = conversation.title, destructive = true) {
                 confirmDelete(conversation, conversation.id == engine?.sessionId) {
                     conversations.remove(conversation)
-                    showDeleteHistory(conversations)
+                    runOnUiThread { if (!isDestroyed) showDeleteHistory(conversations) }
                 }
             }
         }
