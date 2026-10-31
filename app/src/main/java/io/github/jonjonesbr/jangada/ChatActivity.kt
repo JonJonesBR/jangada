@@ -10,6 +10,7 @@ import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -29,6 +30,7 @@ import android.text.style.URLSpan
 import android.text.util.Linkify
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -68,6 +70,8 @@ import io.github.jonjonesbr.jangada.linux.Git
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
 import java.io.File
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.concurrent.thread
 
@@ -103,6 +107,12 @@ class ChatActivity : JangadaActivity() {
     private var started = false
     /** A tela está em primeiro plano (entre onResume e onPause). */
     private var resumed = false
+    /** Turno em andamento na última leitura da conversa (para ver o fim do turno). */
+    private var lastBusy = false
+    /** Primeira leitura depois de [attach]: só guarda o estado, sem anunciar nada. */
+    private var primed = false
+    /** Pedidos de permissão já vistos nesta conversa (pela identidade do item). */
+    private val seenPermissions: MutableSet<ChatItem> = Collections.newSetFromMap(IdentityHashMap<ChatItem, Boolean>())
     /** Um pedido de abrir o chat (feito ao ligar no serviço) espera o adaptador ficar pronto. */
     private var opening = false
     /** As pastas dos ajustes estão sendo lidas (evita abrir o diálogo duas vezes). */
@@ -230,6 +240,7 @@ class ChatActivity : JangadaActivity() {
         super.onResume()
         resumed = true
         service?.visibleChat = chatKey
+        applyTextScale()
         // Ao voltar com "/..." na caixa, as sugestões reaparecem (depois da janela estar pronta).
         input.post { updateCommandSuggestions() }
     }
@@ -555,6 +566,9 @@ class ChatActivity : JangadaActivity() {
         updateTitle()
         // Parada, a tela não se registra no chat (o onStop já desfez isso); ao voltar, o onStart a liga de novo.
         if (started) chat.onChanged = { refresh() }
+        // Nova ligação com a conversa: o próximo redesenho só guarda o estado (ver announceChanges).
+        primed = false
+        seenPermissions.clear()
         refresh()
         input.requestFocus()
     }
@@ -564,6 +578,50 @@ class ChatActivity : JangadaActivity() {
         findViewById<TextView>(R.id.chat_title).text = if (folder.isEmpty()) agentName else "$agentName · $folder"
     }
 
+    /**
+     * Anúncios para o leitor de tela e vibração: o turno terminou (busy passou de true para false)
+     * e apareceu um pedido de permissão novo. Só com a tela em primeiro plano. Erro, login ou
+     * parada não contam como resposta pronta.
+     */
+    private fun announceChanges(chat: AgentChat) {
+        val finished = lastBusy && !chat.busy
+        lastBusy = chat.busy
+        val pending = chat.items.toList().filterIsInstance<ChatItem.Permission>().filter { it.chosen == null }
+        // Pedidos que já estavam na tela (ou chegaram em segundo plano) não são novidade.
+        val fresh = pending.filter { seenPermissions.add(it) }
+        if (!primed) {
+            primed = true
+            return
+        }
+        if (!resumed) return
+        if (finished) {
+            val last = adapter.snapshot.lastOrNull()
+            val failed = (last is ChatItem.Info && last.isError) || last is ChatItem.Login || chat.interrupted
+            if (!failed) {
+                list.announceForAccessibility(getString(R.string.chat_announce_finished))
+                if (settings.hapticOnFinish) {
+                    list.performHapticFeedback(
+                        if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY,
+                    )
+                }
+            }
+        }
+        fresh.firstOrNull()?.let { request ->
+            val what = listOf(request.title, request.summary).filter { it.isNotBlank() }.joinToString(": ")
+            list.announceForAccessibility(getString(R.string.chat_announce_permission, what))
+        }
+    }
+
+    /** Tamanho do texto (ajustes do chat): a caixa e as linhas da conversa seguem a escolha. */
+    private fun applyTextScale() {
+        val scale = settings.chatTextScale
+        input.textSize = INPUT_TEXT_SP * scale
+        if (adapter.chatScale != scale) {
+            adapter.chatScale = scale
+            adapter.notifyDataSetChanged()
+        }
+    }
+
     /** Caminho para mostrar ao usuário: "~/projetos/jangada" em vez de "/root/projetos/jangada". */
     private fun displayPath(cwd: String) = cwd.replaceFirst("/root/", "~/")
 
@@ -571,10 +629,12 @@ class ChatActivity : JangadaActivity() {
         val chat = engine ?: return
         val mode = settings.chatView
         adapter.viewMode = mode
+        adapter.chatScale = settings.chatTextScale
         // A lista mostra uma cópia; assim ela nunca vê a conversa mudar
         // "por baixo" entre um redesenho e outro (o que derrubava o app).
         adapter.snapshot = ArrayList(ChatView.arrange(chat.items, mode))
         adapter.notifyDataSetChanged()
+        announceChanges(chat)
         // Vazia é o que a tela mostra (só raciocínio, no Normal, não deve deixar a lista em branco).
         val isEmpty = adapter.snapshot.isEmpty()
         empty.visibility = if (isEmpty) View.VISIBLE else View.GONE
@@ -1592,6 +1652,8 @@ class ChatActivity : JangadaActivity() {
         var snapshot: List<ChatItem> = emptyList()
         /** Modo de visualização da tela (AppSettings.chatView), lido uma vez por redesenho. */
         var viewMode = AppSettings.VIEW_NORMAL
+        /** Escala do texto da conversa (AppSettings.chatTextScale), lida uma vez por redesenho. */
+        var chatScale = 1f
 
         override fun getCount() = snapshot.size
         override fun getItem(position: Int): Any = snapshot[position]
@@ -1667,7 +1729,7 @@ class ChatActivity : JangadaActivity() {
             // Na fila ou não enviada, a bolha fica mais apagada; as views são reaproveitadas, então isto vale em todo uso.
             alpha = if (item.queued || item.dropped) 0.6f else 1f
             setTextColor(getColor(R.color.key_text))
-            textSize = 16f
+            textSize = 16f * chatScale
             setBackgroundResource(R.drawable.bubble_user)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             maxWidth = (resources.displayMetrics.widthPixels * 0.82).toInt()
@@ -1734,7 +1796,7 @@ class ChatActivity : JangadaActivity() {
         private fun prose(body: CharSequence, item: ChatItem.Assistant, last: Boolean) = TextView(this@ChatActivity).apply {
             text = if (item.streaming && last) SpannableStringBuilder(body).append(" ▍") else body
             setTextColor(getColor(R.color.setup_text))
-            textSize = 16f
+            textSize = 16f * chatScale
             setLineSpacing(0f, 1.2f)
             setPadding(dp(4), dp(4), dp(4), dp(4))
             setLinkTextColor(getColor(R.color.accent_text))
@@ -1761,13 +1823,13 @@ class ChatActivity : JangadaActivity() {
             }
             header.addView(TextView(this@ChatActivity).apply {
                 text = part.language
-                textSize = 12f
+                textSize = 12f * chatScale
                 setTextColor(getColor(R.color.setup_muted))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
             header.addView(TextView(this@ChatActivity).apply {
                 setText(R.string.chat_copy_code)
-                textSize = 13f
+                textSize = 13f * chatScale
                 setTextColor(getColor(R.color.accent_text))
                 gravity = Gravity.CENTER
                 minHeight = dp(48)
@@ -1779,7 +1841,7 @@ class ChatActivity : JangadaActivity() {
                 addView(TextView(this@ChatActivity).apply {
                     text = part.text.trimEnd('\n')
                     typeface = Typeface.MONOSPACE
-                    textSize = 13f
+                    textSize = 13f * chatScale
                     setTextColor(getColor(R.color.setup_text))
                     setHorizontallyScrolling(true)
                     setPadding(dp(12), 0, dp(12), dp(10))
@@ -1808,7 +1870,7 @@ class ChatActivity : JangadaActivity() {
             }
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE
-            textSize = 12f
+            textSize = 12f * chatScale
             setTextColor(getColor(if (item.failed) R.color.setup_error else R.color.setup_muted))
             setPadding(dp(4), dp(2), dp(4), dp(2))
             gravity = Gravity.CENTER_VERTICAL
@@ -1832,7 +1894,7 @@ class ChatActivity : JangadaActivity() {
             text = getString(R.string.chat_thinking) + ": " + item.text
             // Linha reaproveitada: o estilo é refeito sempre, para não herdar o de outra linha.
             setTypeface(null, Typeface.ITALIC)
-            textSize = 13f
+            textSize = 13f * chatScale
             setTextColor(getColor(R.color.setup_muted))
             maxLines = 6
             ellipsize = TextUtils.TruncateAt.END
@@ -1865,7 +1927,7 @@ class ChatActivity : JangadaActivity() {
             maxLines = if (second != null) 3 else 2
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE
-            textSize = 12f
+            textSize = 12f * chatScale
             setTextColor(getColor(if (tools.any { it.failed }) R.color.setup_error else R.color.setup_muted))
             setPadding(dp(4), dp(2), dp(4), dp(2))
             gravity = Gravity.CENTER_VERTICAL
@@ -1884,14 +1946,14 @@ class ChatActivity : JangadaActivity() {
             card.addView(TextView(this@ChatActivity).apply {
                 text = getString(R.string.chat_wants_agent, agentName, item.title)
                 setTextColor(getColor(R.color.setup_text))
-                textSize = 15f
+                textSize = 15f * chatScale
                 setTypeface(typeface, Typeface.BOLD)
             })
             if (item.summary.isNotEmpty()) {
                 card.addView(TextView(this@ChatActivity).apply {
                     text = item.summary
                     typeface = Typeface.MONOSPACE
-                    textSize = 12f
+                    textSize = 12f * chatScale
                     maxLines = 8
                     ellipsize = TextUtils.TruncateAt.END
                     setTextColor(getColor(R.color.setup_muted))
@@ -1909,7 +1971,7 @@ class ChatActivity : JangadaActivity() {
             if (item.detail.isNotEmpty()) {
                 card.addView(TextView(this@ChatActivity).apply {
                     text = item.detail
-                    textSize = 12f
+                    textSize = 12f * chatScale
                     setTextColor(getColor(R.color.setup_muted))
                     setPadding(0, 0, 0, dp(4))
                 })
@@ -1923,6 +1985,7 @@ class ChatActivity : JangadaActivity() {
                     val button = if (primary) Button(this@ChatActivity) else Button(this@ChatActivity, null, android.R.attr.borderlessButtonStyle)
                     button.text = optionLabel(item, option)
                     button.isAllCaps = false
+                    button.textSize = 14f * chatScale
                     if (primary) {
                         button.backgroundTintList = ColorStateList.valueOf(getColor(R.color.key_active))
                         button.setTextColor(getColor(R.color.setup_on_accent))
@@ -1937,7 +2000,7 @@ class ChatActivity : JangadaActivity() {
                 card.addView(TextView(this@ChatActivity).apply {
                     text = optionLabel(item, chosen)
                     setTextColor(getColor(if (chosen.allows) R.color.setup_done else R.color.setup_error))
-                    textSize = 13f
+                    textSize = 13f * chatScale
                     setPadding(0, dp(4), 0, 0)
                 })
             }
@@ -1947,7 +2010,7 @@ class ChatActivity : JangadaActivity() {
         /** Trecho de edição (linhas "- " em vermelho e "+ " em verde) com o fundo dos blocos de código. */
         private fun diffView(diff: String) = TextView(this@ChatActivity).apply {
             typeface = Typeface.MONOSPACE
-            textSize = 12f
+            textSize = 12f * chatScale
             setTextColor(getColor(R.color.setup_text))
             setBackgroundResource(R.drawable.compose_bg)
             setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -1979,14 +2042,14 @@ class ChatActivity : JangadaActivity() {
             card.addView(TextView(this@ChatActivity).apply {
                 text = getString(R.string.login_title, agentName)
                 setTextColor(getColor(R.color.setup_text))
-                textSize = 16f
+                textSize = 16f * chatScale
                 setTypeface(typeface, Typeface.BOLD)
             })
             val viaBrowser = item.options.any { it.kind == AuthOption.Kind.AGENT }
             card.addView(TextView(this@ChatActivity).apply {
                 text = getString(if (viaBrowser) R.string.login_browser_hint else R.string.login_screen_hint)
                 setTextColor(getColor(R.color.setup_muted))
-                textSize = 14f
+                textSize = 14f * chatScale
                 setLineSpacing(0f, 1.15f)
                 setPadding(0, dp(6), 0, dp(8))
             })
@@ -1995,12 +2058,13 @@ class ChatActivity : JangadaActivity() {
                     card.addView(TextView(this@ChatActivity).apply {
                         setText(R.string.login_waiting)
                         setTextColor(getColor(R.color.accent_text))
-                        textSize = 14f
+                        textSize = 14f * chatScale
                     })
                     card.addView(
                         Button(this@ChatActivity, null, android.R.attr.borderlessButtonStyle).apply {
                             setText(R.string.chat_login_cancel)
                             isAllCaps = false
+                            textSize = 14f * chatScale
                             setTextColor(getColor(R.color.accent_text))
                             setOnClickListener { (engine as? AcpChat)?.cancelLogin(item) }
                         },
@@ -2010,14 +2074,14 @@ class ChatActivity : JangadaActivity() {
                 ChatItem.Login.State.DONE -> card.addView(TextView(this@ChatActivity).apply {
                     setText(R.string.login_done)
                     setTextColor(getColor(R.color.setup_done))
-                    textSize = 14f
+                    textSize = 14f * chatScale
                 })
                 else -> {
                     item.message?.let { message ->
                         card.addView(TextView(this@ChatActivity).apply {
                             text = message
                             setTextColor(getColor(R.color.setup_error))
-                            textSize = 13f
+                            textSize = 13f * chatScale
                             setPadding(0, 0, 0, dp(6))
                         })
                     }
@@ -2030,6 +2094,7 @@ class ChatActivity : JangadaActivity() {
                             AuthOption.Kind.AGENT_SCREEN -> getString(R.string.login_open_screen, agentName)
                         }
                         button.isAllCaps = false
+                        button.textSize = 14f * chatScale
                         if (primary) {
                             button.backgroundTintList = ColorStateList.valueOf(getColor(R.color.key_active))
                             button.setTextColor(getColor(R.color.setup_on_accent))
@@ -2049,7 +2114,7 @@ class ChatActivity : JangadaActivity() {
                 val mark = when (entry.status) { "completed" -> "☑"; "in_progress" -> "◐"; else -> "☐" }
                 "$mark ${entry.text}"
             }
-            textSize = 14f
+            textSize = 14f * chatScale
             setTextColor(getColor(R.color.setup_muted))
             setBackgroundResource(R.drawable.card_bg)
             setPadding(dp(14), dp(10), dp(14), dp(10))
@@ -2080,7 +2145,7 @@ class ChatActivity : JangadaActivity() {
             }
             movementMethod = if (details != null) LinkMovementMethod.getInstance() else null
             gravity = Gravity.CENTER
-            textSize = 13f
+            textSize = 13f * chatScale
             setTextColor(getColor(if (item.isError) R.color.setup_error else R.color.setup_muted))
             setPadding(dp(12), dp(6), dp(12), dp(6))
             setOnLongClickListener { copy(item.text); true }
@@ -2157,6 +2222,8 @@ class ChatActivity : JangadaActivity() {
         const val COMMAND_SUGGESTIONS = 6
         /** Altura de cada linha do popup de comandos. */
         const val COMMAND_ROW_DP = 48
+        /** Tamanho padrão da caixa de texto do chat (sp), antes da escala. */
+        const val INPUT_TEXT_SP = 16f
         /** Modo Detalhado: linhas do começo da saída de cada ação, embaixo da linha dela. */
         const val TOOL_EXCERPT_LINES = 6
         /** A partir deste percentual do contexto usado, aparece o chip de compactar. */

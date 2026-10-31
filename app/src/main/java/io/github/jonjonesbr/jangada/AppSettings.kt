@@ -81,7 +81,19 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_COMPOSE_VISIBLE, simpleMode)
         set(value) = prefs.edit().putBoolean(KEY_COMPOSE_VISIBLE, value).apply()
 
+    /** Vibra quando a resposta do chat fica pronta (só com o chat aberto; ver ChatActivity). */
+    var hapticOnFinish: Boolean
+        get() = prefs.getBoolean(KEY_HAPTIC_FINISH, false)
+        set(value) = prefs.edit().putBoolean(KEY_HAPTIC_FINISH, value).apply()
+
+    /** Tamanho do texto do chat: um de [CHAT_TEXT_SCALES]; outro valor guardado volta a 1f. */
+    var chatTextScale: Float
+        get() = prefs.getFloat(KEY_CHAT_TEXT_SCALE, 1f).takeIf { it in CHAT_TEXT_SCALES } ?: 1f
+        set(value) = prefs.edit().putFloat(KEY_CHAT_TEXT_SCALE, value).apply()
+
     companion object {
+        /** Escolhas do tamanho do texto do chat (multiplicam o tamanho padrão). */
+        val CHAT_TEXT_SCALES = listOf(0.85f, 1f, 1.15f, 1.3f, 1.5f)
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
         const val THEME_DARK = "dark"
@@ -105,5 +117,7 @@ class AppSettings(context: Context) {
         private const val KEY_WELCOME_DISMISSED = "welcome_dismissed"
         private const val KEY_FONT_SIZE = "font_size_px"
         private const val KEY_COMPOSE_VISIBLE = "compose_visible"
+        private const val KEY_HAPTIC_FINISH = "haptic_on_finish"
+        private const val KEY_CHAT_TEXT_SCALE = "chat_text_scale"
     }
 }

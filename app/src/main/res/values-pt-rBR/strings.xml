@@ -107,6 +107,9 @@
 
     <string name="chat_model_default">Padrão da conta</string>
     <string name="settings_model">Modelo do Claude no chat</string>
+    <string name="settings_chat_alerts">Avisos do chat</string>
+    <string name="settings_haptic">Vibrar quando a resposta ficar pronta</string>
+    <string name="settings_haptic_hint">Só com o chat aberto; segue o retorno tátil do sistema.</string>
 
     <string name="chat_history">Conversas</string>
     <string name="chat_history_empty">Ainda não há conversas anteriores</string>
@@ -167,6 +170,8 @@
     <string name="chat_view_summary_hint">ações seguidas agrupadas, sem raciocínio</string>
     <string name="chat_thinking">Raciocínio</string>
     <string name="chat_thinking_description">Raciocínio. Toque para ler tudo.</string>
+    <string name="chat_announce_finished">Resposta pronta</string>
+    <string name="chat_announce_permission">O agente pede permissão: %1$s</string>
     <plurals name="chat_tool_group">
         <item quantity="one">%d ação</item>
         <item quantity="other">%d ações</item>
@@ -250,6 +255,13 @@
     <string name="terminal_theme_button">Cores do terminal: %s</string>
     <string name="terminal_theme_title">Cores do terminal</string>
     <string name="terminal_theme_note">Com o terminal claro, use também um tema claro dentro dos agentes (no Claude Code: /theme).</string>
+    <string name="settings_chat_text">Tamanho do texto do chat: %1$s</string>
+    <string name="settings_chat_text_title">Tamanho do texto do chat</string>
+    <string name="settings_chat_text_small">Pequeno</string>
+    <string name="settings_chat_text_normal">Normal</string>
+    <string name="settings_chat_text_large">Grande</string>
+    <string name="settings_chat_text_larger">Maior</string>
+    <string name="settings_chat_text_huge">Enorme</string>
     <string name="settings_nothing_to_clean">Não havia nada para limpar: os caches já estão vazios.</string>
     <string name="settings_backup">Backup</string>
     <string name="backup_intro">Guarde seus projetos (e, se quiser, as configurações e logins dos agentes) num arquivo no celular, para restaurar depois de reinstalar o Linux ou trocar de aparelho. Os agentes em si são reinstalados pelo catálogo.</string>

@@ -64,6 +64,9 @@ class SettingsActivity : JangadaActivity() {
         effort.check(efforts.entries.firstOrNull { it.value == settings.chatEffort }?.key ?: R.id.effort_default)
         effort.setOnCheckedChangeListener { _, id -> settings.chatEffort = efforts[id] ?: "" }
 
+        // Vibração ao fim da resposta (só com o chat aberto; ver ChatActivity).
+        bindSwitch(R.id.settings_haptic, settings.hapticOnFinish) { settings.hapticOnFinish = it }
+
         // ---- Aparência ----
         val themes = mapOf(
             R.id.theme_system to AppSettings.THEME_SYSTEM, R.id.theme_light to AppSettings.THEME_LIGHT,
@@ -94,6 +97,28 @@ class SettingsActivity : JangadaActivity() {
                     dialog.dismiss()
                     showTerminalTheme()
                     if (ids[which] == "solarized_light") Toast.makeText(this, R.string.terminal_theme_note, Toast.LENGTH_LONG).show()
+                }
+                .show()
+        }
+
+        // Tamanho do texto do chat: a mesma escolha em diálogo que as cores do terminal.
+        val chatText = findViewById<Button>(R.id.settings_chat_text)
+        val scaleOptions = AppSettings.CHAT_TEXT_SCALES.zip(CHAT_TEXT_NAMES)
+        fun showChatText() {
+            val nameRes = scaleOptions.first { it.first == settings.chatTextScale }.second
+            chatText.text = getString(R.string.settings_chat_text, getString(nameRes))
+        }
+        showChatText()
+        chatText.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.settings_chat_text_title)
+                .setSingleChoiceItems(
+                    scaleOptions.map { getString(it.second) }.toTypedArray(),
+                    scaleOptions.indexOfFirst { it.first == settings.chatTextScale },
+                ) { dialog, which ->
+                    settings.chatTextScale = scaleOptions[which].first
+                    dialog.dismiss()
+                    showChatText()
                 }
                 .show()
         }
@@ -317,5 +342,10 @@ class SettingsActivity : JangadaActivity() {
         const val REQUEST_EXPORT = 21
         const val REQUEST_IMPORT = 22
         const val STATE_BACKUP_EVERYTHING = "backup_everything"
+        /** Nome de cada escolha do tamanho do chat, na mesma ordem de [AppSettings.CHAT_TEXT_SCALES]. */
+        val CHAT_TEXT_NAMES = listOf(
+            R.string.settings_chat_text_small, R.string.settings_chat_text_normal, R.string.settings_chat_text_large,
+            R.string.settings_chat_text_larger, R.string.settings_chat_text_huge,
+        )
     }
 }
