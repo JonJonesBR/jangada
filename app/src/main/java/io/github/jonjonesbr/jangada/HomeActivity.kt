@@ -17,6 +17,10 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
@@ -39,7 +43,9 @@ import io.github.jonjonesbr.jangada.chat.ChatState
 import io.github.jonjonesbr.jangada.chat.chatState
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
+import io.github.jonjonesbr.jangada.linux.Worktrees
 import io.github.jonjonesbr.jangada.ui.Sheet
+import io.github.jonjonesbr.jangada.ui.askWorktreeName
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -59,6 +65,9 @@ class HomeActivity : JangadaActivity() {
     /** Fileira de filtros da lista de trabalhos (aparece com 4 ou mais linhas). */
     private lateinit var filterRow: View
     private lateinit var filterChips: LinearLayout
+    /** Botão "＋ Novo trabalho" e a frase de lista vazia, que fica acima dele. */
+    private lateinit var newJobButton: Button
+    private lateinit var jobsEmpty: TextView
     /** Filtro da lista de trabalhos; não é salvo. */
     private var jobFilter: JobFilter = JobFilter.All
     /** Cartão de boas-vindas; null depois de tirado da tela. */
@@ -121,6 +130,9 @@ class HomeActivity : JangadaActivity() {
         runningTitle = findViewById(R.id.running_title)
         filterRow = findViewById(R.id.job_filter)
         filterChips = findViewById(R.id.job_filter_chips)
+        newJobButton = findViewById(R.id.home_new_job)
+        jobsEmpty = findViewById(R.id.home_jobs_empty)
+        newJobButton.setOnClickListener { startNewJob() }
         recipes = AgentCatalog.load(this)
 
         findViewById<Button>(R.id.open_terminal).setOnClickListener { openTerminal() }
@@ -447,6 +459,8 @@ class HomeActivity : JangadaActivity() {
             cards[recipe.id] = card
             agentsList.addView(card)
         }
+        // O botão Novo trabalho depende do que está instalado, que muda junto com os cartões.
+        renderJobsSection()
     }
 
     private fun buildCard(inflater: LayoutInflater, recipe: AgentRecipe): View {
@@ -655,10 +669,8 @@ class HomeActivity : JangadaActivity() {
      */
     private fun renderSessions() {
         sessionsList.removeAllViews()
-        val svc = service
-        val jobs = svc?.chats?.values?.toList().orEmpty().map { it to chatState(it.chat) }
-        val sessions = svc?.sessions.orEmpty()
-        runningTitle.visibility = if (jobs.isEmpty() && sessions.isEmpty()) View.GONE else View.VISIBLE
+        val jobs = orderedJobs()
+        val sessions = service?.sessions.orEmpty()
         val folders = (jobs.map { it.first.folder } + sessions.map { folderOf(it.mHandle) }).distinct()
         // Com 4 ou mais linhas, os filtros aparecem. Sem eles, volta a "Todos" (e a pasta que sumiu também).
         val filtering = jobs.size + sessions.size >= FILTER_MIN_ROWS
@@ -673,7 +685,13 @@ class HomeActivity : JangadaActivity() {
             if (!inFilter(filter, slot.folder, waiting = state == ChatState.WAITING)) continue
             val row = inflater.inflate(R.layout.item_session, sessionsList, false)
             val name = recipes.firstOrNull { it.id == slot.agentId }?.name ?: getString(R.string.chat_title)
-            row.findViewById<TextView>(R.id.session_title).text = jobTitle(this, name, slot.folder, state)
+            row.findViewById<TextView>(R.id.session_title).text = jobLabel(name, slot.folder, state)
+            row.contentDescription = getString(
+                R.string.home_job_description,
+                name,
+                Workspace.label(slot.folder, getString(R.string.home_filter_root)),
+                stateText(this, state),
+            )
             row.setOnClickListener { openChat(slot.agentId, slot.folder) }
             row.findViewById<Button>(R.id.session_close).setOnClickListener {
                 // Trabalho rodando ou esperando você para na hora: pergunta antes. Parado ou pronto fecha direto.
@@ -696,7 +714,52 @@ class HomeActivity : JangadaActivity() {
             sessionsList.addView(row)
         }
         drawnJobStates = jobs.map { (slot, state) -> TerminalService.chatKey(slot.agentId, slot.folder) to state }
+        renderJobsSection()
         scheduleJobsTick()
+    }
+
+    /**
+     * Trabalhos abertos com o estado, na ordem da lista: Esperando você, Trabalhando, Pronto e
+     * Parado (a ordem dos chats se mantém dentro de cada grupo). Só na thread principal.
+     */
+    private fun orderedJobs(): List<Pair<TerminalService.ChatSlot, ChatState>> =
+        service?.chats?.values?.toList().orEmpty()
+            .map { it to chatState(it.chat) }
+            .sortedBy { (_, state) -> jobRank(state) }
+
+    /** Posição de um estado na lista de trabalhos (menor = mais em cima). */
+    private fun jobRank(state: ChatState): Int = when (state) {
+        ChatState.WAITING -> 0
+        ChatState.WORKING -> 1
+        ChatState.READY -> 2
+        ChatState.STOPPED -> 3
+    }
+
+    /** Linha de um trabalho. "Esperando você" sai com o estado em negrito e na cor de destaque. */
+    private fun jobLabel(name: String, folder: String, state: ChatState): CharSequence {
+        val text = jobTitle(this, name, folder, state)
+        if (state != ChatState.WAITING) return text
+        // jobTitle termina sempre com o texto do estado: ele é o trecho que recebe o destaque.
+        val start = text.length - stateText(this, state).length
+        val accent = getColor(R.color.accent_text)
+        return SpannableString(text).apply {
+            setSpan(ForegroundColorSpan(accent), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(StyleSpan(Typeface.BOLD), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    /**
+     * Seção "Em andamento": o título, a frase de lista vazia e o botão Novo trabalho. O botão
+     * aparece com o Linux pronto e pelo menos um agente instalado com chat; sem trabalho aberto,
+     * a frase fica acima dele (a seção não some).
+     */
+    private fun renderJobsSection() {
+        val canStart = linux.isReady && chatAgents().isNotEmpty()
+        val svc = service
+        val hasJobs = svc != null && (svc.chats.isNotEmpty() || svc.sessions.isNotEmpty())
+        runningTitle.visibility = if (hasJobs || canStart) View.VISIBLE else View.GONE
+        newJobButton.visibility = if (canStart) View.VISIBLE else View.GONE
+        jobsEmpty.visibility = if (canStart && !hasJobs) View.VISIBLE else View.GONE
     }
 
     /** Fechar um trabalho que está rodando: avisa que o agente para (a conversa fica no histórico). */
@@ -709,9 +772,9 @@ class HomeActivity : JangadaActivity() {
             .show()
     }
 
-    /** Trabalhos abertos agora (chave e estado), para o [jobsTicker] comparar. */
+    /** Trabalhos abertos agora (chave e estado, na ordem da lista), para o [jobsTicker] comparar. */
     private fun jobStates(): List<Pair<String, ChatState>> =
-        service?.chats?.values?.toList().orEmpty().map { TerminalService.chatKey(it.agentId, it.folder) to chatState(it.chat) }
+        orderedJobs().map { (slot, state) -> TerminalService.chatKey(slot.agentId, slot.folder) to state }
 
     /** Com chat aberto e a tela na frente, confere a lista de novo daqui a 2 s (ver [jobsTicker]). */
     private fun scheduleJobsTick() {
@@ -783,6 +846,146 @@ class HomeActivity : JangadaActivity() {
         if (folder != null) intent.putExtra(ChatActivity.EXTRA_FOLDER, folder)
         startActivity(intent)
     }
+
+    // ---- Novo trabalho: agente, pasta e, num repositório, como trabalhar (painéis) ----
+
+    /** Agentes instalados que têm chat (o Claude conta): os que o Novo trabalho oferece. */
+    private fun chatAgents(): List<AgentRecipe> {
+        val known = installed ?: return emptyList()
+        return recipes.filter { it.hasChat && it.command in known }
+    }
+
+    /** Começa o Novo trabalho. Com um agente só, pula a escolha dele. */
+    private fun startNewJob() {
+        val agents = chatAgents()
+        if (agents.isEmpty()) return
+        if (agents.size == 1) {
+            chooseJobFolder(agents[0])
+            return
+        }
+        Sheet(this)
+            .title(getString(R.string.home_job_pick_agent))
+            .rows(agents.map { recipe ->
+                val version = installedVersions[recipe.command]
+                val description = if (version != null) getString(R.string.agent_version, version) else getString(R.string.home_job_chat)
+                Sheet.Row(title = recipe.name, description = description) { chooseJobFolder(recipe) }
+            })
+            .show()
+    }
+
+    /** Lê as pastas de trabalho numa thread e mostra o painel de escolha. */
+    private fun chooseJobFolder(recipe: AgentRecipe) {
+        thread(name = "jangada-job-folders") {
+            val folders = runCatching { Workspace.list(linux) }.getOrDefault(emptyList())
+            runOnUiThread {
+                if (!isDestroyed && !isFinishing) showJobFolders(recipe, folders)
+            }
+        }
+    }
+
+    /** Painel de pastas: a raiz, cada subpasta (com o branch) e a última usada marcada. */
+    private fun showJobFolders(recipe: AgentRecipe, folders: List<Workspace.Folder>) {
+        val last = AppSettings(this).chatFolder
+        val rows = mutableListOf<Sheet.Row>()
+        rows += jobFolderRow(recipe, null, checked = last.isEmpty())
+        for (item in folders) rows += jobFolderRow(recipe, item, checked = item.name == last)
+        Sheet(this).title(getString(R.string.home_job_pick_folder)).rows(rows).show()
+    }
+
+    /** Uma linha do painel de pastas; [item] null é a raiz (todos os projetos). "aberto" se o agente já tem trabalho ali. */
+    private fun jobFolderRow(recipe: AgentRecipe, item: Workspace.Folder?, checked: Boolean): Sheet.Row {
+        val folder = item?.name.orEmpty()
+        val open = service?.chats?.containsKey(TerminalService.chatKey(recipe.id, folder)) == true
+        return Sheet.Row(
+            title = if (item == null) getString(R.string.chat_folder_root) else item.name,
+            description = item?.let { folderDescription(it) },
+            value = if (open) getString(R.string.home_job_open) else null,
+            checked = checked,
+        ) { pickJobFolder(recipe, folder, item) }
+    }
+
+    /**
+     * A pasta escolhida. Repositório que pode ter trabalho isolado pergunta antes como trabalhar;
+     * as outras pastas (e a raiz) abrem o chat direto.
+     */
+    private fun pickJobFolder(recipe: AgentRecipe, folder: String, item: Workspace.Folder?) {
+        if (item == null || !Worktrees.canStart(item)) {
+            openChat(recipe.id, folder)
+            return
+        }
+        Sheet(this)
+            .title(getString(R.string.home_job_how_title, folder))
+            .rows(
+                listOf(
+                    Sheet.Row(
+                        title = getString(R.string.home_job_direct),
+                        description = getString(R.string.home_job_direct_desc),
+                    ) { openChat(recipe.id, folder) },
+                    Sheet.Row(
+                        title = getString(R.string.home_job_worktree),
+                        description = getString(R.string.home_job_worktree_desc),
+                    ) { askJobWorktree(recipe, folder) },
+                ),
+            )
+            .show()
+    }
+
+    /**
+     * Nome do trabalho isolado; depois, cria a cópia numa thread (com um diálogo de progresso) e
+     * abre o chat nela. Falhou, mostra a saída do git e o diálogo do nome volta para tentar de novo.
+     */
+    private fun askJobWorktree(recipe: AgentRecipe, base: String) {
+        askWorktreeName(base) { name, done ->
+            val progress = AlertDialog.Builder(this)
+                .setTitle(R.string.home_job_creating)
+                .setView(ProgressBar(this).apply {
+                    isIndeterminate = true
+                    setPadding(0, dp(16), 0, dp(16))
+                })
+                .setCancelable(false)
+                .show()
+            thread(name = "jangada-worktree-new") {
+                val made = Worktrees.create(linux, base, name)
+                runOnUiThread {
+                    progress.dismiss()
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    when (made) {
+                        is Worktrees.Result.Created -> {
+                            done(true)
+                            openChat(recipe.id, made.folder)
+                        }
+                        is Worktrees.Result.Failed -> {
+                            done(false)
+                            showGitFailure(made.output)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Saída do git que não deu certo, em texto que se pode selecionar e copiar. */
+    private fun showGitFailure(output: String) {
+        val text = TextView(this).apply {
+            this.text = output.ifBlank { getString(R.string.git_failed_title) }
+            typeface = Typeface.MONOSPACE
+            textSize = 12f
+            setTextIsSelectable(true)
+            val pad = dp(16)
+            setPadding(pad, pad, pad, pad)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.git_failed_title)
+            .setView(ScrollView(this).apply { addView(text) })
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    /** Linha de apoio de uma pasta: o branch e, num worktree, de qual repositório ele veio. */
+    private fun folderDescription(item: Workspace.Folder): String? =
+        listOfNotNull(item.branch, item.worktreeOf?.let { getString(R.string.chat_worktree_of, it) })
+            .joinToString(" · ")
+            .takeIf { it.isNotEmpty() }
 
     private fun showSession(handle: String) {
         startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SESSION, handle))

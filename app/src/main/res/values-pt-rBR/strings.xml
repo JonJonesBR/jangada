@@ -59,6 +59,19 @@
     <string name="home_close_job_title">Fechar este trabalho?</string>
     <string name="home_close_job_message">O agente está trabalhando e vai parar. A conversa fica no histórico.</string>
     <string name="home_close_job_confirm">Fechar</string>
+    <string name="home_new_job">＋ Novo trabalho</string>
+    <string name="home_jobs_empty">Nenhum trabalho aberto. Comece um para conversar com um agente numa pasta.</string>
+    <string name="home_job_pick_agent">Qual agente?</string>
+    <string name="home_job_pick_folder">Qual pasta?</string>
+    <string name="home_job_chat">Chat</string>
+    <string name="home_job_open">aberto</string>
+    <string name="home_job_how_title">Como trabalhar em %1$s?</string>
+    <string name="home_job_direct">Direto na pasta</string>
+    <string name="home_job_direct_desc">O agente mexe nos arquivos do repositório</string>
+    <string name="home_job_worktree">Numa cópia isolada (worktree)</string>
+    <string name="home_job_worktree_desc">Branch própria; o repositório fica como está até você juntar</string>
+    <string name="home_job_creating">Criando a cópia de trabalho…</string>
+    <string name="home_job_description">%1$s, pasta %2$s, %3$s. Toque para abrir.</string>
 
     <string name="agent_installing">Instalando…</string>
     <string name="agent_updating">Atualizando…</string>

@@ -61,6 +61,19 @@
     <string name="home_close_job_title">Close this job?</string>
     <string name="home_close_job_message">The agent is working and will stop. The conversation stays in the history.</string>
     <string name="home_close_job_confirm">Close</string>
+    <string name="home_new_job">＋ New job</string>
+    <string name="home_jobs_empty">No open jobs. Start one to talk to an agent in a folder.</string>
+    <string name="home_job_pick_agent">Which agent?</string>
+    <string name="home_job_pick_folder">Which folder?</string>
+    <string name="home_job_chat">Chat</string>
+    <string name="home_job_open">open</string>
+    <string name="home_job_how_title">How to work in %1$s?</string>
+    <string name="home_job_direct">Right in the folder</string>
+    <string name="home_job_direct_desc">The agent changes the repository’s files</string>
+    <string name="home_job_worktree">In an isolated copy (worktree)</string>
+    <string name="home_job_worktree_desc">Its own branch; the repository stays as it is until you merge</string>
+    <string name="home_job_creating">Creating the working copy…</string>
+    <string name="home_job_description">%1$s, folder %2$s, %3$s. Tap to open.</string>
 
     <string name="agent_installing">Installing…</string>
     <string name="agent_updating">Updating…</string>
