@@ -58,7 +58,6 @@ class AcpChat(
 
     private var nextId = 1
     private val pending = HashMap<Int, (JSONObject?, JSONObject?) -> Unit>()
-    private val waitingPrompts = mutableListOf<Pair<String, List<Attachment>>>()
     private val tools = HashMap<String, ChatItem.Tool>()
     private var draft: ChatItem.Assistant? = null
     private var draftMessageId: String? = null
@@ -222,8 +221,9 @@ class AcpChat(
                     newSession(forgot = true)
                     return@request
                 }
-                // O raciocínio não conta: ele pode ser a última coisa que o agente reenviou.
-                interrupted = items.lastOrNull { it !is ChatItem.Thinking }.let { it is ChatItem.Tool || it is ChatItem.User }
+                // O raciocínio e as mensagens na fila (ainda não enviadas) não contam como "parou no meio".
+                interrupted = items.lastOrNull { it !is ChatItem.Thinking && (it !is ChatItem.User || !it.queued) }
+                    .let { it is ChatItem.Tool || it is ChatItem.User }
                 becomeReady()
             }
         } else {
@@ -257,18 +257,37 @@ class AcpChat(
     private fun becomeReady() {
         ready = true
         changed()
-        val queued = waitingPrompts.toList()
-        waitingPrompts.clear()
-        queued.forEach { (text, files) -> prompt(text, files) }
+        sendNext()
     }
 
     override fun sendMessage(text: String, attachments: List<Attachment>) {
         if (!running) start(resume = sessionId)
-        items += ChatItem.User(text, attachments.map { it.name })
+        val item = ChatItem.User(text, attachments.map { it.name })
+        add(item)
+        // Turno em andamento (ou agente ainda subindo): a mensagem espera na fila, sem um segundo session/prompt.
+        if (busy || !ready) {
+            item.queued = true
+            queue += QueuedMessage(text, attachments, item)
+            busy = true
+            changed()
+            return
+        }
         busy = true
         interrupted = false
         changed()
-        if (ready) prompt(text, attachments) else waitingPrompts += text to attachments
+        prompt(text, attachments)
+    }
+
+    /** Envia a próxima mensagem da fila; sem fila, o turno acabou (só aí [busy] volta a falso). */
+    private fun sendNext() {
+        val next = queue.removeFirstOrNull()
+        if (next == null) {
+            busy = false
+            return
+        }
+        next.item.queued = false
+        prompt(next.text, next.attachments)
+        changed()
     }
 
     private fun prompt(text: String, attachments: List<Attachment>) {
@@ -276,6 +295,7 @@ class AcpChat(
         if (id == null) {
             // Sem sessão não há para onde enviar: mostra o erro e encerra o turno (sem ficar "pensando").
             add(ChatItem.Info(friendlyError(null), isError = true))
+            dropQueue()
             busy = false
             changed()
             return
@@ -291,13 +311,14 @@ class AcpChat(
         draft = null
         thoughtDraft = null
         request("session/prompt", JSONObject().put("sessionId", id).put("prompt", blocks)) { result, error ->
-            busy = false
             finishDrafts()
             if (error != null) {
                 if (isAuthError(error)) requireLogin(sessionId) else add(ChatItem.Info(friendlyError(error), isError = true))
             }
             else if (result?.optString("stopReason") == "refusal") add(ChatItem.Info(context.getString(R.string.chat_acp_refused), isError = true))
             changed()
+            // O turno acabou: a próxima mensagem da fila (se houver) vai agora.
+            sendNext()
         }
     }
 
@@ -307,7 +328,7 @@ class AcpChat(
             // Ainda sem sessão (iniciando ou falhou): nada a cancelar no agente; solta as mensagens na fila.
             if (busy) {
                 silentTurn = true
-                waitingPrompts.clear()
+                dropQueue()
                 busy = false
                 changed()
             }
@@ -315,6 +336,8 @@ class AcpChat(
         }
         // Interrompido pelo usuário: o fim desse turno não gera aviso.
         silentTurn = true
+        // Antes do cancelamento: a resposta cancelada não pode puxar a próxima mensagem da fila.
+        dropQueue()
         notify("session/cancel", JSONObject().put("sessionId", id))
         // Pedidos de permissão em aberto são respondidos como cancelados.
         for (item in items) {
@@ -460,7 +483,6 @@ class AcpChat(
     override fun onStopped() {
         val waiting = pending.values.toList()
         pending.clear()
-        waitingPrompts.clear()
         ready = false
         loadingHistory = false
         draft = null

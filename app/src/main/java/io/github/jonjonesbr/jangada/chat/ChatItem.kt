@@ -4,7 +4,12 @@ import org.json.JSONObject
 
 /** Um item da conversa mostrada no chat (igual para todos os agentes). */
 sealed class ChatItem {
-    class User(val text: String, val attachments: List<String> = emptyList()) : ChatItem()
+    class User(val text: String, val attachments: List<String> = emptyList()) : ChatItem() {
+        /** Na fila: ainda não foi enviada ao agente (espera o turno atual terminar). */
+        var queued = false
+        /** Descartada (Parar ou agente encerrado) antes de ir ao agente; toque para editar. */
+        var dropped = false
+    }
     class Assistant(var text: String, var streaming: Boolean) : ChatItem()
     class Tool(val id: String, var name: String, var summary: String) : ChatItem() {
         var done = false

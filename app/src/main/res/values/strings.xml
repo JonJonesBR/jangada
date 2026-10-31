@@ -113,6 +113,8 @@
 
     <string name="chat_continue">↻ Continue where it stopped</string>
     <string name="chat_continue_prompt">Continue from where you stopped.</string>
+    <string name="chat_queued">Queued — sends when the agent finishes</string>
+    <string name="chat_dropped">Not sent — tap to edit</string>
     <string name="chat_delete">Delete</string>
     <string name="chat_delete_title">Delete this conversation?</string>
     <string name="chat_hint_agent">Message %s</string>

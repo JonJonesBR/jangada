@@ -12,6 +12,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
+/** Mensagem à espera de ser enviada; o item já está na conversa, marcado como na fila. */
+class QueuedMessage(val text: String, val attachments: List<Attachment>, val item: ChatItem.User)
+
 /**
  * O que os dois chats ([ChatEngine] e [AcpChat]) têm em comum: um agente
  * rodando no Linux, com quem se conversa por JSON, uma linha por mensagem.
@@ -65,6 +68,9 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
 
     /** Execução atual do agente (só a thread principal mexe). */
     private var connection: Connection? = null
+
+    /** Mensagens na fila, em ordem (só a thread principal mexe). */
+    protected val queue = ArrayDeque<QueuedMessage>()
 
     /** Últimas linhas de erro do agente, mostradas se ele fechar sozinho. */
     private val stderrTail = ArrayDeque<String>()
@@ -135,6 +141,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         running = false
         // Parado pelo usuário: o turno interrompido não avisa que terminou.
         silentTurn = true
+        dropQueue()
         busy = false
         settleItems()
         onStopped()
@@ -226,7 +233,20 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         running = false
         // O agente saiu: o fim do turno não avisa aqui (quem avisa é a falha, em readOutput).
         silentTurn = true
+        dropQueue()
         busy = false
+    }
+
+    /**
+     * Descarta as mensagens na fila (Parar ou agente encerrado): nenhuma foi enviada,
+     * então os itens ficam marcados para o usuário editar e enviar de novo.
+     */
+    protected fun dropQueue() {
+        for (next in queue) {
+            next.item.queued = false
+            next.item.dropped = true
+        }
+        queue.clear()
     }
 
     /** O turno acabou sozinho: o aviso sai depois da mensagem atual (um erro do turno pode vir logo em seguida). */

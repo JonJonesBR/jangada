@@ -111,6 +111,8 @@
 
     <string name="chat_continue">↻ Continuar de onde parou</string>
     <string name="chat_continue_prompt">Continue de onde parou.</string>
+    <string name="chat_queued">Na fila — vai quando o agente terminar</string>
+    <string name="chat_dropped">Não enviada — toque para editar</string>
     <string name="chat_delete">Apagar</string>
     <string name="chat_delete_title">Apagar esta conversa?</string>
     <string name="chat_hint_agent">Mensagem para o %s</string>

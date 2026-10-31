@@ -113,9 +113,23 @@ class ChatEngine(
      */
     override fun sendMessage(text: String, attachments: List<Attachment>) {
         if (!running) start(resume = sessionId)
-        add(ChatItem.User(text, attachments.map { it.name }))
+        val item = ChatItem.User(text, attachments.map { it.name })
+        add(item)
+        // Turno em andamento: a mensagem espera na fila e vai quando o turno acabar (ver "result").
+        if (busy) {
+            item.queued = true
+            queue += QueuedMessage(text, attachments, item)
+            changed()
+            return
+        }
         busy = true
         interrupted = false
+        deliver(text, attachments)
+        changed()
+    }
+
+    /** Escreve a mensagem do usuário no Claude (fotos vão como imagem; outros arquivos, como caminho). */
+    private fun deliver(text: String, attachments: List<Attachment>) {
         val fullText = text + Attachments.filesNote(attachments)
         val content: Any = if (attachments.none { it.imageBase64 != null }) {
             fullText
@@ -140,6 +154,17 @@ class ChatEngine(
                 .put("parent_tool_use_id", JSONObject.NULL)
                 .put("session_id", "default"),
         )
+    }
+
+    /** Envia a próxima mensagem da fila; sem fila, o turno acabou (só aí [busy] volta a falso). */
+    private fun sendQueued() {
+        val next = queue.removeFirstOrNull()
+        if (next == null) {
+            busy = false
+            return
+        }
+        next.item.queued = false
+        deliver(next.text, next.attachments)
         changed()
     }
 
@@ -148,6 +173,8 @@ class ChatEngine(
         if (!running) return
         // Interrompido pelo usuário: o fim desse turno não gera aviso.
         silentTurn = true
+        // O que estava na fila não chegou a ser enviado: descarta.
+        dropQueue()
         // Pedidos de permissão em aberto são recusados antes do interrupt (o CLI lê na ordem).
         for (item in items) {
             if (item is ChatItem.Permission && item.chosen == null) refuse(item, reply = true)
@@ -209,7 +236,6 @@ class ChatEngine(
             "assistant" -> handleAssistant(json.optJSONObject("message"), fromSubagent)
             "user" -> handleToolResults(json.optJSONObject("message"))
             "result" -> {
-                busy = false
                 endStreaming()
                 if (json.optBoolean("is_error")) {
                     val result = json.optString("result")
@@ -228,6 +254,8 @@ class ChatEngine(
                     }
                 }
                 changed()
+                // Com mensagem na fila, o turno continua (busy segue true); o aviso de fim só sai no último.
+                sendQueued()
             }
             "control_request" -> handleControlRequest(json)
             "control_cancel_request" -> handleControlCancel(json.optString("request_id"))

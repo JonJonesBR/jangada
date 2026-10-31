@@ -23,6 +23,7 @@ import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.text.style.URLSpan
 import android.text.util.Linkify
 import android.util.TypedValue
@@ -1027,9 +1028,23 @@ class ChatActivity : JangadaActivity() {
             return row
         }
 
+        /** Mensagem do usuário; na fila ou descartada, uma linha pequena embaixo diz o que houve. */
         private fun userBubble(item: ChatItem.User, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
-            val files = item.attachments.joinToString("") { "\n📎 $it" }
-            text = item.text + files
+            val body = item.text + item.attachments.joinToString("") { "\n📎 $it" }
+            val note = when {
+                item.queued -> getString(R.string.chat_queued)
+                item.dropped -> getString(R.string.chat_dropped)
+                else -> null
+            }
+            val shown: CharSequence = if (note == null) body else SpannableStringBuilder(body).apply {
+                append("\n")
+                val start = length
+                append(note)
+                setSpan(RelativeSizeSpan(0.8f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            text = shown
+            // Na fila, a bolha fica mais apagada; as views são reaproveitadas, então isto vale em todo uso.
+            alpha = if (item.queued) 0.6f else 1f
             setTextColor(getColor(R.color.key_text))
             textSize = 16f
             setBackgroundResource(R.drawable.bubble_user)
@@ -1039,6 +1054,20 @@ class ChatActivity : JangadaActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { gravity = Gravity.END; leftMargin = dp(40) }
             setOnLongClickListener { copy(item.text); true }
+            contentDescription = null
+            if (item.dropped) {
+                // Não enviada: toque devolve o texto para a caixa, para editar e enviar de novo.
+                setOnClickListener {
+                    input.setText(item.text)
+                    input.setSelection(input.text.length)
+                    input.requestFocus()
+                }
+                isClickable = true
+            } else {
+                // Mesmo cuidado de toolLine: uma view reaproveitada não pode ficar clicável à toa.
+                setOnClickListener(null)
+                isClickable = false
+            }
         }
 
         /** Resposta: texto com Markdown e blocos de código com botão Copiar. */
