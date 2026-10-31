@@ -36,6 +36,13 @@
     <string name="home_subtitle">Seus agentes de IA, rodando no celular</string>
     <string name="home_open_terminal">Abrir terminal</string>
     <string name="home_running">Em andamento</string>
+    <string name="home_filter_all">Todos</string>
+    <string name="home_filter_waiting">Esperando você</string>
+    <string name="home_filter_root">~/projetos</string>
+    <string name="chat_state_working">Trabalhando</string>
+    <string name="chat_state_waiting">Esperando você</string>
+    <string name="chat_state_ready">Pronto</string>
+    <string name="chat_state_stopped">Parado</string>
     <string name="home_agents">Agentes</string>
     <string name="home_welcome_title">Bem-vindo ao Jangada</string>
     <string name="home_welcome_body">Instale um agente abaixo. Cada um usa a sua própria conta ou chave de API. No modo Simples o agente abre no chat; no Pro, no terminal (troque em Configurações).</string>

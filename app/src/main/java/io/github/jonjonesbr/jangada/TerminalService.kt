@@ -23,7 +23,10 @@ import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
+import io.github.jonjonesbr.jangada.chat.AcpChat
+import io.github.jonjonesbr.jangada.chat.AgentChat
 import io.github.jonjonesbr.jangada.chat.ChatAttention
+import io.github.jonjonesbr.jangada.chat.ChatEngine
 import io.github.jonjonesbr.jangada.chat.ChatHistory
 import io.github.jonjonesbr.jangada.linux.LinkWatcher
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
@@ -62,15 +65,16 @@ class TerminalService : Service() {
     private var lastSetupNotify = 0L
 
     /**
-     * Telas visíveis agora. Ao virar true, o aviso correspondente some (o usuário
-     * já viu). Mudadas só na thread principal.
+     * Trabalho de chat aberto na tela de chat agora (chave de [chatKey]; null se nenhum).
+     * Ao virar uma chave, o aviso desse trabalho some (o usuário já viu). Só a thread principal mexe.
      */
-    var chatScreenVisible: Boolean = false
+    var visibleChat: String? = null
         set(value) {
             field = value
-            if (value) notifications().cancel(NOTIFICATION_ATTENTION)
+            if (value != null) notifications().cancel(value.hashCode())
         }
 
+    /** Tela inicial visível agora: ao virar true, o aviso de tarefa some. */
     var homeScreenVisible: Boolean = false
         set(value) {
             field = value
@@ -145,14 +149,11 @@ class TerminalService : Service() {
 
     private var lastTaskPost = 0L
 
-    /** Conversa do chat aberta (uma por vez) e de qual agente ela é. */
-    var chat: io.github.jonjonesbr.jangada.chat.AgentChat? = null
-        private set
-    var chatAgentId: String? = null
-        private set
-    /** Pasta de trabalho do chat aberto (nome dentro de ~/projetos; "" = a raiz). */
-    var chatFolder: String = ""
-        private set
+    /** Um trabalho de chat aberto: o agente, a pasta (nome dentro de ~/projetos; "" = a raiz) e o chat. */
+    class ChatSlot(val agentId: String, val folder: String, val chat: AgentChat)
+
+    /** Trabalhos de chat abertos, por [chatKey] (um por par agente + pasta). Só a thread principal mexe. */
+    val chats = LinkedHashMap<String, ChatSlot>()
 
     // Os mapas por sessão são usados só na thread principal (sem sincronização).
     /** Agente de cada sessão de terminal (id da receita), para a troca Chat ⇄ Terminal. */
@@ -164,10 +165,18 @@ class TerminalService : Service() {
     /** Pasta de trabalho de cada sessão de terminal (nome dentro de ~/projetos; "" = a raiz). */
     val sessionFolder = HashMap<String, String>()
 
+    /** Chat aberto do par ([agentId], [folder]), se houver. */
+    fun chat(agentId: String, folder: String): AgentChat? = chats[chatKey(agentId, folder)]?.chat
+
+    /** Pode abrir o trabalho do par? Sim se ele já existe (é reaberto) ou se ainda há vaga. */
+    fun canOpenChat(agentId: String, folder: String): Boolean =
+        chats.containsKey(chatKey(agentId, folder)) || chats.size < MAX_CHATS
+
     /**
      * Abre (ou devolve) o chat do agente [agentId], na pasta [folder] ("" = a raiz).
      * [continueLast] retoma a conversa mais recente; [resume] uma conversa específica;
-     * [restart] força reabrir mesmo com o chat rodando. Outra pasta reabre o chat.
+     * [restart] força reabrir mesmo com o chat rodando. Só mexe no trabalho desse par:
+     * os de outros agentes e pastas seguem rodando. Não recusa nada: quem chama confere [canOpenChat].
      */
     fun openChat(
         agentId: String = CLAUDE,
@@ -175,47 +184,35 @@ class TerminalService : Service() {
         continueLast: Boolean = false,
         resume: String? = null,
         restart: Boolean = false,
-    ): io.github.jonjonesbr.jangada.chat.AgentChat {
-        val current = chat
-        if (!restart && current != null && chatAgentId == agentId && chatFolder == folder &&
-            (current.running || resume == null && !continueLast)
-        ) return current
-        // O chat anterior é substituído: ele não pode mais mandar avisos.
+    ): AgentChat {
+        val key = chatKey(agentId, folder)
+        val current = chats[key]?.chat
+        if (!restart && current != null && (current.running || resume == null && !continueLast)) return current
+        // O chat anterior deste par é substituído: ele não pode mais mandar avisos.
         current?.onAttention = null
         val linux = LinuxEnv(this)
         // A integração com o Linux é refeita pelo próprio chat, fora da thread principal.
         startLinkWatcher(linux)
-        if (chatAgentId != agentId) current?.stop()
-
-        val engine = if (agentId == CLAUDE) {
-            val previous = if (chatAgentId == agentId) current else null
+        val chat: AgentChat = if (agentId == CLAUDE) {
             val settings = AppSettings(this)
-            io.github.jonjonesbr.jangada.chat.ChatEngine(
-                linux, settings.askPermissions, settings.chatModel, settings.chatEffort, Workspace.path(folder),
-            ).also {
-                previous?.stop()
-                chat = it
-                chatAgentId = CLAUDE
-                chatFolder = folder
-                it.onAttention = { attention -> onChatAttention(agentId, attention) }
-                goForeground()
-                it.start(resume = resume, continueLast = continueLast, history = true, previous = previous)
-            }
+            ChatEngine(linux, settings.askPermissions, settings.chatModel, settings.chatEffort, Workspace.path(folder))
         } else {
-            val recipe = io.github.jonjonesbr.jangada.agents.AgentCatalog.load(this).first { it.id == agentId }
-            if (chatAgentId == agentId) current?.stop()
+            val recipe = AgentCatalog.load(this).first { it.id == agentId }
             val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
-            io.github.jonjonesbr.jangada.chat.AcpChat(linux, recipe.acp!!.command, version, Workspace.path(folder)).also {
-                chat = it
-                chatAgentId = agentId
-                chatFolder = folder
-                it.onAttention = { attention -> onChatAttention(agentId, attention) }
-                goForeground()
-                it.start(resume = resume)
-            }
+            AcpChat(linux, recipe.acp!!.command, version, Workspace.path(folder))
+        }
+        // Para o chat anterior deste par (se havia) antes de o novo começar.
+        current?.stop()
+        chats[key] = ChatSlot(agentId, folder, chat)
+        chat.onAttention = { attention -> onChatAttention(agentId, folder, attention) }
+        goForeground()
+        when (chat) {
+            // O Claude lê o histórico do chat anterior do mesmo par (se houver).
+            is ChatEngine -> chat.start(resume = resume, continueLast = continueLast, history = true, previous = current)
+            is AcpChat -> chat.start(resume = resume)
         }
         sessionsChanged()
-        return engine
+        return chat
     }
 
     /**
@@ -232,12 +229,11 @@ class TerminalService : Service() {
         return touched?.name?.removeSuffix(".jsonl") ?: sessionConversation[handle]
     }
 
-    /** Fecha o chat; [then] roda depois que o agente terminou de sair. */
-    fun closeChat(then: (() -> Unit)? = null) {
-        val current = chat
-        chat = null
-        chatAgentId = null
-        chatFolder = ""
+    /** Fecha o trabalho do par ([agentId], [folder]); [then] roda depois que o agente terminou de sair. */
+    fun closeChat(agentId: String, folder: String, then: (() -> Unit)? = null) {
+        val key = chatKey(agentId, folder)
+        val current = chats.remove(key)?.chat
+        notifications().cancel(key.hashCode())
         sessionsChanged()
         if (current == null) {
             then?.invoke()
@@ -284,7 +280,7 @@ class TerminalService : Service() {
     }
 
     override fun onDestroy() {
-        tearDownSessions()?.stop()
+        tearDownSessions().forEach { it.stop() }
         linkWatcher?.stopWatching()
         wakeLock?.let { if (it.isHeld) it.release() }
         networkCallback?.let { callback ->
@@ -452,9 +448,9 @@ class TerminalService : Service() {
         tasks.keys.toList().forEach { cancelTask(it) }
     }
 
-    /** Fecha o chat e as sessões de terminal de um agente (antes de desinstalar). */
+    /** Fecha os chats e as sessões de terminal de um agente (antes de desinstalar). */
     private fun closeAgent(agentId: String) {
-        if (chatAgentId == agentId) closeChat()
+        chats.values.filter { it.agentId == agentId }.forEach { closeChat(agentId, it.folder) }
         sessionAgent.filterValues { it == agentId }.keys.toList().forEach { closeSession(it) }
     }
 
@@ -473,7 +469,7 @@ class TerminalService : Service() {
 
     /** Há algo que mantenha o serviço em primeiro plano (sessão, chat, instalação ou Linux)? */
     private fun hasWork() =
-        sessions.isNotEmpty() || chat != null || hasRunningTasks() || Setup.state is Setup.State.Running
+        sessions.isNotEmpty() || chats.isNotEmpty() || hasRunningTasks() || Setup.state is Setup.State.Running
 
     private fun leaveForegroundIfIdle() {
         if (!hasWork()) leaveForeground()
@@ -547,27 +543,26 @@ class TerminalService : Service() {
     }
 
     /**
-     * Encerra todas as sessões de terminal, limpa os mapas por sessão e solta o
-     * chat (zerando chat e chatAgentId). Devolve o chat solto para quem chama
-     * parar: cada saída espera de um jeito diferente. Não cancela tarefas nem
-     * avisa as telas; isso fica com quem chama, na ordem que cada um precisa.
+     * Encerra todas as sessões de terminal, limpa os mapas por sessão e solta os
+     * chats (e seus avisos). Devolve os chats soltos para quem chama parar: cada
+     * saída espera de um jeito diferente. Não cancela tarefas nem avisa as telas;
+     * isso fica com quem chama, na ordem que cada um precisa.
      */
-    private fun tearDownSessions(): io.github.jonjonesbr.jangada.chat.AgentChat? {
+    private fun tearDownSessions(): List<AgentChat> {
         sessions.forEach { it.finishIfRunning() }
         sessions.clear()
         sessionAgent.clear()
         sessionStartedAt.clear()
         sessionConversation.clear()
         sessionFolder.clear()
-        val current = chat
-        chat = null
-        chatAgentId = null
-        chatFolder = ""
-        return current
+        val gone = chats.values.map { it.chat }
+        chats.keys.forEach { notifications().cancel(it.hashCode()) }
+        chats.clear()
+        return gone
     }
 
     private fun exit() {
-        tearDownSessions()?.stop()
+        tearDownSessions().forEach { it.stop() }
         cancelRunningTasks()
         sessionListeners.forEach { it() }
         onExit?.invoke()
@@ -580,14 +575,15 @@ class TerminalService : Service() {
      * saiu e as instalações terminaram (no máximo 5 s para cada uma).
      */
     fun closeEverything(then: () -> Unit) {
-        val current = tearDownSessions()
+        val gone = tearDownSessions()
         cancelRunningTasks()
         sessionListeners.forEach { it() }
-        val chatGone = java.util.concurrent.CountDownLatch(1)
-        if (current == null) chatGone.countDown() else current.stop { chatGone.countDown() }
+        // Espera a saída de todos os chats soltos (sem nenhum, o latch já está liberado).
+        val chatsGone = java.util.concurrent.CountDownLatch(gone.size)
+        gone.forEach { it.stop { chatsGone.countDown() } }
         val workers = tasks.values.mapNotNull { it.worker }
         thread(name = "jangada-close") {
-            runCatching { chatGone.await(5, java.util.concurrent.TimeUnit.SECONDS) }
+            runCatching { chatsGone.await(5, java.util.concurrent.TimeUnit.SECONDS) }
             workers.forEach { runCatching { it.join(5_000) } }
             // Apagar o Linux enquanto a limpeza apaga parte dele faria as duas falharem.
             legacyCleanup?.let { runCatching { it.join(60_000) } }
@@ -633,7 +629,7 @@ class TerminalService : Service() {
             Intent(this, TerminalService::class.java).setAction(ACTION_EXIT),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val count = sessions.size + if (chat != null) 1 else 0
+        val count = sessions.size + chats.size
         val running = tasks.values.firstOrNull { it.state == AgentTask.State.RUNNING }
         val setup = Setup.state as? Setup.State.Running
         val text = when {
@@ -688,10 +684,15 @@ class TerminalService : Service() {
         )
     }
 
-    /** Aviso do chat: o agente precisa de você ou terminou. Com a tela do chat aberta, não avisa. */
-    private fun onChatAttention(agentId: String, attention: ChatAttention) {
-        if (chatScreenVisible) return
-        val name = AgentCatalog.load(this).firstOrNull { it.id == agentId }?.name ?: "Claude Code"
+    /**
+     * Aviso de um trabalho de chat (agente + pasta): o agente precisa de você ou terminou.
+     * Com a tela desse trabalho aberta, não avisa. Cada trabalho tem a sua notificação.
+     */
+    private fun onChatAttention(agentId: String, folder: String, attention: ChatAttention) {
+        val key = chatKey(agentId, folder)
+        if (visibleChat == key) return
+        val agent = AgentCatalog.load(this).firstOrNull { it.id == agentId }?.name ?: "Claude Code"
+        val name = if (folder.isEmpty()) agent else "$agent · $folder"
         val (title, text) = when (attention) {
             ChatAttention.PERMISSION -> R.string.notify_permission_title to R.string.notify_permission_text
             ChatAttention.LOGIN -> R.string.notify_login_title to R.string.notify_login_text
@@ -700,8 +701,11 @@ class TerminalService : Service() {
         }
         val open = Intent(this, ChatActivity::class.java)
             .putExtra(ChatActivity.EXTRA_AGENT_ID, agentId)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        attentionNotification(agentId.hashCode(), NOTIFICATION_ATTENTION, getString(title, name), getString(text), open)
+            .putExtra(ChatActivity.EXTRA_FOLDER, folder)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        attentionNotification(key.hashCode(), key.hashCode(), getString(title, name), getString(text), open)
+        // A lista da tela inicial mostra o estado de cada trabalho: redesenha.
+        sessionsChanged()
     }
 
     /** Aviso do fim de uma instalação, atualização ou desinstalação de agente. Ao toque, abre a tela inicial. */
@@ -802,8 +806,7 @@ class TerminalService : Service() {
         private const val CHANNEL_ATTENTION = "attention"
         private const val NOTIFICATION_SESSIONS = 1
         private const val NOTIFICATION_LINK = 2
-        /** Aviso do chat (permissão, login, resposta pronta ou erro). */
-        private const val NOTIFICATION_ATTENTION = 3
+        // Avisos de chat usam como id o hashCode de chatKey (ver onChatAttention).
         /** Aviso de tarefa de agente ou da instalação do Linux terminada. */
         private const val NOTIFICATION_TASK = 4
         private const val REQUEST_HOME = 10
@@ -814,6 +817,12 @@ class TerminalService : Service() {
         private const val DIRECT_LINK_WINDOW_MS = 30_000L
         const val DEFAULT_TITLE = "Terminal"
         const val CLAUDE = "claude-code"
+        /** Trabalhos de chat abertos ao mesmo tempo (cada agente usa memória do celular). */
+        const val MAX_CHATS = 3
+
+        /** Chave do trabalho do par (agente, pasta): um chat por par. */
+        fun chatKey(agentId: String, folder: String) = "$agentId|$folder"
+
         private val ANSI = Regex("""\u001B(\[[0-9;?]*[ -/]*[@-~]|\][^\u0007]*\u0007|[()][A-Z0-9])""")
     }
 }

@@ -102,8 +102,6 @@ class ChatActivity : JangadaActivity() {
     private var resumed = false
     /** Um pedido de abrir o chat (feito ao ligar no serviço) espera o adaptador ficar pronto. */
     private var opening = false
-    /** A tela foi aberta com uma pasta escolhida (troca do terminal): ela vale mais que o chat aberto. */
-    private var folderFromIntent = false
     /** As pastas dos ajustes estão sendo lidas (evita abrir o diálogo duas vezes). */
     private var loadingSettings = false
     private var engine: AgentChat? = null
@@ -126,6 +124,8 @@ class ChatActivity : JangadaActivity() {
     private val agentName get() = recipe?.name ?: getString(R.string.chat_title)
     /** Pasta de trabalho do chat (caminho dentro do Debian). */
     private val chatCwd: String get() = engine?.cwd ?: Workspace.path(settings.chatFolder)
+    /** Chave do trabalho desta tela (agente + pasta), como no serviço. */
+    private val chatKey: String get() = TerminalService.chatKey(agentId, settings.chatFolder)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -147,11 +147,8 @@ class ChatActivity : JangadaActivity() {
         prepareActions = findViewById(R.id.chat_prepare_actions)
         sendButton = findViewById(R.id.chat_send)
         list.adapter = adapter
-        // Veio da troca do terminal: o chat continua na pasta dessa sessão.
-        intent.getStringExtra(EXTRA_FOLDER)?.let {
-            settings.chatFolder = it
-            folderFromIntent = true
-        }
+        // Veio da troca do terminal ou da lista de trabalhos: abre o trabalho dessa pasta.
+        intent.getStringExtra(EXTRA_FOLDER)?.let { settings.chatFolder = it }
         intent.removeExtra(EXTRA_FOLDER)
         // Pasta salva que não existe mais (apagada fora do app) ou que virou link volta para a raiz.
         val savedFolder = Workspace.existing(linux.rootfs, settings.chatFolder)
@@ -201,14 +198,15 @@ class ChatActivity : JangadaActivity() {
     override fun onResume() {
         super.onResume()
         resumed = true
-        service?.chatScreenVisible = true
+        service?.visibleChat = chatKey
         // Ao voltar com "/..." na caixa, as sugestões reaparecem (depois da janela estar pronta).
         input.post { updateCommandSuggestions() }
     }
 
     override fun onPause() {
         resumed = false
-        service?.chatScreenVisible = false
+        // Só larga o aviso se ele ainda for o deste trabalho.
+        if (service?.visibleChat == chatKey) service?.visibleChat = null
         dismissCommandSuggestions()
         super.onPause()
     }
@@ -254,20 +252,15 @@ class ChatActivity : JangadaActivity() {
             val svc = (binder as TerminalService.LocalBinder).service
             service = svc
             // Se a tela já estava em primeiro plano quando o serviço chegou, o onResume não pôde avisar.
-            if (resumed) svc.chatScreenVisible = true
+            if (resumed) svc.visibleChat = chatKey
             // Um pedido anterior (de antes de a tela parar e voltar) ainda espera o adaptador: ele abre o chat.
             if (opening) return
             val resume = intent.getStringExtra(EXTRA_RESUME)
             val fresh = intent.getBooleanExtra(EXTRA_NEW, false)
             intent.removeExtra(EXTRA_RESUME)
             intent.removeExtra(EXTRA_NEW)
-            // O chat aberto do agente é reaproveitado (e a tela passa para a pasta dele), a menos que
-            // a tela tenha vindo com outra pasta escolhida: aí abre o chat dessa pasta.
-            val explicitFolder = folderFromIntent
-            folderFromIntent = false
-            val current = svc.chat?.takeIf {
-                svc.chatAgentId == agentId && (svc.chatFolder == settings.chatFolder || !explicitFolder)
-            }
+            // O chat aberto deste agente e pasta é reaproveitado.
+            val current = svc.chat(agentId, settings.chatFolder)
             when {
                 resume != null -> openWhenReady { attach(svc.openChat(agentId, folder = settings.chatFolder, resume = resume, restart = true)) }
                 fresh -> openWhenReady { attach(svc.openChat(agentId, folder = settings.chatFolder, restart = true)) }
@@ -456,6 +449,8 @@ class ChatActivity : JangadaActivity() {
         // A pasta mostrada (e guardada) é sempre a do chat ligado à tela.
         val folder = Workspace.folderOf(chat.cwd)
         if (folder != settings.chatFolder) settings.chatFolder = folder
+        // O aviso deste trabalho fica calado enquanto a tela o mostra (a pasta pode ter acabado de mudar).
+        if (resumed) service?.visibleChat = chatKey
         updateTitle()
         // Parada, a tela não se registra no chat (o onStop já desfez isso); ao voltar, o onStart a liga de novo.
         if (started) chat.onChanged = { refresh() }
@@ -677,7 +672,7 @@ class ChatActivity : JangadaActivity() {
 
     private fun newConversation() {
         val svc = service ?: return
-        svc.closeChat {
+        svc.closeChat(agentId, settings.chatFolder) {
             if (!isDestroyed) attach(svc.openChat(agentId, folder = settings.chatFolder, restart = true))
         }
     }
@@ -733,7 +728,7 @@ class ChatActivity : JangadaActivity() {
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
                         dialog?.dismiss()
-                        if (!isCurrent) svc.closeChat {
+                        if (!isCurrent) svc.closeChat(agentId, settings.chatFolder) {
                             if (!isDestroyed) attach(svc.openChat(agentId, folder = settings.chatFolder, resume = conversation.id, restart = true))
                         }
                     }
@@ -775,14 +770,14 @@ class ChatActivity : JangadaActivity() {
                 if (isClaude) {
                     // Fecha o chat primeiro (o Claude para de gravar); só então apaga os arquivos.
                     if (isCurrent) {
-                        svc.closeChat { deleteClaudeFiles(conversation.id, reopenAndDone) }
+                        svc.closeChat(agentId, settings.chatFolder) { deleteClaudeFiles(conversation.id, reopenAndDone) }
                     } else {
                         deleteClaudeFiles(conversation.id, done)
                     }
                 } else {
                     // ACP: o agente apaga pela própria conexão, então apaga antes de fechar a conversa.
                     val acp = engine as? AcpChat
-                    val afterDelete = { if (isCurrent) svc.closeChat { reopenAndDone() } else done() }
+                    val afterDelete = { if (isCurrent) svc.closeChat(agentId, settings.chatFolder) { reopenAndDone() } else done() }
                     if (acp == null) afterDelete()
                     else acp.deleteSession(conversation.id) { error ->
                         // Falhou: a conversa continua na lista (e aberta, se for a atual).
@@ -915,13 +910,15 @@ class ChatActivity : JangadaActivity() {
     private fun switchFolder(name: String) {
         if (isDestroyed || isFinishing) return
         val svc = service ?: return
+        // Fecha o trabalho da pasta anterior; o da nova pasta abre em seguida.
+        val previous = settings.chatFolder
         settings.chatFolder = name
         updateTitle()
         Toast.makeText(this, getString(R.string.chat_folder_changed, displayPath(Workspace.path(name))), Toast.LENGTH_SHORT).show()
         // Um pedido de abrir o chat ainda espera o adaptador: ele lê a pasta guardada quando rodar.
         if (opening) return
         // Como em "Nova conversa": espera o agente anterior sair antes de abrir o da outra pasta.
-        svc.closeChat {
+        svc.closeChat(agentId, previous) {
             if (!isDestroyed && settings.chatFolder == name) attach(svc.openChat(agentId, folder = name, restart = true))
         }
     }
@@ -1016,7 +1013,7 @@ class ChatActivity : JangadaActivity() {
                 save(values[which])
                 val svc = service ?: return@setSingleChoiceItems
                 val id = engine?.sessionId
-                svc.closeChat {
+                svc.closeChat(agentId, settings.chatFolder) {
                     if (!isDestroyed) attach(svc.openChat(agentId, folder = settings.chatFolder, resume = id, restart = true))
                 }
             }
@@ -1078,7 +1075,7 @@ class ChatActivity : JangadaActivity() {
      */
     private fun openTerminal(svc: TerminalService, script: String, conversation: String? = null, login: Boolean = false) {
         val folder = settings.chatFolder
-        svc.closeChat {
+        svc.closeChat(agentId, folder) {
             startActivity(
                 Intent(this, MainActivity::class.java)
                     .putExtra(MainActivity.EXTRA_TITLE, agentName)

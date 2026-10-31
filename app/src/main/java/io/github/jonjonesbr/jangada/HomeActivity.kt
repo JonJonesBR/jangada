@@ -18,6 +18,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +35,8 @@ import io.github.jonjonesbr.jangada.TerminalService.AgentTask
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.agents.Versions
+import io.github.jonjonesbr.jangada.chat.ChatState
+import io.github.jonjonesbr.jangada.chat.chatState
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
 import java.util.concurrent.ConcurrentHashMap
@@ -51,6 +55,11 @@ class HomeActivity : JangadaActivity() {
     private lateinit var agentsList: LinearLayout
     private lateinit var sessionsList: LinearLayout
     private lateinit var runningTitle: TextView
+    /** Fileira de filtros da lista de trabalhos (aparece com 4 ou mais linhas). */
+    private lateinit var filterRow: View
+    private lateinit var filterChips: LinearLayout
+    /** Filtro da lista de trabalhos; não é salvo. */
+    private var jobFilter: JobFilter = JobFilter.All
     /** Cartão de boas-vindas; null depois de tirado da tela. */
     private var welcomeCard: View? = null
 
@@ -82,6 +91,8 @@ class HomeActivity : JangadaActivity() {
 
     private val prefs by lazy { AgentPrefs.prefs(this) }
     private val sessionsListener: () -> Unit = { renderSessions() }
+    /** Redesenha a lista de trabalhos enquanto há chat aberto (o estado muda sem aviso). */
+    private val jobsTicker = Runnable { renderSessions() }
     private val simpleMode get() = AppSettings(this).simpleMode
     private var askedStorage = false
     private var allFilesOpened = false
@@ -100,6 +111,8 @@ class HomeActivity : JangadaActivity() {
         agentsList = findViewById(R.id.agents)
         sessionsList = findViewById(R.id.sessions)
         runningTitle = findViewById(R.id.running_title)
+        filterRow = findViewById(R.id.job_filter)
+        filterChips = findViewById(R.id.job_filter_chips)
         recipes = AgentCatalog.load(this)
 
         findViewById<Button>(R.id.open_terminal).setOnClickListener { openTerminal() }
@@ -187,12 +200,16 @@ class HomeActivity : JangadaActivity() {
         if (!::agentsList.isInitialized) return
         if (askedStorage) afterStorageRequest() else renderStorage()
         // Sem serviço, não há o que mudar nos cartões: onServiceConnected desenha quando ligar.
-        if (service != null) renderAgents()
+        if (service != null) {
+            renderAgents()
+            renderSessions()
+        }
     }
 
     override fun onPause() {
         paused = true
         service?.homeScreenVisible = false
+        mainHandler.removeCallbacks(jobsTicker)
         super.onPause()
     }
 
@@ -233,6 +250,7 @@ class HomeActivity : JangadaActivity() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(renderLater)
+        mainHandler.removeCallbacks(jobsTicker)
         super.onDestroy()
     }
 
@@ -619,33 +637,102 @@ class HomeActivity : JangadaActivity() {
 
     // ---- Sessões ----
 
+    /** Filtro da lista de trabalhos: todos, só os que esperam você, ou uma pasta ("" = a raiz). */
+    private sealed class JobFilter {
+        object All : JobFilter()
+        object Waiting : JobFilter()
+        data class Folder(val name: String) : JobFilter()
+    }
+
+    /**
+     * Lista de trabalhos: uma linha por chat aberto (agente, pasta e estado), depois os
+     * terminais. Com 4 ou mais linhas, aparece a fileira de filtros acima.
+     */
     private fun renderSessions() {
         sessionsList.removeAllViews()
-        val sessions = service?.sessions.orEmpty()
-        val chat = service?.chat
-        runningTitle.visibility = if (sessions.isEmpty() && chat == null) View.GONE else View.VISIBLE
+        val svc = service
+        val jobs = svc?.chats?.values?.toList().orEmpty().map { it to chatState(it.chat) }
+        val sessions = svc?.sessions.orEmpty()
+        runningTitle.visibility = if (jobs.isEmpty() && sessions.isEmpty()) View.GONE else View.VISIBLE
+        val folders = (jobs.map { it.first.folder } + sessions.map { folderOf(it.mHandle) }).distinct()
+        // Com 4 ou mais linhas, os filtros aparecem. Sem eles, volta a "Todos" (e a pasta que sumiu também).
+        val filtering = jobs.size + sessions.size >= FILTER_MIN_ROWS
+        val chosen = jobFilter
+        if (!filtering || chosen is JobFilter.Folder && chosen.name !in folders) jobFilter = JobFilter.All
+        filterRow.visibility = if (filtering) View.VISIBLE else View.GONE
+        if (filtering) drawFilters(folders)
+        val filter = jobFilter
+
         val inflater = LayoutInflater.from(this)
-        if (chat != null) {
-            val chatAgent = service?.chatAgentId ?: TerminalService.CLAUDE
-            val name = recipes.firstOrNull { it.id == chatAgent }?.name ?: getString(R.string.chat_title)
+        for ((slot, state) in jobs) {
+            if (!inFilter(filter, slot.folder, waiting = state == ChatState.WAITING)) continue
             val row = inflater.inflate(R.layout.item_session, sessionsList, false)
-            val folder = chatFolderSuffix(service?.chatFolder.orEmpty())
-            row.findViewById<TextView>(R.id.session_title).text = name + folder + " · " + getString(R.string.chat_session)
-            row.setOnClickListener { openChat(chatAgent) }
-            row.findViewById<Button>(R.id.session_close).setOnClickListener { service?.closeChat() }
+            val name = recipes.firstOrNull { it.id == slot.agentId }?.name ?: getString(R.string.chat_title)
+            row.findViewById<TextView>(R.id.session_title).text = jobTitle(this, name, slot.folder, state)
+            row.setOnClickListener { openChat(slot.agentId, slot.folder) }
+            row.findViewById<Button>(R.id.session_close).setOnClickListener { service?.closeChat(slot.agentId, slot.folder) }
             sessionsList.addView(row)
         }
         for (session in sessions) {
+            // Terminal nunca entra em "Esperando você".
+            if (!inFilter(filter, folderOf(session.mHandle), waiting = false)) continue
             val row = inflater.inflate(R.layout.item_session, sessionsList, false)
-            val folder = chatFolderSuffix(service?.sessionFolder?.get(session.mHandle).orEmpty())
-            row.findViewById<TextView>(R.id.session_title).text = (session.mSessionName ?: TerminalService.DEFAULT_TITLE) + folder
+            row.findViewById<TextView>(R.id.session_title).text =
+                (session.mSessionName ?: TerminalService.DEFAULT_TITLE) + chatFolderSuffix(folderOf(session.mHandle))
             row.setOnClickListener { showSession(session.mHandle) }
             row.findViewById<Button>(R.id.session_close).setOnClickListener {
                 service?.closeSession(session.mHandle)
             }
             sessionsList.addView(row)
         }
+        // Com chat aberto, a lista se redesenha sozinha a cada 2 s (ver jobsTicker).
+        mainHandler.removeCallbacks(jobsTicker)
+        if (!paused && jobs.isNotEmpty()) mainHandler.postDelayed(jobsTicker, JOBS_REFRESH_MS)
     }
+
+    /** Pasta de uma sessão de terminal ("" = a raiz). */
+    private fun folderOf(handle: String): String = service?.sessionFolder?.get(handle).orEmpty()
+
+    /** Se a linha (da pasta [folder]; [waiting] = espera você) entra no filtro escolhido. */
+    private fun inFilter(filter: JobFilter, folder: String, waiting: Boolean): Boolean = when (filter) {
+        JobFilter.All -> true
+        JobFilter.Waiting -> waiting
+        is JobFilter.Folder -> folder == filter.name
+    }
+
+    /** Fileira de filtros: Todos, Esperando você e uma pasta por chip. */
+    private fun drawFilters(folders: List<String>) {
+        filterChips.removeAllViews()
+        addFilterChip(getString(R.string.home_filter_all), JobFilter.All)
+        addFilterChip(getString(R.string.home_filter_waiting), JobFilter.Waiting)
+        for (folder in folders) {
+            addFilterChip(if (folder.isEmpty()) getString(R.string.home_filter_root) else folder, JobFilter.Folder(folder))
+        }
+    }
+
+    /** Um chip do filtro: o escolhido fica em negrito; toque troca o filtro e redesenha. */
+    private fun addFilterChip(label: String, value: JobFilter) {
+        val chip = TextView(this).apply {
+            text = label
+            textSize = 14f
+            setTextColor(getColor(R.color.accent_text))
+            typeface = if (jobFilter == value) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            gravity = Gravity.CENTER
+            minHeight = dp(48)
+            setPadding(dp(16), 0, dp(16), 0)
+            setBackgroundResource(R.drawable.card_bg)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { marginEnd = dp(8) }
+            setOnClickListener {
+                jobFilter = value
+                renderSessions()
+            }
+        }
+        filterChips.addView(chip)
+    }
+
+    private fun dp(value: Int) =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
 
     /** " · pasta" depois do nome da sessão; vazio na raiz dos projetos. */
     private fun chatFolderSuffix(folder: String) = if (folder.isEmpty()) "" else " · $folder"
@@ -661,8 +748,11 @@ class HomeActivity : JangadaActivity() {
         else openTerminal(recipe.name, recipe.launchScript(Workspace.path(folder)), agent = recipe.id, folder = folder)
     }
 
-    private fun openChat(agentId: String) {
-        startActivity(Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_AGENT_ID, agentId))
+    /** Abre a tela de chat de um agente; com [folder], a do trabalho dessa pasta (sem ela, a última usada). */
+    private fun openChat(agentId: String, folder: String? = null) {
+        val intent = Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_AGENT_ID, agentId)
+        if (folder != null) intent.putExtra(ChatActivity.EXTRA_FOLDER, folder)
+        startActivity(intent)
     }
 
     private fun showSession(handle: String) {
@@ -703,8 +793,26 @@ class HomeActivity : JangadaActivity() {
         const val UPDATE_QUIET_MS = 7L * 24 * 60 * 60 * 1000
         const val RENDER_GAP_MS = 300L
         const val REQUEST_STORAGE = 42
+        /** Com esta quantidade de linhas (trabalhos + terminais), aparecem os filtros. */
+        const val FILTER_MIN_ROWS = 4
+        /** Intervalo em que a lista de trabalhos se redesenha enquanto há chat aberto. */
+        const val JOBS_REFRESH_MS = 2_000L
     }
 }
+
+/** O estado de um trabalho de chat, em texto ("Trabalhando", "Esperando você"...). */
+internal fun stateText(context: Context, state: ChatState): String = context.getString(
+    when (state) {
+        ChatState.WORKING -> R.string.chat_state_working
+        ChatState.WAITING -> R.string.chat_state_waiting
+        ChatState.READY -> R.string.chat_state_ready
+        ChatState.STOPPED -> R.string.chat_state_stopped
+    },
+)
+
+/** Linha de um trabalho: agente, pasta (se não for a raiz) e estado. */
+internal fun jobTitle(context: Context, agentName: String, folder: String, state: ChatState): String =
+    agentName + (if (folder.isEmpty()) "" else " · $folder") + " · " + stateText(context, state)
 
 /**
  * Versões mais novas do npm, guardadas na memória do processo por 1 hora,

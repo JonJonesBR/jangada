@@ -38,6 +38,13 @@
     <string name="home_subtitle">Your AI agents, running on your phone</string>
     <string name="home_open_terminal">Open terminal</string>
     <string name="home_running">Running</string>
+    <string name="home_filter_all">All</string>
+    <string name="home_filter_waiting">Needs you</string>
+    <string name="home_filter_root">~/projetos</string>
+    <string name="chat_state_working">Working</string>
+    <string name="chat_state_waiting">Needs you</string>
+    <string name="chat_state_ready">Ready</string>
+    <string name="chat_state_stopped">Stopped</string>
     <string name="home_agents">Agents</string>
     <string name="home_welcome_title">Welcome to Jangada</string>
     <string name="home_welcome_body">Install an agent below. Each one uses its own account or API key. In Simple mode the agent opens in the chat; in Pro mode, in the terminal (change it in Settings).</string>

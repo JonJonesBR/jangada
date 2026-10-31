@@ -118,6 +118,22 @@
             android:text="@string/home_running"
             android:visibility="gone" />
 
+        <!-- Filtros da lista de trabalhos (com 4 ou mais linhas): Todos, Esperando você e as pastas. -->
+        <HorizontalScrollView
+            android:id="@+id/job_filter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/job_filter_chips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
         <LinearLayout
             android:id="@+id/sessions"
             android:layout_width="match_parent"

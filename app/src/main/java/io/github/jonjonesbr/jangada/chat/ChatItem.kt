@@ -62,6 +62,27 @@ sealed class ChatItem {
 /** Quando o chat pede a atenção do usuário (o serviço decide se mostra um aviso). */
 enum class ChatAttention { PERMISSION, LOGIN, FINISHED, FAILED }
 
+/** Estado de um trabalho de chat, mostrado na lista da tela inicial. */
+enum class ChatState { WORKING, WAITING, READY, STOPPED }
+
+/**
+ * Estado do chat: espera você (permissão ou login sem resposta), trabalha (turno em
+ * andamento), está pronto (agente rodando, sem turno) ou parado.
+ */
+fun chatState(chat: AgentChat): ChatState {
+    // Cópia da lista: ela muda na thread principal enquanto se percorre.
+    val waiting = chat.items.toList().any { item ->
+        (item is ChatItem.Permission && item.chosen == null) ||
+            (item is ChatItem.Login && item.state == ChatItem.Login.State.WAITING)
+    }
+    return when {
+        waiting -> ChatState.WAITING
+        chat.busy -> ChatState.WORKING
+        chat.running -> ChatState.READY
+        else -> ChatState.STOPPED
+    }
+}
+
 class PermissionOption(val id: String, val label: String, val kind: Kind) {
     enum class Kind { ALLOW_ONCE, ALLOW_ALWAYS, REJECT_ONCE, REJECT_ALWAYS }
     val allows get() = kind == Kind.ALLOW_ONCE || kind == Kind.ALLOW_ALWAYS
