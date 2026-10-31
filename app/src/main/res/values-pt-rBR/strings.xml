@@ -370,6 +370,9 @@
     <string name="channel_attention">Avisos</string>
     <string name="notify_permission_title">%1$s precisa de você</string>
     <string name="notify_permission_text">Permita ou recuse para continuar.</string>
+    <string name="notify_permission_wants">%1$s: %2$s</string>
+    <string name="notify_action_allow">Permitir</string>
+    <string name="notify_action_deny">Recusar</string>
     <string name="notify_login_title">%1$s precisa que você entre na conta</string>
     <string name="notify_login_text">Abra o chat para terminar o login.</string>
     <string name="notify_finished_title">%1$s terminou</string>

@@ -12,6 +12,7 @@ import android.net.LinkProperties
 import android.net.Network
 import android.net.Uri
 import android.os.Binder
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -28,6 +29,8 @@ import io.github.jonjonesbr.jangada.chat.AgentChat
 import io.github.jonjonesbr.jangada.chat.ChatAttention
 import io.github.jonjonesbr.jangada.chat.ChatEngine
 import io.github.jonjonesbr.jangada.chat.ChatHistory
+import io.github.jonjonesbr.jangada.chat.ChatItem
+import io.github.jonjonesbr.jangada.chat.PermissionOption
 import io.github.jonjonesbr.jangada.linux.LinkWatcher
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Setup
@@ -271,6 +274,12 @@ class TerminalService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_EXIT) {
             exit()
+            return START_NOT_STICKY
+        }
+        if (intent != null && intent.action == ACTION_ANSWER_PERMISSION) {
+            answerPermission(intent)
+            // Sem trabalho restante (o chat sumiu), o serviço sai do primeiro plano; com trabalho, fica.
+            leaveForegroundIfIdle()
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_SETUP) {
@@ -723,10 +732,93 @@ class TerminalService : Service() {
             // Com uma tela de chat no topo, ela recebe o pedido (onNewIntent) em vez de empilhar outra.
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         // Request code próprio do trabalho: com o mesmo, o PendingIntent de um aviso trocaria os extras do outro.
-        attentionNotification(key.hashCode(), NOTIFICATION_CHAT, getString(title, name), getString(text), open, tag = key)
+        val requestCode = key.hashCode()
+        val pending = if (attention == ChatAttention.PERMISSION) chats[key]?.let { pendingPermission(it.chat) } else null
+        if (pending != null) {
+            // Pedido de permissão: mostra o que o agente quer e deixa responder daqui.
+            val wants = if (pending.summary.isEmpty()) {
+                pending.title
+            } else {
+                getString(R.string.notify_permission_wants, pending.title, pending.summary)
+            }
+            val full = if (pending.detail.isEmpty()) wants else wants + "\n" + pending.detail
+            attentionNotification(
+                requestCode, NOTIFICATION_CHAT, getString(title, name), clip(wants, NOTIFY_TEXT_MAX), open,
+                tag = key, big = clip(full, NOTIFY_BIG_MAX), actions = permissionActions(key, pending),
+            )
+        } else {
+            attentionNotification(requestCode, NOTIFICATION_CHAT, getString(title, name), getString(text), open, tag = key)
+        }
         // A lista da tela inicial mostra o estado de cada trabalho: redesenha.
         sessionsChanged()
     }
+
+    /** Pedido de permissão mais recente ainda sem resposta do trabalho (cópia da lista: a conversa muda). */
+    private fun pendingPermission(chat: AgentChat): ChatItem.Permission? =
+        chat.items.toList().filterIsInstance<ChatItem.Permission>().lastOrNull { it.chosen == null }
+
+    /**
+     * Botões Permitir e Recusar do aviso: só "uma vez" (nunca "sempre"). Cada botão aparece
+     * só se o pedido tem a opção correspondente.
+     */
+    private fun permissionActions(key: String, pending: ChatItem.Permission): List<Notification.Action> {
+        val actions = mutableListOf<Notification.Action>()
+        val requestId = pending.requestId.toString()
+        if (pending.options.any { it.kind == PermissionOption.Kind.ALLOW_ONCE }) {
+            actions += answerAction(key, requestId, allow = true, requestCode = key.hashCode() * 31 + 1)
+        }
+        if (pending.options.any { it.kind == PermissionOption.Kind.REJECT_ONCE }) {
+            actions += answerAction(key, requestId, allow = false, requestCode = key.hashCode() * 31 + 2)
+        }
+        return actions
+    }
+
+    /** Botão do aviso que responde ao pedido [requestId] do trabalho [key] (ver [answerPermission]). */
+    private fun answerAction(key: String, requestId: String, allow: Boolean, requestCode: Int): Notification.Action {
+        val intent = Intent(this, TerminalService::class.java)
+            .setAction(ACTION_ANSWER_PERMISSION)
+            .putExtra(EXTRA_CHAT_KEY, key)
+            .putExtra(EXTRA_REQUEST, requestId)
+            .putExtra(EXTRA_ALLOW, allow)
+        val pending = PendingIntent.getService(
+            this, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val builder = Notification.Action.Builder(
+            Icon.createWithResource(this, R.drawable.ic_notification),
+            getString(if (allow) R.string.notify_action_allow else R.string.notify_action_deny),
+            pending,
+        )
+        // Permitir pela tela bloqueada exige desbloquear o aparelho antes.
+        if (allow && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAuthenticationRequired(true)
+        return builder.build()
+    }
+
+    /**
+     * Responde ao pedido de permissão tocado no aviso. Sem o pedido (já respondido na tela,
+     * ou o chat fechou), só some com o aviso. Se ainda sobrar pedido no trabalho, avisa de novo.
+     */
+    private fun answerPermission(intent: Intent) {
+        val key = intent.getStringExtra(EXTRA_CHAT_KEY) ?: return
+        val requestId = intent.getStringExtra(EXTRA_REQUEST)
+        val allow = intent.getBooleanExtra(EXTRA_ALLOW, false)
+        val slot = chats[key]
+        val pending = slot?.chat?.let { chat ->
+            chat.items.toList().filterIsInstance<ChatItem.Permission>()
+                .firstOrNull { it.chosen == null && it.requestId.toString() == requestId }
+        }
+        if (slot != null && pending != null && slot.chat.running) {
+            val kind = if (allow) PermissionOption.Kind.ALLOW_ONCE else PermissionOption.Kind.REJECT_ONCE
+            pending.options.firstOrNull { it.kind == kind }?.let { slot.chat.answer(pending, it) }
+        }
+        notifications().cancel(key, NOTIFICATION_CHAT)
+        if (slot != null && pendingPermission(slot.chat) != null) {
+            onChatAttention(slot.agentId, slot.folder, ChatAttention.PERMISSION)
+        }
+        sessionsChanged()
+    }
+
+    /** Texto cortado em [max] caracteres (com reticências), para caber no aviso. */
+    private fun clip(text: String, max: Int) = if (text.length > max) text.take(max).trimEnd() + "…" else text
 
     /** Aviso do fim de uma instalação, atualização ou desinstalação de agente. Ao toque, abre a tela inicial. */
     private fun notifyTaskDone(task: AgentTask) {
@@ -757,19 +849,32 @@ class TerminalService : Service() {
         leaveForegroundIfIdle()
     }
 
-    /** Mostra um aviso no canal de atenção; ao toque, abre [target] e o aviso some. [tag] separa avisos de mesmo [id]. */
-    private fun attentionNotification(requestCode: Int, id: Int, title: String, text: String, target: Intent, tag: String? = null) {
+    /**
+     * Mostra um aviso no canal de atenção; ao toque, abre [target] e o aviso some. [tag] separa avisos de mesmo [id].
+     * [big] é o texto expandido ([Notification.BigTextStyle]); [actions] são os botões do aviso.
+     */
+    private fun attentionNotification(
+        requestCode: Int,
+        id: Int,
+        title: String,
+        text: String,
+        target: Intent,
+        tag: String? = null,
+        big: String? = null,
+        actions: List<Notification.Action> = emptyList(),
+    ) {
         val pending = PendingIntent.getActivity(
             this, requestCode, target, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val notification = Notification.Builder(this, CHANNEL_ATTENTION)
+        val builder = Notification.Builder(this, CHANNEL_ATTENTION)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(pending)
             .setAutoCancel(true)
-            .build()
-        notifications().notify(tag, id, notification)
+        big?.let { builder.setStyle(Notification.BigTextStyle().bigText(it)) }
+        actions.forEach { builder.addAction(it) }
+        notifications().notify(tag, id, builder.build())
     }
 
     private fun notifications() = getSystemService(NotificationManager::class.java)
@@ -821,6 +926,11 @@ class TerminalService : Service() {
         const val ACTION_EXIT = "io.github.jonjonesbr.jangada.EXIT"
         /** Instalação do Linux em primeiro plano (startService antes do Setup.start). */
         const val ACTION_SETUP = "io.github.jonjonesbr.jangada.SETUP"
+        /** Permitir ou recusar um pedido pelo aviso (extras: chave do trabalho, id do pedido e se permite). */
+        private const val ACTION_ANSWER_PERMISSION = "io.github.jonjonesbr.jangada.ANSWER_PERMISSION"
+        private const val EXTRA_CHAT_KEY = "io.github.jonjonesbr.jangada.CHAT_KEY"
+        private const val EXTRA_REQUEST = "io.github.jonjonesbr.jangada.REQUEST"
+        private const val EXTRA_ALLOW = "io.github.jonjonesbr.jangada.ALLOW"
         private const val CHANNEL_SESSIONS = "sessions"
         private const val CHANNEL_LINKS = "links"
         private const val CHANNEL_ATTENTION = "attention"
@@ -832,6 +942,9 @@ class TerminalService : Service() {
         private const val NOTIFICATION_TASK = 4
         private const val REQUEST_HOME = 10
         private const val REQUEST_SETUP = 11
+        /** Limites do texto do aviso de permissão (linha de baixo e texto expandido). */
+        private const val NOTIFY_TEXT_MAX = 200
+        private const val NOTIFY_BIG_MAX = 1000
         private const val TRANSCRIPT_ROWS = 5000
         /** Limite de links abertos direto na tela: [MAX_DIRECT_LINKS] a cada [DIRECT_LINK_WINDOW_MS]. */
         private const val MAX_DIRECT_LINKS = 3

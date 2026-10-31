@@ -372,6 +372,9 @@
     <string name="channel_attention">Alerts</string>
     <string name="notify_permission_title">%1$s needs you</string>
     <string name="notify_permission_text">Allow or deny to continue.</string>
+    <string name="notify_permission_wants">%1$s: %2$s</string>
+    <string name="notify_action_allow">Allow</string>
+    <string name="notify_action_deny">Deny</string>
     <string name="notify_login_title">%1$s needs you to log in</string>
     <string name="notify_login_text">Open the chat to finish logging in.</string>
     <string name="notify_finished_title">%1$s finished</string>
