@@ -33,8 +33,11 @@ object Git {
                 args.joinToString(" ") { AgentRecipe.q(it) }
             val code = linux.run(command) { line ->
                 if (!cut) {
-                    if (out.length + line.length + 1 > MAX_OUTPUT) cut = true
-                    else out.append(line).append('\n')
+                    if (out.length + line.length + 1 > MAX_OUTPUT) {
+                        cut = true
+                    } else {
+                        out.append(line).append('\n')
+                    }
                 }
             }
             Result(code, if (cut) "$out…\n" else out.toString())
