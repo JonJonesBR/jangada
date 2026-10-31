@@ -439,7 +439,8 @@ class ChatActivity : JangadaActivity() {
         // "por baixo" entre um redesenho e outro (o que derrubava o app).
         adapter.snapshot = ArrayList(ChatView.arrange(chat.items, mode))
         adapter.notifyDataSetChanged()
-        val isEmpty = chat.items.isEmpty()
+        // Vazia é o que a tela mostra (só raciocínio, no Normal, não deve deixar a lista em branco).
+        val isEmpty = adapter.snapshot.isEmpty()
         empty.visibility = if (isEmpty) View.VISIBLE else View.GONE
         list.visibility = if (isEmpty) View.GONE else View.VISIBLE
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
@@ -451,7 +452,8 @@ class ChatActivity : JangadaActivity() {
             val acp = chat as? AcpChat
             val options = acp?.configOptions.orEmpty()
             val effort = options.firstOrNull { it.category == "thought_level" }?.let { " · " + it.currentName } ?: ""
-            (chat.model ?: "~/${LinuxEnv.WORKSPACE}") + effort + if (options.isNotEmpty()) " ▾" else ""
+            // O diálogo de ajustes sempre abre (tem ao menos a visualização).
+            (chat.model ?: "~/${LinuxEnv.WORKSPACE}") + effort + " ▾"
         }
         // O leitor de tela lê agente e modelo, e avisa que o toque abre os ajustes.
         titleBlock.contentDescription = getString(
@@ -1141,7 +1143,7 @@ class ChatActivity : JangadaActivity() {
             val firstError = output?.takeIf { item.failed }?.lineSequence()?.firstOrNull { it.isNotBlank() }
             // Detalhado: o começo da saída fica embaixo da linha (a primeira linha de uma falha já é o erro).
             val excerpt = output?.takeIf { viewMode == AppSettings.VIEW_DETAILED }
-                ?.lines()?.dropWhile { it.isBlank() }?.take(TOOL_EXCERPT_LINES)?.takeIf { it.isNotEmpty() }
+                ?.lineSequence()?.dropWhile { it.isBlank() }?.take(TOOL_EXCERPT_LINES)?.toList()?.takeIf { it.isNotEmpty() }
             text = when {
                 output == null -> line
                 excerpt != null -> "$line  ›\n" + excerpt.joinToString("\n")
@@ -1183,7 +1185,7 @@ class ChatActivity : JangadaActivity() {
             maxLines = 6
             ellipsize = TextUtils.TruncateAt.END
             setPadding(dp(4), dp(2), dp(4), dp(2))
-            minHeight = dp(32)
+            minHeight = dp(48)
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundResource(selectableBackground)
             setOnClickListener { showDetails(R.string.chat_thinking, item.text) }
@@ -1204,10 +1206,11 @@ class ChatActivity : JangadaActivity() {
                 .entries.sortedByDescending { it.value.size }
                 .take(3)
                 .joinToString(", ") { "${it.value.size}× ${it.key}" }
-            val summary = getQuantityString(R.plurals.chat_tool_group, tools.size, tools.size) + " · " + counts
+            val summary = resources.getQuantityString(R.plurals.chat_tool_group, tools.size, tools.size) + " · " + counts
             val second = running?.let { "\n" + ToolText.label(this@ChatActivity, it.name) + "  " + it.summary }
             text = "$mark $summary  ›" + second.orEmpty()
-            maxLines = 2
+            // A linha de cima pode quebrar em duas; com a ação em andamento embaixo, cabem três.
+            maxLines = if (second != null) 3 else 2
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE
             textSize = 12f
@@ -1217,7 +1220,7 @@ class ChatActivity : JangadaActivity() {
             minHeight = dp(48)
             setBackgroundResource(selectableBackground)
             setOnClickListener { showToolGroup(item) }
-            contentDescription = getString(R.string.chat_tool_group_description, summary)
+            contentDescription = getString(R.string.chat_tool_group_description, summary + running?.let { ". " + ToolText.label(this@ChatActivity, it.name) + " " + it.summary }.orEmpty())
         }
 
         private fun permissionCard(item: ChatItem.Permission): View {

@@ -102,7 +102,8 @@ class ChatEngine(
         // (a menos que um plano novo já tenha chegado antes do histórico).
         if (plan == null) loaded.filterIsInstance<ChatItem.Plan>().lastOrNull()?.let { plan = it }
         // Terminou numa ação ou numa mensagem sua, sem resposta depois: foi interrompida.
-        if (markInterrupted) interrupted = loaded.lastOrNull().let { it is ChatItem.Tool || it is ChatItem.User }
+        // O raciocínio não conta (ele vem antes da ação ou da resposta, e pode ser a última coisa gravada).
+        if (markInterrupted) interrupted = loaded.lastOrNull { it !is ChatItem.Thinking }.let { it is ChatItem.Tool || it is ChatItem.User }
         changed()
     }
 
@@ -278,7 +279,9 @@ class ChatEngine(
                     // Bloco redigido vem vazio: não há o que mostrar.
                     val thinking = block.optString("thinking")
                     if (thinking.isNotBlank() && !fromSubagent) {
-                        items += ChatItem.Thinking(thinking)
+                        // Se a resposta já começou a aparecer (streaming), o raciocínio entra antes dela.
+                        val at = draft?.let { items.indexOf(it) } ?: -1
+                        if (at >= 0) items.add(at, ChatItem.Thinking(thinking)) else items += ChatItem.Thinking(thinking)
                     }
                 }
                 "tool_use" -> {

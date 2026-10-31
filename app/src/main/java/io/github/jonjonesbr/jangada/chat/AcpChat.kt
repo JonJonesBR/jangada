@@ -222,7 +222,8 @@ class AcpChat(
                     newSession(forgot = true)
                     return@request
                 }
-                interrupted = items.lastOrNull().let { it is ChatItem.Tool || it is ChatItem.User }
+                // O raciocínio não conta: ele pode ser a última coisa que o agente reenviou.
+                interrupted = items.lastOrNull { it !is ChatItem.Thinking }.let { it is ChatItem.Tool || it is ChatItem.User }
                 becomeReady()
             }
         } else {
@@ -530,7 +531,10 @@ class AcpChat(
                 val text = textOf(update.optJSONObject("content")) ?: return
                 val messageId = update.optString("messageId").ifEmpty { null }
                 val current = draft
-                if (current == null || (messageId != null && messageId != draftMessageId) || items.lastOrNull() !== current) {
+                // Raciocínio no meio da mesma mensagem (mesmo messageId) não parte a resposta em várias bolhas.
+                val continues = current != null && (items.lastOrNull() === current ||
+                    (messageId != null && messageId == draftMessageId && items.lastOrNull { it !is ChatItem.Thinking } === current))
+                if (current == null || (messageId != null && messageId != draftMessageId) || !continues) {
                     current?.streaming = false
                     draft = ChatItem.Assistant(text, streaming = !loadingHistory).also { items += it }
                     draftMessageId = messageId
