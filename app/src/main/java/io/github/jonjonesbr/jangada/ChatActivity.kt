@@ -1118,7 +1118,7 @@ class ChatActivity : JangadaActivity() {
         val rows = mutableListOf<Sheet.Row>()
         rows += Sheet.Row(title = getString(R.string.chat_folder_root), checked = folder.isEmpty()) { pickFolder("") }
         for (item in folders) {
-            rows += Sheet.Row(title = item.name, description = folderDescription(item), checked = item.name == folder) {
+            rows += Sheet.Row(title = item.name, description = Workspace.describe(this, item), checked = item.name == folder) {
                 pickFolder(item.name)
             }
         }
@@ -1131,22 +1131,13 @@ class ChatActivity : JangadaActivity() {
         Sheet(this).title(getString(R.string.chat_setting_folder)).rows(rows).show()
     }
 
-    /** Linha de apoio de uma pasta na escolha: o branch e, num worktree, de qual repositório ele veio. */
-    private fun folderDescription(item: Workspace.Folder): String? =
-        listOfNotNull(item.branch, item.worktreeOf?.let { getString(R.string.chat_worktree_of, it) })
-            .joinToString(" · ")
-            .takeIf { it.isNotEmpty() }
-
-    /** Repositório que pode ser a base de um trabalho isolado: pasta git que não é worktree. */
-    private fun canBeWorktreeBase(item: Workspace.Folder) = item.branch != null && item.worktreeOf == null
-
     /** Escolha do repositório base do novo trabalho isolado. */
     private fun chooseWorktreeBase(folders: List<Workspace.Folder>) {
         val bases = folders.filter { Worktrees.canStart(it) }
         Sheet(this)
             .title(getString(R.string.chat_worktree_pick_base))
             .rows(bases.map { base ->
-                Sheet.Row(title = base.name, description = folderDescription(base)) { newWorktreeDialog(base) }
+                Sheet.Row(title = base.name, description = Workspace.describe(this, base)) { newWorktreeDialog(base) }
             })
             .show()
     }
@@ -1208,7 +1199,7 @@ class ChatActivity : JangadaActivity() {
         if (removingWorktree) return
         val worktree = folders.firstOrNull { it.name == folder } ?: return
         val baseName = worktree.worktreeOf ?: return
-        if (folders.none { it.name == baseName && canBeWorktreeBase(it) }) {
+        if (folders.none { it.name == baseName && Worktrees.canBeBase(it) }) {
             AlertDialog.Builder(this)
                 .setTitle(R.string.chat_worktree_title)
                 .setMessage(R.string.chat_worktree_base_missing)

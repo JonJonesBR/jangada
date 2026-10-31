@@ -759,7 +759,8 @@ class HomeActivity : JangadaActivity() {
         val hasJobs = svc != null && (svc.chats.isNotEmpty() || svc.sessions.isNotEmpty())
         runningTitle.visibility = if (hasJobs || canStart) View.VISIBLE else View.GONE
         newJobButton.visibility = if (canStart) View.VISIBLE else View.GONE
-        jobsEmpty.visibility = if (canStart && !hasJobs) View.VISIBLE else View.GONE
+        // Sem o serviço ainda não se sabe se há trabalho: a frase só aparece depois da conexão.
+        jobsEmpty.visibility = if (canStart && svc != null && !hasJobs) View.VISIBLE else View.GONE
     }
 
     /** Fechar um trabalho que está rodando: avisa que o agente para (a conversa fica no histórico). */
@@ -898,7 +899,7 @@ class HomeActivity : JangadaActivity() {
         val open = service?.chats?.containsKey(TerminalService.chatKey(recipe.id, folder)) == true
         return Sheet.Row(
             title = if (item == null) getString(R.string.chat_folder_root) else item.name,
-            description = item?.let { folderDescription(it) },
+            description = item?.let { Workspace.describe(this, it) },
             value = if (open) getString(R.string.home_job_open) else null,
             checked = checked,
         ) { pickJobFolder(recipe, folder, item) }
@@ -945,18 +946,20 @@ class HomeActivity : JangadaActivity() {
                 .setCancelable(false)
                 .show()
             thread(name = "jangada-worktree-new") {
-                val made = Worktrees.create(linux, base, name)
+                val made = runCatching { Worktrees.create(linux, base, name) }
+                    .getOrElse { Worktrees.Result.Failed(it.message ?: it.javaClass.simpleName) }
                 runOnUiThread {
+                    // O progresso e o diálogo do nome fecham em todo caminho, até com a tela já saindo.
                     progress.dismiss()
-                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    val alive = !isDestroyed && !isFinishing
                     when (made) {
                         is Worktrees.Result.Created -> {
                             done(true)
-                            openChat(recipe.id, made.folder)
+                            if (alive) openChat(recipe.id, made.folder)
                         }
                         is Worktrees.Result.Failed -> {
                             done(false)
-                            showGitFailure(made.output)
+                            if (alive) showGitFailure(made.output)
                         }
                     }
                 }
@@ -980,12 +983,6 @@ class HomeActivity : JangadaActivity() {
             .setPositiveButton(android.R.string.ok, null)
             .show()
     }
-
-    /** Linha de apoio de uma pasta: o branch e, num worktree, de qual repositório ele veio. */
-    private fun folderDescription(item: Workspace.Folder): String? =
-        listOfNotNull(item.branch, item.worktreeOf?.let { getString(R.string.chat_worktree_of, it) })
-            .joinToString(" · ")
-            .takeIf { it.isNotEmpty() }
 
     private fun showSession(handle: String) {
         startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SESSION, handle))

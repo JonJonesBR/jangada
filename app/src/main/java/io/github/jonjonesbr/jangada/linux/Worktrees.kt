@@ -13,12 +13,15 @@ object Worktrees {
         class Failed(val output: String) : Result()
     }
 
+    /** Repositório que pode ser a base de um trabalho isolado: pasta git que não é worktree. */
+    fun canBeBase(item: Workspace.Folder): Boolean = item.branch != null && item.worktreeOf == null
+
     /**
-     * Pode ser a base de um trabalho novo: pasta git que não é worktree, e o nome do repositório
-     * cabe em "<repo>--<nome>" (pasta válida). Só confere textos: pode rodar na thread principal.
+     * Pode ser a base de um trabalho novo: [canBeBase] e o nome do repositório cabe em
+     * "<repo>--<nome>" (pasta válida). Só confere textos: pode rodar na thread principal.
      */
     fun canStart(item: Workspace.Folder): Boolean =
-        item.branch != null && item.worktreeOf == null && Workspace.worktreeFolder(item.name, "x") != null
+        canBeBase(item) && Workspace.worktreeFolder(item.name, "x") != null
 
     /**
      * Cria o trabalho [name] do repositório [repo] (`git worktree add -b jangada/<name> <pasta>`).

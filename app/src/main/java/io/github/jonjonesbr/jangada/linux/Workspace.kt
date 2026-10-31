@@ -1,5 +1,7 @@
 package io.github.jonjonesbr.jangada.linux
 
+import android.content.Context
+import io.github.jonjonesbr.jangada.R
 import io.github.jonjonesbr.jangada.chat.Attachments
 import java.io.File
 import java.nio.file.Files
@@ -35,6 +37,12 @@ object Workspace {
      * se for um worktree (trabalho isolado), o nome do repositório de origem.
      */
     class Folder(val name: String, val branch: String?, val worktreeOf: String?)
+
+    /** Linha de apoio de uma pasta nas escolhas: o branch e, num worktree, de qual repositório ele veio (null = nada a dizer). */
+    fun describe(context: Context, item: Folder): String? =
+        listOfNotNull(item.branch, item.worktreeOf?.let { context.getString(R.string.chat_worktree_of, it) })
+            .joinToString(" · ")
+            .takeIf { it.isNotEmpty() }
 
     /** Caminho absoluto dentro do Debian da pasta [folder] ("" = a raiz). */
     fun path(folder: String): String = if (folder.isEmpty()) ROOT else "$ROOT/$folder"
