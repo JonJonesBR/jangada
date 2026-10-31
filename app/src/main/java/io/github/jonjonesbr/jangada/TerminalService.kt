@@ -66,6 +66,8 @@ class TerminalService : Service() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     /** Último aviso de progresso da instalação do Linux (no máximo 1 por segundo). */
     private var lastSetupNotify = 0L
+    /** Trabalhos (chaves de [chatKey]) cujo aviso atual é de pedido de permissão com botões. Só a thread principal mexe. */
+    private val permissionNotices = HashSet<String>()
 
     /**
      * Trabalho de chat aberto na tela de chat agora (chave de [chatKey]; null se nenhum).
@@ -277,8 +279,10 @@ class TerminalService : Service() {
             return START_NOT_STICKY
         }
         if (intent != null && intent.action == ACTION_ANSWER_PERMISSION) {
+            // Nunca vai ao primeiro plano por aqui (o toque no botão não é trabalho novo). Se o Android
+            // recriou o serviço (processo morto), não há chat: só some com o aviso e o serviço se encerra.
+            // Com chats, sessões ou tarefas, o serviço segue como estava.
             answerPermission(intent)
-            // Sem trabalho restante (o chat sumiu), o serviço sai do primeiro plano; com trabalho, fica.
             leaveForegroundIfIdle()
             return START_NOT_STICKY
         }
@@ -501,6 +505,7 @@ class TerminalService : Service() {
     }
 
     private fun sessionsChanged() {
+        dropStalePermissionNotices()
         updateNotification()
         sessionListeners.forEach { it() }
     }
@@ -746,11 +751,30 @@ class TerminalService : Service() {
                 requestCode, NOTIFICATION_CHAT, getString(title, name), clip(wants, NOTIFY_TEXT_MAX), open,
                 tag = key, big = clip(full, NOTIFY_BIG_MAX), actions = permissionActions(key, pending),
             )
+            permissionNotices += key
         } else {
             attentionNotification(requestCode, NOTIFICATION_CHAT, getString(title, name), getString(text), open, tag = key)
+            permissionNotices -= key
         }
         // A lista da tela inicial mostra o estado de cada trabalho: redesenha.
         sessionsChanged()
+    }
+
+    /**
+     * Some com o aviso de permissão cujo trabalho não tem mais pedido pendente (o CLI cancelou, o agente
+     * parou ou foi respondido sem a tela do chat aberta). Não há evento para isso: roda a cada
+     * [sessionsChanged], que já acontece a cada aviso, abertura ou fechamento de trabalho. Sem esse gancho,
+     * o aviso velho sai no próximo aviso do trabalho (a mesma tag o substitui) ou ao abrir o chat.
+     */
+    private fun dropStalePermissionNotices() {
+        if (permissionNotices.isEmpty()) return
+        for (key in permissionNotices.toList()) {
+            val chat = chats[key]?.chat
+            if (chat == null || pendingPermission(chat) == null) {
+                notifications().cancel(key, NOTIFICATION_CHAT)
+                permissionNotices -= key
+            }
+        }
     }
 
     /** Pedido de permissão mais recente ainda sem resposta do trabalho (cópia da lista: a conversa muda). */
@@ -810,11 +834,14 @@ class TerminalService : Service() {
             val kind = if (allow) PermissionOption.Kind.ALLOW_ONCE else PermissionOption.Kind.REJECT_ONCE
             pending.options.firstOrNull { it.kind == kind }?.let { slot.chat.answer(pending, it) }
         }
-        notifications().cancel(key, NOTIFICATION_CHAT)
         if (slot != null && pendingPermission(slot.chat) != null) {
+            // Sobrou outro pedido: o novo aviso substitui este (mesma tag).
             onChatAttention(slot.agentId, slot.folder, ChatAttention.PERMISSION)
+        } else {
+            notifications().cancel(key, NOTIFICATION_CHAT)
+            permissionNotices -= key
+            sessionsChanged()
         }
-        sessionsChanged()
     }
 
     /** Texto cortado em [max] caracteres (com reticências), para caber no aviso. */
