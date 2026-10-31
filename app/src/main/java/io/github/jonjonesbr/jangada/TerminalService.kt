@@ -71,7 +71,7 @@ class TerminalService : Service() {
     var visibleChat: String? = null
         set(value) {
             field = value
-            if (value != null) notifications().cancel(value.hashCode())
+            if (value != null) notifications().cancel(value, NOTIFICATION_CHAT)
         }
 
     /** Tela inicial visível agora: ao virar true, o aviso de tarefa some. */
@@ -168,9 +168,15 @@ class TerminalService : Service() {
     /** Chat aberto do par ([agentId], [folder]), se houver. */
     fun chat(agentId: String, folder: String): AgentChat? = chats[chatKey(agentId, folder)]?.chat
 
-    /** Pode abrir o trabalho do par? Sim se ele já existe (é reaberto) ou se ainda há vaga. */
+    /** Chats com o agente rodando: só eles contam no limite (um trabalho parado não usa memória). */
+    fun runningChats(): List<ChatSlot> = chats.values.filter { it.chat.running }
+
+    /**
+     * Pode abrir (ou reabrir) o trabalho do par? Sim se o agente dele já roda (é substituído,
+     * sem somar) ou se há vaga. Um trabalho parado que volta a rodar também precisa de vaga.
+     */
     fun canOpenChat(agentId: String, folder: String): Boolean =
-        chats.containsKey(chatKey(agentId, folder)) || chats.size < MAX_CHATS
+        chat(agentId, folder)?.running == true || runningChats().size < MAX_CHATS
 
     /**
      * Abre (ou devolve) o chat do agente [agentId], na pasta [folder] ("" = a raiz).
@@ -204,7 +210,8 @@ class TerminalService : Service() {
         // Para o chat anterior deste par (se havia) antes de o novo começar.
         current?.stop()
         chats[key] = ChatSlot(agentId, folder, chat)
-        chat.onAttention = { attention -> onChatAttention(agentId, folder, attention) }
+        // Só avisa enquanto for o chat deste par (um substituído ou fechado fica calado).
+        chat.onAttention = { attention -> if (chats[key]?.chat === chat) onChatAttention(agentId, folder, attention) }
         goForeground()
         when (chat) {
             // O Claude lê o histórico do chat anterior do mesmo par (se houver).
@@ -233,7 +240,8 @@ class TerminalService : Service() {
     fun closeChat(agentId: String, folder: String, then: (() -> Unit)? = null) {
         val key = chatKey(agentId, folder)
         val current = chats.remove(key)?.chat
-        notifications().cancel(key.hashCode())
+        current?.onAttention = null
+        notifications().cancel(key, NOTIFICATION_CHAT)
         sessionsChanged()
         if (current == null) {
             then?.invoke()
@@ -384,13 +392,15 @@ class TerminalService : Service() {
      */
     fun runAgentTask(recipe: AgentRecipe, updating: Boolean, uninstalling: Boolean = false) {
         if (tasks[recipe.id]?.state == AgentTask.State.RUNNING) return
-        if (uninstalling) closeAgent(recipe.id)
+        val chatsGone = if (uninstalling) closeAgent(recipe.id) else null
         val task = AgentTask(recipe, updating, uninstalling)
         tasks[recipe.id] = task
         goForeground()
         updateNotification()
         onTasksChanged?.invoke()
         val worker = thread(start = false, name = "jangada-agent-${recipe.id}") {
+            // Desinstalar: espera os chats do agente saírem (no máximo 5 s; a contagem desce na thread principal).
+            chatsGone?.let { runCatching { it.await(5, java.util.concurrent.TimeUnit.SECONDS) } }
             val exit = runCatching {
                 val script = if (uninstalling) recipe.uninstallScript() else recipe.backgroundScript(updating)
                 LinuxEnv(this).runBash(script, onStart = { process ->
@@ -448,10 +458,16 @@ class TerminalService : Service() {
         tasks.keys.toList().forEach { cancelTask(it) }
     }
 
-    /** Fecha os chats e as sessões de terminal de um agente (antes de desinstalar). */
-    private fun closeAgent(agentId: String) {
-        chats.values.filter { it.agentId == agentId }.forEach { closeChat(agentId, it.folder) }
+    /**
+     * Fecha os chats (em todas as pastas) e as sessões de terminal de um agente (antes de
+     * desinstalar). O latch devolvido libera quando todos esses chats terminaram de sair.
+     */
+    private fun closeAgent(agentId: String): java.util.concurrent.CountDownLatch {
+        val slots = chats.values.filter { it.agentId == agentId }
+        val gone = java.util.concurrent.CountDownLatch(slots.size)
+        slots.forEach { closeChat(agentId, it.folder) { gone.countDown() } }
         sessionAgent.filterValues { it == agentId }.keys.toList().forEach { closeSession(it) }
+        return gone
     }
 
     private fun postTasksChanged(throttle: Boolean) {
@@ -556,7 +572,8 @@ class TerminalService : Service() {
         sessionConversation.clear()
         sessionFolder.clear()
         val gone = chats.values.map { it.chat }
-        chats.keys.forEach { notifications().cancel(it.hashCode()) }
+        gone.forEach { it.onAttention = null }
+        chats.keys.forEach { notifications().cancel(it, NOTIFICATION_CHAT) }
         chats.clear()
         return gone
     }
@@ -570,9 +587,10 @@ class TerminalService : Service() {
     }
 
     /**
-     * Encerra tudo (sessões, chat, instalações em andamento) antes de reinstalar
-     * ou restaurar o Linux. [then] roda na thread principal, depois que o chat
-     * saiu e as instalações terminaram (no máximo 5 s para cada uma).
+     * Encerra tudo (sessões, chats, instalações em andamento) antes de reinstalar
+     * ou restaurar o Linux. [then] roda na thread principal, depois que todos os
+     * chats saíram e as instalações terminaram (no máximo 5 s para cada espera).
+     * A espera fica numa thread própria: a saída dos chats é contada na principal.
      */
     fun closeEverything(then: () -> Unit) {
         val gone = tearDownSessions()
@@ -702,8 +720,10 @@ class TerminalService : Service() {
         val open = Intent(this, ChatActivity::class.java)
             .putExtra(ChatActivity.EXTRA_AGENT_ID, agentId)
             .putExtra(ChatActivity.EXTRA_FOLDER, folder)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        attentionNotification(key.hashCode(), key.hashCode(), getString(title, name), getString(text), open)
+            // Com uma tela de chat no topo, ela recebe o pedido (onNewIntent) em vez de empilhar outra.
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        // Request code próprio do trabalho: com o mesmo, o PendingIntent de um aviso trocaria os extras do outro.
+        attentionNotification(key.hashCode(), NOTIFICATION_CHAT, getString(title, name), getString(text), open, tag = key)
         // A lista da tela inicial mostra o estado de cada trabalho: redesenha.
         sessionsChanged()
     }
@@ -737,8 +757,8 @@ class TerminalService : Service() {
         leaveForegroundIfIdle()
     }
 
-    /** Mostra um aviso no canal de atenção; ao toque, abre [target] e o aviso some. */
-    private fun attentionNotification(requestCode: Int, id: Int, title: String, text: String, target: Intent) {
+    /** Mostra um aviso no canal de atenção; ao toque, abre [target] e o aviso some. [tag] separa avisos de mesmo [id]. */
+    private fun attentionNotification(requestCode: Int, id: Int, title: String, text: String, target: Intent, tag: String? = null) {
         val pending = PendingIntent.getActivity(
             this, requestCode, target, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -749,7 +769,7 @@ class TerminalService : Service() {
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
-        notifications().notify(id, notification)
+        notifications().notify(tag, id, notification)
     }
 
     private fun notifications() = getSystemService(NotificationManager::class.java)
@@ -806,7 +826,8 @@ class TerminalService : Service() {
         private const val CHANNEL_ATTENTION = "attention"
         private const val NOTIFICATION_SESSIONS = 1
         private const val NOTIFICATION_LINK = 2
-        // Avisos de chat usam como id o hashCode de chatKey (ver onChatAttention).
+        /** Avisos de chat (permissão, login, resposta pronta ou erro): um por trabalho, com a chave como tag. */
+        private const val NOTIFICATION_CHAT = 3
         /** Aviso de tarefa de agente ou da instalação do Linux terminada. */
         private const val NOTIFICATION_TASK = 4
         private const val REQUEST_HOME = 10

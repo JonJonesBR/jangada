@@ -105,6 +105,8 @@ class ChatActivity : JangadaActivity() {
     private var opening = false
     /** As pastas dos ajustes estão sendo lidas (evita abrir o diálogo duas vezes). */
     private var loadingSettings = false
+    /** Diálogo "já há agentes demais" aberto (evita abrir dois). */
+    private var jobsFullDialog: AlertDialog? = null
     /** Pasta do trabalho desta tela (nome dentro de ~/projetos; "" = a raiz); validada em onCreate. */
     private var folder = ""
     private var engine: AgentChat? = null
@@ -196,6 +198,24 @@ class ChatActivity : JangadaActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Pedido (aviso, por exemplo) de outro trabalho com esta tela no topo: como no ⇄, abre a
+        // tela dele e sai desta, para não empilhar telas de chat. Os extras vão junto.
+        val otherAgent = intent.getStringExtra(EXTRA_AGENT_ID) ?: agentId
+        val otherFolder = intent.getStringExtra(EXTRA_FOLDER)?.let { Workspace.existing(linux.rootfs, it) } ?: folder
+        if (otherAgent != agentId || otherFolder != folder) {
+            if (isFinishing) return
+            startActivity(
+                Intent(intent)
+                    .setClass(this, ChatActivity::class.java)
+                    .setFlags(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    .putExtra(EXTRA_FOLDER, otherFolder),
+            )
+            finish()
+            overridePendingTransition(0, 0)
+            return
+        }
+        // Mesmo trabalho: a pasta já é a desta tela.
+        intent.removeExtra(EXTRA_FOLDER)
         setIntent(intent)
         takeShared(intent)
     }
@@ -312,10 +332,12 @@ class ChatActivity : JangadaActivity() {
     }
 
     /**
-     * Já há [TerminalService.MAX_CHATS] trabalhos abertos. Tocar num deles o fecha e então
-     * [open] roda. Cancelar (ou voltar) sai desta tela, que não tem trabalho para mostrar.
+     * Já há [TerminalService.MAX_CHATS] agentes rodando. Tocar num deles o fecha e então
+     * [open] roda. Cancelar (ou voltar) sai desta tela se ela não tem conversa para mostrar.
      */
     private fun showJobsFull(svc: TerminalService, open: () -> Unit) {
+        // A tela que para e volta pede de novo: um diálogo só.
+        if (jobsFullDialog?.isShowing == true) return
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), dp(8))
@@ -327,7 +349,8 @@ class ChatActivity : JangadaActivity() {
             setPadding(0, 0, 0, dp(8))
         })
         var dialog: AlertDialog? = null
-        for (slot in svc.chats.values.toList()) {
+        // Só os que rodam: um trabalho parado não ocupa vaga.
+        for (slot in svc.runningChats()) {
             content.addView(TextView(this).apply {
                 text = jobTitle(this@ChatActivity, agentNameOf(slot.agentId), slot.folder, chatState(slot.chat))
                 textSize = 16f
@@ -343,12 +366,14 @@ class ChatActivity : JangadaActivity() {
                 }
             })
         }
+        val leaveIfEmpty = { if (engine == null) finish() }
         dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.chat_jobs_full_title)
+            .setTitle(getString(R.string.chat_jobs_full_title, TerminalService.MAX_CHATS))
             .setView(ScrollView(this).apply { addView(content) })
-            .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
-            .setOnCancelListener { finish() }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> leaveIfEmpty() }
+            .setOnCancelListener { leaveIfEmpty() }
             .show()
+        jobsFullDialog = dialog
     }
 
     /** Nome do agente pelo id (para as linhas de trabalho); o catálogo é lido uma vez. */
@@ -733,8 +758,18 @@ class ChatActivity : JangadaActivity() {
 
     private fun newConversation() {
         val svc = service ?: return
-        svc.closeChat(agentId, folder) {
-            if (!isDestroyed) attach(svc.openChat(agentId, folder = folder, restart = true))
+        reopenChat(svc) { svc.openChat(agentId, folder = folder, restart = true) }
+    }
+
+    /**
+     * Fecha o chat deste trabalho, espera o agente sair e liga a tela no que [open] abrir.
+     * Com o agente parado, reabrir soma um rodando: precisa de vaga.
+     */
+    private fun reopenChat(svc: TerminalService, open: () -> AgentChat) {
+        withRoom(svc) {
+            svc.closeChat(agentId, folder) {
+                if (!isDestroyed) attach(open())
+            }
         }
     }
 
@@ -789,8 +824,8 @@ class ChatActivity : JangadaActivity() {
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
                         dialog?.dismiss()
-                        if (!isCurrent) svc.closeChat(agentId, folder) {
-                            if (!isDestroyed) attach(svc.openChat(agentId, folder = folder, resume = conversation.id, restart = true))
+                        if (!isCurrent) reopenChat(svc) {
+                            svc.openChat(agentId, folder = folder, resume = conversation.id, restart = true)
                         }
                     }
                 })
@@ -825,7 +860,8 @@ class ChatActivity : JangadaActivity() {
                 val svc = service ?: return@setPositiveButton
                 // Depois de apagar: se era a conversa aberta, abre uma nova; a lista volta à tela principal.
                 val reopenAndDone = {
-                    if (isCurrent && !isDestroyed) attach(svc.openChat(agentId, folder = folder, restart = true))
+                    // O chat já foi fechado: abrir outro precisa de vaga (se o apagado estava parado).
+                    if (isCurrent && !isDestroyed) withRoom(svc) { attach(svc.openChat(agentId, folder = folder, restart = true)) }
                     done()
                 }
                 if (isClaude) {
@@ -1098,9 +1134,7 @@ class ChatActivity : JangadaActivity() {
                 save(values[which])
                 val svc = service ?: return@setSingleChoiceItems
                 val id = engine?.sessionId
-                svc.closeChat(agentId, folder) {
-                    if (!isDestroyed) attach(svc.openChat(agentId, folder = folder, resume = id, restart = true))
-                }
+                reopenChat(svc) { svc.openChat(agentId, folder = folder, resume = id, restart = true) }
             }
             .show()
     }

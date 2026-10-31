@@ -91,8 +91,15 @@ class HomeActivity : JangadaActivity() {
 
     private val prefs by lazy { AgentPrefs.prefs(this) }
     private val sessionsListener: () -> Unit = { renderSessions() }
-    /** Redesenha a lista de trabalhos enquanto há chat aberto (o estado muda sem aviso). */
-    private val jobsTicker = Runnable { renderSessions() }
+    /**
+     * Confere a lista de trabalhos enquanto há chat aberto (o estado muda sem aviso). Só
+     * redesenha se algum estado mudou: refazer as linhas no meio de um toque o perderia.
+     */
+    private val jobsTicker = Runnable {
+        if (jobStates() != drawnJobStates) renderSessions() else scheduleJobsTick()
+    }
+    /** Estados dos trabalhos na última vez que a lista foi desenhada. */
+    private var drawnJobStates: List<Pair<String, ChatState>> = emptyList()
     private val simpleMode get() = AppSettings(this).simpleMode
     private var askedStorage = false
     private var allFilesOpened = false
@@ -685,9 +692,18 @@ class HomeActivity : JangadaActivity() {
             }
             sessionsList.addView(row)
         }
-        // Com chat aberto, a lista se redesenha sozinha a cada 2 s (ver jobsTicker).
+        drawnJobStates = jobs.map { (slot, state) -> TerminalService.chatKey(slot.agentId, slot.folder) to state }
+        scheduleJobsTick()
+    }
+
+    /** Trabalhos abertos agora (chave e estado), para o [jobsTicker] comparar. */
+    private fun jobStates(): List<Pair<String, ChatState>> =
+        service?.chats?.values?.toList().orEmpty().map { TerminalService.chatKey(it.agentId, it.folder) to chatState(it.chat) }
+
+    /** Com chat aberto e a tela na frente, confere a lista de novo daqui a 2 s (ver [jobsTicker]). */
+    private fun scheduleJobsTick() {
         mainHandler.removeCallbacks(jobsTicker)
-        if (!paused && jobs.isNotEmpty()) mainHandler.postDelayed(jobsTicker, JOBS_REFRESH_MS)
+        if (!paused && service?.chats?.isNotEmpty() == true) mainHandler.postDelayed(jobsTicker, JOBS_REFRESH_MS)
     }
 
     /** Pasta de uma sessão de terminal ("" = a raiz). */

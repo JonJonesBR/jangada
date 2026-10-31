@@ -83,9 +83,10 @@ class ChatStateTest {
     }
 
     @Test
-    fun esperaVoceTemPrioridadeSobreTrabalhando() {
-        val chat = FakeChat(mutableListOf(permissaoPendente()), busy = true, running = true)
+    fun agenteParadoComLoginAntigoEstaParado() {
+        // O agente saiu (login pendente): a vaga está livre, a linha mostra Parado.
+        val chat = FakeChat(mutableListOf(ChatItem.Login(emptyList())))
 
-        assertEquals(ChatState.WAITING, chatState(chat))
+        assertEquals(ChatState.STOPPED, chatState(chat))
     }
 }

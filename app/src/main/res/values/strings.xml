@@ -159,7 +159,7 @@
     <string name="chat_folder_create_failed">Could not create the folder</string>
     <string name="chat_jobs">Jobs</string>
     <string name="chat_jobs_new">New job…</string>
-    <string name="chat_jobs_full_title">3 jobs already open</string>
+    <string name="chat_jobs_full_title">%1$d agents already running</string>
     <string name="chat_jobs_full">Each agent uses phone memory. Tap a job to close it and open this one.</string>
     <string name="chat_view_detailed">Detailed</string>
     <string name="chat_view_normal">Normal</string>

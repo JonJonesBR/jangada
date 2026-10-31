@@ -157,7 +157,7 @@
     <string name="chat_folder_create_failed">Não foi possível criar a pasta</string>
     <string name="chat_jobs">Trabalhos</string>
     <string name="chat_jobs_new">Novo trabalho…</string>
-    <string name="chat_jobs_full_title">Já há 3 trabalhos abertos</string>
+    <string name="chat_jobs_full_title">Já há %1$d agentes rodando</string>
     <string name="chat_jobs_full">Cada agente usa memória do celular. Toque em um trabalho para fechá-lo e abrir este.</string>
     <string name="chat_view_detailed">Detalhado</string>
     <string name="chat_view_normal">Normal</string>

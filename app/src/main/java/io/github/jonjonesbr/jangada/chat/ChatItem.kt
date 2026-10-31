@@ -66,10 +66,12 @@ enum class ChatAttention { PERMISSION, LOGIN, FINISHED, FAILED }
 enum class ChatState { WORKING, WAITING, READY, STOPPED }
 
 /**
- * Estado do chat: espera você (permissão ou login sem resposta), trabalha (turno em
- * andamento), está pronto (agente rodando, sem turno) ou parado.
+ * Estado do chat: parado (agente fora, mesmo com um cartão de login antigo na conversa),
+ * espera você (permissão ou login sem resposta), trabalha (turno em andamento) ou está
+ * pronto (agente rodando, sem turno).
  */
 fun chatState(chat: AgentChat): ChatState {
+    if (!chat.running) return ChatState.STOPPED
     // Cópia da lista: ela muda na thread principal enquanto se percorre.
     val waiting = chat.items.toList().any { item ->
         (item is ChatItem.Permission && item.chosen == null) ||
@@ -78,8 +80,7 @@ fun chatState(chat: AgentChat): ChatState {
     return when {
         waiting -> ChatState.WAITING
         chat.busy -> ChatState.WORKING
-        chat.running -> ChatState.READY
-        else -> ChatState.STOPPED
+        else -> ChatState.READY
     }
 }
 
