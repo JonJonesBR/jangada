@@ -51,34 +51,20 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- Trabalhos abertos (outros chats, em paralelo) e o novo trabalho. -->
-        <TextView
-            android:id="@+id/chat_jobs"
-            style="@style/BarButton"
-            android:contentDescription="@string/chat_jobs"
-            android:text="⇄"
-            android:textSize="18sp" />
-
-        <TextView
-            android:id="@+id/chat_history"
-            style="@style/BarButton"
-            android:contentDescription="@string/chat_history"
-            android:text="☰"
-            android:textSize="18sp" />
-
-        <TextView
-            android:id="@+id/chat_new"
-            style="@style/BarButton"
-            android:contentDescription="@string/chat_new"
-            android:text="＋"
-            android:textSize="20sp" />
-
         <TextView
             android:id="@+id/chat_terminal"
             style="@style/BarButton"
             android:contentDescription="@string/chat_terminal"
             android:fontFamily="monospace"
             android:text="&gt;_" />
+
+        <!-- Menu: nova conversa, histórico, trabalhos, mudanças, encerrar trabalho isolado e ajustes. -->
+        <TextView
+            android:id="@+id/chat_menu"
+            style="@style/BarButton"
+            android:contentDescription="@string/chat_menu"
+            android:text="⋮"
+            android:textSize="20sp" />
     </LinearLayout>
 
     <ListView

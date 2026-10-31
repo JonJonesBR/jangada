@@ -141,7 +141,6 @@
     <string name="chat_continue_prompt">Continue from where you stopped.</string>
     <string name="chat_queued">Queued — sends when the agent finishes</string>
     <string name="chat_dropped">Not sent — tap to edit</string>
-    <string name="chat_context_percent">%1$d%% context</string>
     <string name="chat_compact">Context almost full · Compact</string>
     <string name="chat_delete">Delete</string>
     <string name="chat_delete_title">Delete this conversation?</string>
@@ -165,7 +164,14 @@
     <string name="chat_tool_output_description">%1$s. Tap to see the result.</string>
 
     <string name="chat_settings_title">Conversation settings</string>
-    <string name="chat_title_description">%1$s, %2$s. Tap to open %3$s</string>
+    <string name="chat_title_description">%1$s, folder %2$s, branch %3$s. Tap to switch job.</string>
+    <string name="chat_title_description_plain">%1$s, folder %2$s. Tap to switch job.</string>
+    <string name="chat_menu">More options</string>
+    <string name="chat_menu_new_desc">Starts from scratch; this conversation stays in the history</string>
+    <string name="chat_menu_history_desc">Resume or delete earlier conversations</string>
+    <string name="chat_menu_jobs_desc">Other chats and folders, running side by side</string>
+    <string name="chat_menu_finish_desc">Merge the result or discard this working copy</string>
+    <string name="chat_menu_settings_desc">Folder, model, view and the agent’s options</string>
     <string name="chat_setting_model">Model</string>
     <string name="chat_setting_effort">Effort</string>
     <string name="chat_setting_view">View</string>

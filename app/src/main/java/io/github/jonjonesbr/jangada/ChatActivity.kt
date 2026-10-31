@@ -65,7 +65,6 @@ import io.github.jonjonesbr.jangada.chat.chatState
 import io.github.jonjonesbr.jangada.chat.PermissionOption
 import io.github.jonjonesbr.jangada.chat.SlashCommand
 import io.github.jonjonesbr.jangada.chat.ToolText
-import io.github.jonjonesbr.jangada.chat.friendlyModel
 import io.github.jonjonesbr.jangada.linux.Fs
 import io.github.jonjonesbr.jangada.linux.Git
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
@@ -131,6 +130,10 @@ class ChatActivity : JangadaActivity() {
     private var jobsFullDialog: Dialog? = null
     /** Pasta do trabalho desta tela (nome dentro de ~/projetos; "" = a raiz); validada em onCreate. */
     private var folder = ""
+    /** Branch do git da pasta (null = não é repositório, ou ainda não foi lido); lido fora da thread principal. */
+    private var folderBranch: String? = null
+    /** Repositório de origem, se a pasta é um trabalho isolado (worktree). */
+    private var folderWorktreeOf: String? = null
     private var engine: AgentChat? = null
     private var enterAt = -1
     private val pendingAttachments = mutableListOf<Attachment>()
@@ -199,13 +202,11 @@ class ChatActivity : JangadaActivity() {
         findViewById<View>(R.id.chat_attach).setOnClickListener { pickAttachment() }
         findViewById<View>(R.id.chat_stop).setOnClickListener { engine?.interrupt() }
         findViewById<View>(R.id.chat_terminal).setOnClickListener { switchToTerminal() }
-        findViewById<View>(R.id.chat_jobs).setOnClickListener { showJobs() }
-        findViewById<View>(R.id.chat_new).setOnClickListener { newConversation() }
-        findViewById<View>(R.id.chat_history).setOnClickListener { showHistory() }
+        findViewById<View>(R.id.chat_menu).setOnClickListener { showMenu() }
         continueChip.setOnClickListener { engine?.sendMessage(getString(R.string.chat_continue_prompt)) }
         compactChip.setOnClickListener { engine?.sendMessage("/compact") }
-        // Título e subtítulo formam um só alvo de toque (ajustes da conversa).
-        findViewById<View>(R.id.chat_title_block).setOnClickListener { showChatSettings() }
+        // Agente e pasta formam um só alvo de toque: tocar abre os trabalhos (trocar de pasta ou de agente).
+        titleBlock.setOnClickListener { showJobs() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
 
         // "Enter envia" (configurações): o Enter do teclado manda a mensagem.
@@ -265,6 +266,8 @@ class ChatActivity : JangadaActivity() {
         resumed = true
         service?.visibleChat = chatKey
         applyTextScale()
+        // O branch pode ter mudado no terminal enquanto a tela estava em segundo plano.
+        readFolderInfo()
         // Ao voltar com "/..." na caixa, as sugestões reaparecem (depois da janela estar pronta).
         input.post { updateCommandSuggestions() }
     }
@@ -607,9 +610,42 @@ class ChatActivity : JangadaActivity() {
         send()
     }
 
-    /** Título: o agente e, numa subpasta, a pasta (repositório) em que ele trabalha. */
+    /**
+     * Título: o agente na primeira linha; na segunda, a pasta em que ele trabalha ("~/projetos" na
+     * raiz, senão a pasta e o branch do git) e a seta que indica o toque para trocar de trabalho.
+     */
     private fun updateTitle() {
-        findViewById<TextView>(R.id.chat_title).text = if (folder.isEmpty()) agentName else "$agentName · $folder"
+        findViewById<TextView>(R.id.chat_title).text = agentName
+        val branch = folderBranch
+        val place = when {
+            folder.isEmpty() -> displayPath(Workspace.ROOT)
+            branch != null -> "$folder · $branch"
+            else -> folder
+        }
+        subtitle.text = "$place ▾"
+        titleBlock.contentDescription = when {
+            folder.isEmpty() -> getString(R.string.chat_title_description_plain, agentName, getString(R.string.chat_folder_root))
+            branch != null -> getString(R.string.chat_title_description, agentName, folder, branch)
+            else -> getString(R.string.chat_title_description_plain, agentName, folder)
+        }
+    }
+
+    /**
+     * Lê o branch e o repositório de origem da pasta (só arquivos do git, sem o programa) fora da
+     * thread principal, e atualiza o título. Chamado ao voltar para a tela.
+     */
+    private fun readFolderInfo() {
+        val dir = Workspace.hostPath(linux.rootfs, Workspace.path(folder))
+        thread(name = "chat-folder-info") {
+            val branch = Workspace.gitBranch(linux.rootfs, dir)
+            val worktreeOf = Workspace.worktreeOf(dir)
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                folderBranch = branch
+                folderWorktreeOf = worktreeOf
+                updateTitle()
+            }
+        }
     }
 
     /**
@@ -682,28 +718,12 @@ class ChatActivity : JangadaActivity() {
         list.visibility = if (isEmpty) View.GONE else View.VISIBLE
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
         continueChip.visibility = if (chat.interrupted && !chat.busy) View.VISIBLE else View.GONE
-        // Uso do contexto (quando o agente informa): entre o modelo e a seta dos ajustes.
-        val usage = chat.contextUsage?.let { " · " + getString(R.string.chat_context_percent, it.percent) } ?: ""
-        subtitle.text = if (isClaude) {
-            val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { " · " + effortLabel(it) } ?: ""
-            (friendlyModel(chat.model) ?: getString(R.string.chat_model_default)) + effort + usage + " ▾"
-        } else {
-            val acp = chat as? AcpChat
-            val options = acp?.configOptions.orEmpty()
-            val effort = options.firstOrNull { it.category == "thought_level" }?.let { " · " + it.currentName } ?: ""
-            // O diálogo de ajustes sempre abre (tem ao menos a visualização).
-            (chat.model ?: displayPath(chat.cwd)) + effort + usage + " ▾"
-        }
         // Contexto quase cheio: oferece compactar (só se o agente aceita e não está no meio de um turno).
         val percent = chat.contextUsage?.percent ?: 0
         val canCompact = isClaude || (chat as? AcpChat)?.commands?.any { it.name == "compact" } == true
         // Um chip por vez: "Continuar" vem antes (a resposta parou no meio); compactar aparece no fim do próximo turno.
         val showCompact = percent >= COMPACT_PERCENT && !chat.busy && canCompact && continueChip.visibility != View.VISIBLE
         compactChip.visibility = if (showCompact) View.VISIBLE else View.GONE
-        // O leitor de tela lê agente e modelo, e avisa que o toque abre os ajustes.
-        titleBlock.contentDescription = getString(
-            R.string.chat_title_description, agentName, subtitle.text.toString().removeSuffix(" ▾"), getString(R.string.chat_settings_title),
-        )
         // Comandos que o agente acabou de anunciar também podem entrar na sugestão.
         updateCommandSuggestions()
     }
@@ -1046,6 +1066,39 @@ class ChatActivity : JangadaActivity() {
     /** Nome de um trabalho na lista: o agente e, se não for a raiz, a pasta. */
     private fun jobName(agent: String, jobFolder: String): String =
         if (jobFolder.isEmpty()) agent else "$agent · $jobFolder"
+
+    /**
+     * Menu (⋮) do topo: as ações que saíram da barra, cada uma com uma linha de explicação. Mudanças
+     * só aparece numa pasta git; encerrar, só num trabalho isolado (worktree).
+     */
+    private fun showMenu() {
+        val rows = mutableListOf<Sheet.Row>()
+        rows += Sheet.Row(title = getString(R.string.chat_new), description = getString(R.string.chat_menu_new_desc), icon = "＋") {
+            newConversation()
+        }
+        rows += Sheet.Row(title = getString(R.string.chat_history), description = getString(R.string.chat_menu_history_desc), icon = "🕘") {
+            showHistory()
+        }
+        rows += Sheet.Row(title = getString(R.string.chat_jobs), description = getString(R.string.chat_menu_jobs_desc), icon = "⇄") {
+            showJobs()
+        }
+        if (folderBranch != null) rows += Sheet.Row(
+            title = getString(R.string.chat_setting_changes),
+            description = getString(R.string.sheet_desc_changes),
+            icon = "⎇",
+        ) { openChanges() }
+        if (folderWorktreeOf != null) rows += Sheet.Row(
+            title = getString(R.string.chat_worktree_finish),
+            description = getString(R.string.chat_menu_finish_desc),
+            icon = "⏏",
+        ) { loadFolders { folders -> showWorktreeFinish(folders) } }
+        rows += Sheet.Row(
+            title = getString(R.string.chat_settings_title),
+            description = getString(R.string.chat_menu_settings_desc),
+            icon = "⚙",
+        ) { showChatSettings() }
+        Sheet(this).title(agentName).rows(rows).show()
+    }
 
     private fun showSettingsDialog(folders: List<Workspace.Folder>) {
         // Cada linha leva a sua ação; a ordem da lista é a da tela.
