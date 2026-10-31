@@ -39,6 +39,7 @@ import io.github.jonjonesbr.jangada.chat.ChatState
 import io.github.jonjonesbr.jangada.chat.chatState
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
+import io.github.jonjonesbr.jangada.ui.Sheet
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -579,17 +580,14 @@ class HomeActivity : JangadaActivity() {
     }
 
     private fun showAgentMenu(recipe: AgentRecipe, isInstalled: Boolean) {
-        val actions = mutableListOf<Pair<String, () -> Unit>>()
-        recipe.homepage?.let { url -> actions += getString(R.string.agent_site) to { openUrl(url) } }
+        val rows = mutableListOf<Sheet.Row>()
+        recipe.homepage?.let { url -> rows += Sheet.Row(title = getString(R.string.agent_site)) { openUrl(url) } }
         if (isInstalled) {
-            actions += getString(R.string.agent_reinstall) to { startTask(recipe, updating = false) }
-            actions += getString(R.string.agent_uninstall) to { confirmUninstall(recipe) }
+            rows += Sheet.Row(title = getString(R.string.agent_reinstall)) { startTask(recipe, updating = false) }
+            rows += Sheet.Row(title = getString(R.string.agent_uninstall), destructive = true) { confirmUninstall(recipe) }
         }
-        if (actions.isEmpty()) return
-        AlertDialog.Builder(this)
-            .setTitle(recipe.name)
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
-            .show()
+        if (rows.isEmpty()) return
+        Sheet(this).title(recipe.name).rows(rows).show()
     }
 
     private fun confirmUninstall(recipe: AgentRecipe) {

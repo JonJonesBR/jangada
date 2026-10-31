@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada
 
 import android.app.AlertDialog
+import android.app.Dialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
@@ -22,6 +23,7 @@ import android.text.Spanned
 import android.text.TextPaint
 import android.text.TextUtils
 import android.text.TextWatcher
+import android.text.format.DateUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.ForegroundColorSpan
@@ -69,6 +71,7 @@ import io.github.jonjonesbr.jangada.linux.Fs
 import io.github.jonjonesbr.jangada.linux.Git
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
+import io.github.jonjonesbr.jangada.ui.Sheet
 import java.io.File
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -124,7 +127,7 @@ class ChatActivity : JangadaActivity() {
     /** Remoção pedida sem o serviço ligado (tela parada): roda quando ele voltar. */
     private var pendingRemoval: Pair<WorktreeJob, Boolean>? = null
     /** Diálogo "já há agentes demais" aberto (evita abrir dois). */
-    private var jobsFullDialog: AlertDialog? = null
+    private var jobsFullDialog: Dialog? = null
     /** Pasta do trabalho desta tela (nome dentro de ~/projetos; "" = a raiz); validada em onCreate. */
     private var folder = ""
     private var engine: AgentChat? = null
@@ -384,44 +387,28 @@ class ChatActivity : JangadaActivity() {
      * [open] roda. Cancelar (ou voltar) sai desta tela se ela não tem conversa para mostrar.
      */
     private fun showJobsFull(svc: TerminalService, open: () -> Unit) {
-        // A tela que para e volta pede de novo: um diálogo só.
+        // A tela que para e volta pede de novo: um painel só.
         if (jobsFullDialog?.isShowing == true) return
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(8), dp(20), dp(8))
-        }
-        content.addView(TextView(this).apply {
-            text = getString(R.string.chat_jobs_full)
-            textSize = 15f
-            setTextColor(getColor(R.color.setup_text))
-            setPadding(0, 0, 0, dp(8))
-        })
-        var dialog: AlertDialog? = null
         // Só os que rodam: um trabalho parado não ocupa vaga.
-        for (slot in svc.runningChats()) {
-            content.addView(TextView(this).apply {
-                text = jobTitle(this@ChatActivity, agentNameOf(slot.agentId), slot.folder, chatState(slot.chat))
-                textSize = 16f
-                setTextColor(getColor(R.color.setup_text))
-                gravity = Gravity.CENTER_VERTICAL
-                minHeight = dp(48)
-                setBackgroundResource(selectableBackground)
-                setOnClickListener {
-                    dialog?.dismiss()
-                    svc.closeChat(slot.agentId, slot.folder) {
-                        if (!isDestroyed) open()
-                    }
+        val rows = svc.runningChats().map { slot ->
+            Sheet.Row(
+                title = jobName(agentNameOf(slot.agentId), slot.folder),
+                value = stateText(this, chatState(slot.chat)),
+                description = getString(R.string.sheet_desc_close_job),
+                destructive = true,
+            ) {
+                svc.closeChat(slot.agentId, slot.folder) {
+                    if (!isDestroyed) open()
                 }
-            })
+            }
         }
-        val leaveIfEmpty = { if (engine == null) finish() }
-        dialog = AlertDialog.Builder(this)
-            .setTitle(getString(R.string.chat_jobs_full_title, TerminalService.MAX_CHATS))
-            .setView(ScrollView(this).apply { addView(content) })
-            .setNegativeButton(android.R.string.cancel) { _, _ -> leaveIfEmpty() }
-            .setOnCancelListener { leaveIfEmpty() }
+        // Cancelar, voltar ou tocar fora (sem escolher trabalho) sai desta tela se ela não tem conversa.
+        jobsFullDialog = Sheet(this)
+            .title(getString(R.string.chat_jobs_full_title, TerminalService.MAX_CHATS))
+            .message(getString(R.string.chat_jobs_full))
+            .rows(rows)
+            .onDismiss { if (engine == null) finish() }
             .show()
-        jobsFullDialog = dialog
     }
 
     /** Nome do agente pelo id (para as linhas de trabalho); o catálogo é lido uma vez. */
@@ -541,14 +528,17 @@ class ChatActivity : JangadaActivity() {
 
     /** Modo Resumo: as ações do grupo, uma por linha; a que tem saída abre num toque. */
     private fun showToolGroup(item: ChatItem.ToolGroup) {
-        val actions = item.tools
-        AlertDialog.Builder(this)
-            .setTitle(R.string.chat_tool_group_title)
-            .setItems(actions.map { toolLineText(it) }.toTypedArray()) { _, which ->
-                val tool = actions[which]
+        // Cada ação: rótulo e resumo, com a marca (…, ✕, ✓) como ícone; a que tem saída abre num toque.
+        val rows = item.tools.map { tool ->
+            Sheet.Row(
+                title = ToolText.label(this, tool.name) + "  " + tool.summary,
+                icon = toolMark(tool),
+                enabled = tool.output != null,
+            ) {
                 tool.output?.let { showDetails(R.string.chat_tool_output, "${toolLineText(tool)}\n\n$it") }
             }
-            .show()
+        }
+        Sheet(this).title(getString(R.string.chat_tool_group_title)).rows(rows).show()
     }
 
     private fun setPreparing(on: Boolean) {
@@ -928,55 +918,37 @@ class ChatActivity : JangadaActivity() {
             Toast.makeText(this, R.string.chat_history_empty, Toast.LENGTH_SHORT).show()
             return
         }
-        val format = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
-        var dialog: AlertDialog? = null
-        val historyAdapter = object : BaseAdapter() {
-            override fun getCount() = conversations.size
-            override fun getItem(position: Int): Any = conversations[position]
-            override fun getItemId(position: Int) = position.toLong()
-
-            override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-                val conversation = conversations[position]
-                val isCurrent = conversation.id == engine?.sessionId
-                val row = LinearLayout(this@ChatActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(20), dp(10), dp(8), dp(10))
+        val rows = conversations.map { conversation ->
+            val isCurrent = conversation.id == engine?.sessionId
+            Sheet.Row(
+                title = conversation.title,
+                description = if (conversation.updatedAt > 0) DateUtils.getRelativeTimeSpanString(conversation.updatedAt) else null,
+                checked = isCurrent,
+            ) {
+                if (!isCurrent) reopenChat(svc) {
+                    svc.openChat(agentId, folder = folder, resume = conversation.id, restart = true)
                 }
-                row.addView(TextView(this@ChatActivity).apply {
-                    val date = if (conversation.updatedAt > 0) "\n" + format.format(java.util.Date(conversation.updatedAt)) else ""
-                    text = (if (isCurrent) "● " else "") + conversation.title + date
-                    textSize = 15f
-                    maxLines = 3
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    setOnClickListener {
-                        dialog?.dismiss()
-                        if (!isCurrent) reopenChat(svc) {
-                            svc.openChat(agentId, folder = folder, resume = conversation.id, restart = true)
-                        }
-                    }
-                })
-                if (canDelete) row.addView(TextView(this@ChatActivity).apply {
-                    text = "🗑"
-                    textSize = 20f
-                    contentDescription = getString(R.string.chat_delete)
-                    setPadding(dp(14), dp(8), dp(14), dp(8))
-                    setOnClickListener {
-                        confirmDelete(conversation, isCurrent) {
-                            conversations.remove(conversation)
-                            notifyDataSetChanged()
-                            if (conversations.isEmpty()) dialog?.dismiss()
-                        }
-                    }
-                })
-                return row
+            }
+        }.toMutableList()
+        // Apagar fica numa linha própria (sem gesto escondido, que não é acessível).
+        if (canDelete) rows += Sheet.Row(title = getString(R.string.chat_history_delete_row), destructive = true) {
+            showDeleteHistory(conversations)
+        }
+        Sheet(this).title(getString(R.string.chat_history)).rows(rows).show()
+    }
+
+    /** Apagar conversas: cada uma em vermelho; tocar numa pede a confirmação e, depois, volta a lista. */
+    private fun showDeleteHistory(conversations: MutableList<ChatHistory.Conversation>) {
+        if (conversations.isEmpty()) return
+        val rows = conversations.map { conversation ->
+            Sheet.Row(title = conversation.title, destructive = true) {
+                confirmDelete(conversation, conversation.id == engine?.sessionId) {
+                    conversations.remove(conversation)
+                    showDeleteHistory(conversations)
+                }
             }
         }
-        dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.chat_history)
-            .setView(ListView(this).apply { adapter = historyAdapter })
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        Sheet(this).title(getString(R.string.chat_history_delete_title)).rows(rows).show()
     }
 
     private fun confirmDelete(conversation: ChatHistory.Conversation, isCurrent: Boolean, done: () -> Unit) {
@@ -1056,66 +1028,68 @@ class ChatActivity : JangadaActivity() {
     private fun showJobs() {
         val svc = service ?: return
         val slots = svc.chats.values.toList()
-        val labels = slots.map { slot ->
-            val mark = if (slot.agentId == agentId && slot.folder == folder) "● " else ""
-            mark + jobTitle(this, agentNameOf(slot.agentId), slot.folder, chatState(slot.chat))
-        } + getString(R.string.chat_jobs_new)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.chat_jobs)
-            .setItems(labels.toTypedArray()) { _, which ->
-                if (which < slots.size) {
-                    val slot = slots[which]
-                    if (slot.agentId != agentId || slot.folder != folder) openJobScreen(slot.agentId, slot.folder)
-                } else {
-                    loadFolders { folders -> chooseFolder(folders) }
-                }
+        val rows = slots.map { slot ->
+            Sheet.Row(
+                title = jobName(agentNameOf(slot.agentId), slot.folder),
+                value = stateText(this, chatState(slot.chat)),
+                checked = slot.agentId == agentId && slot.folder == folder,
+            ) {
+                if (slot.agentId != agentId || slot.folder != folder) openJobScreen(slot.agentId, slot.folder)
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        } + Sheet.Row(title = getString(R.string.chat_jobs_new), icon = "＋") {
+            loadFolders { folders -> chooseFolder(folders) }
+        }
+        Sheet(this).title(getString(R.string.chat_jobs)).rows(rows).show()
     }
 
-    /** Uma linha dos ajustes: o texto e o que o toque faz. */
-    private class SettingRow(val label: String, val action: () -> Unit)
+    /** Nome de um trabalho na lista: o agente e, se não for a raiz, a pasta. */
+    private fun jobName(agent: String, jobFolder: String): String =
+        if (jobFolder.isEmpty()) agent else "$agent · $jobFolder"
 
     private fun showSettingsDialog(folders: List<Workspace.Folder>) {
         // Cada linha leva a sua ação; a ordem da lista é a da tela.
-        val rows = mutableListOf<SettingRow>()
-        rows += SettingRow(getString(R.string.chat_setting_folder) + ": " + folderLabel(folders)) { chooseFolder(folders) }
+        val rows = mutableListOf<Sheet.Row>()
+        rows += Sheet.Row(
+            title = getString(R.string.chat_setting_folder),
+            value = folderLabel(folders),
+            icon = "📁",
+            description = getString(R.string.sheet_desc_folder),
+        ) { chooseFolder(folders) }
         val current = folders.firstOrNull { it.name == folder }
-        if (current?.branch != null) rows += SettingRow(getString(R.string.chat_setting_changes)) { openChanges() }
-        if (current?.worktreeOf != null) rows += SettingRow(getString(R.string.chat_worktree_finish)) { showWorktreeFinish(folders) }
+        if (current?.branch != null) rows += Sheet.Row(
+            title = getString(R.string.chat_setting_changes),
+            icon = "⎇",
+            description = getString(R.string.sheet_desc_changes),
+        ) { openChanges() }
+        if (current?.worktreeOf != null) rows += Sheet.Row(title = getString(R.string.chat_worktree_finish), icon = "⏏") {
+            showWorktreeFinish(folders)
+        }
         if (isClaude) {
-            rows += SettingRow(getString(R.string.chat_setting_model) + ": " + modelLabel(settings.chatModel)) {
-                chooseClaude(MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
+            rows += Sheet.Row(title = getString(R.string.chat_setting_model), value = modelLabel(settings.chatModel), icon = "🧠") {
+                chooseClaude(R.string.chat_setting_model, MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
             }
-            rows += SettingRow(getString(R.string.chat_setting_effort) + ": " + effortLabel(settings.chatEffort)) {
-                chooseClaude(EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it }
-            }
-            rows += SettingRow(viewRow()) { chooseView() }
-        } else {
-            // Sem ajustes do agente (ou sem chat pronto), o diálogo mostra a pasta e a visualização, que são do app.
-            rows += SettingRow(viewRow()) { chooseView() }
-            val acp = engine as? AcpChat
-            for (option in acp?.configOptions.orEmpty()) {
-                rows += SettingRow("${option.name}: ${option.currentName}") { chooseOption(acp, option) }
+            rows += Sheet.Row(title = getString(R.string.chat_setting_effort), value = effortLabel(settings.chatEffort), icon = "⚡") {
+                chooseClaude(R.string.chat_setting_effort, EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it }
             }
         }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.chat_settings_title)
-            .setItems(rows.map { it.label }.toTypedArray()) { _, which -> rows[which].action() }
-            .show()
+        rows += viewRow()
+        if (!isClaude) {
+            // Sem ajustes do agente (ou sem chat pronto), o painel mostra a pasta e a visualização, que são do app.
+            val acp = engine as? AcpChat
+            for (option in acp?.configOptions.orEmpty()) {
+                rows += Sheet.Row(title = option.name, value = option.currentName, icon = "⚙") { chooseOption(acp, option) }
+            }
+        }
+        Sheet(this).title(getString(R.string.chat_settings_title)).rows(rows).show()
     }
 
     /** Escolha de uma opção do agente ACP (modelo, nível de raciocínio, modo...). */
     private fun chooseOption(acp: AcpChat?, option: AcpChat.ConfigOption) {
-        val labels = option.choices.map { it.second }.toTypedArray()
-        val current = option.choices.indexOfFirst { it.first == option.current }
-        AlertDialog.Builder(this)
-            .setTitle(option.name)
-            .setSingleChoiceItems(labels, current) { dialog, choice ->
-                dialog.dismiss()
-                acp?.setOption(option, option.choices[choice].first)
-            }
+        Sheet(this)
+            .title(option.name)
+            .rows(option.choices.map { (id, name) ->
+                Sheet.Row(title = name, checked = id == option.current) { acp?.setOption(option, id) }
+            })
             .show()
     }
 
@@ -1132,7 +1106,7 @@ class ChatActivity : JangadaActivity() {
     private fun folderLabel(folders: List<Workspace.Folder>): String {
         val label = Workspace.label(folder, getString(R.string.chat_folder_root))
         val branch = folders.firstOrNull { it.name == folder }?.branch
-        return if (branch == null) label else "$label ($branch)"
+        return if (branch == null) label else "$label · $branch"
     }
 
     /**
@@ -1140,26 +1114,27 @@ class ChatActivity : JangadaActivity() {
      * repositório para isso, um trabalho isolado (worktree).
      */
     private fun chooseFolder(folders: List<Workspace.Folder>) {
-        val rows = mutableListOf<SettingRow>()
-        rows += SettingRow(getString(R.string.chat_folder_root)) { pickFolder("") }
-        for (item in folders) rows += SettingRow(folderChoiceLabel(item)) { pickFolder(item.name) }
-        rows += SettingRow(getString(R.string.chat_folder_new)) { newFolderDialog() }
-        if (folders.any { canStartWorktree(it) }) rows += SettingRow(getString(R.string.chat_worktree_new)) { chooseWorktreeBase(folders) }
-        val checked = (listOf("") + folders.map { it.name }).indexOf(folder)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.chat_setting_folder)
-            .setSingleChoiceItems(rows.map { it.label }.toTypedArray(), checked) { dialog, which ->
-                dialog.dismiss()
-                rows[which].action()
+        val rows = mutableListOf<Sheet.Row>()
+        rows += Sheet.Row(title = getString(R.string.chat_folder_root), checked = folder.isEmpty()) { pickFolder("") }
+        for (item in folders) {
+            rows += Sheet.Row(title = item.name, description = folderDescription(item), checked = item.name == folder) {
+                pickFolder(item.name)
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
+        rows += Sheet.Row(title = getString(R.string.chat_folder_new), icon = "＋") { newFolderDialog() }
+        if (folders.any { canStartWorktree(it) }) rows += Sheet.Row(
+            title = getString(R.string.chat_worktree_new),
+            icon = "⎇",
+            description = getString(R.string.sheet_desc_worktree),
+        ) { chooseWorktreeBase(folders) }
+        Sheet(this).title(getString(R.string.chat_setting_folder)).rows(rows).show()
     }
 
-    /** Nome da pasta na escolha, com o branch e, num worktree, de qual repositório ele veio. */
-    private fun folderChoiceLabel(item: Workspace.Folder): String =
-        listOfNotNull(item.name, item.branch, item.worktreeOf?.let { getString(R.string.chat_worktree_of, it) })
+    /** Linha de apoio de uma pasta na escolha: o branch e, num worktree, de qual repositório ele veio. */
+    private fun folderDescription(item: Workspace.Folder): String? =
+        listOfNotNull(item.branch, item.worktreeOf?.let { getString(R.string.chat_worktree_of, it) })
             .joinToString(" · ")
+            .takeIf { it.isNotEmpty() }
 
     /** Repositório que pode ser a base de um trabalho isolado: pasta git que não é worktree. */
     private fun canBeWorktreeBase(item: Workspace.Folder) = item.branch != null && item.worktreeOf == null
@@ -1171,10 +1146,11 @@ class ChatActivity : JangadaActivity() {
     /** Escolha do repositório base do novo trabalho isolado. */
     private fun chooseWorktreeBase(folders: List<Workspace.Folder>) {
         val bases = folders.filter { canStartWorktree(it) }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.chat_worktree_pick_base)
-            .setItems(bases.map { folderChoiceLabel(it) }.toTypedArray()) { _, which -> newWorktreeDialog(bases[which]) }
-            .setNegativeButton(android.R.string.cancel, null)
+        Sheet(this)
+            .title(getString(R.string.chat_worktree_pick_base))
+            .rows(bases.map { base ->
+                Sheet.Row(title = base.name, description = folderDescription(base)) { newWorktreeDialog(base) }
+            })
             .show()
     }
 
@@ -1535,20 +1511,29 @@ class ChatActivity : JangadaActivity() {
         }
     }
 
-    /** Linha "Visualização: Normal" do diálogo de ajustes. */
-    private fun viewRow() = getString(R.string.chat_setting_view) + ": " + getString(viewLabelRes(settings.chatView))
+    /** Linha "Visualização" dos ajustes: o modo atual como valor, e o que ele mostra como descrição. */
+    private fun viewRow() = Sheet.Row(
+        title = getString(R.string.chat_setting_view),
+        value = getString(viewLabelRes(settings.chatView)),
+        icon = "👁",
+        description = getString(R.string.sheet_desc_view),
+    ) { chooseView() }
 
     /** Escolha do modo de visualização; muda só a tela, a conversa continua a mesma. */
     private fun chooseView() {
         val modes = listOf(AppSettings.VIEW_DETAILED, AppSettings.VIEW_NORMAL, AppSettings.VIEW_SUMMARY)
-        val labels = modes.map { getString(viewLabelRes(it)) + " — " + getString(viewHintRes(it)) }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle(R.string.chat_setting_view)
-            .setSingleChoiceItems(labels, modes.indexOf(settings.chatView)) { dialog, which ->
-                dialog.dismiss()
-                settings.chatView = modes[which]
-                refresh()
-            }
+        Sheet(this)
+            .title(getString(R.string.chat_setting_view))
+            .rows(modes.map { mode ->
+                Sheet.Row(
+                    title = getString(viewLabelRes(mode)),
+                    description = getString(viewHintRes(mode)),
+                    checked = mode == settings.chatView,
+                ) {
+                    settings.chatView = mode
+                    refresh()
+                }
+            })
             .show()
     }
 
@@ -1567,17 +1552,21 @@ class ChatActivity : JangadaActivity() {
     }
 
     /** Escolha de modelo/esforço do Claude: reabre a mesma conversa com o novo ajuste. */
-    private fun chooseClaude(values: Array<String>, current: String, label: (String) -> String, save: (String) -> Unit) {
-        val labels = values.map(label).toTypedArray()
-        AlertDialog.Builder(this)
-            .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
-                dialog.dismiss()
-                if (values[which] == current) return@setSingleChoiceItems
-                save(values[which])
-                val svc = service ?: return@setSingleChoiceItems
-                val id = engine?.sessionId
-                reopenChat(svc) { svc.openChat(agentId, folder = folder, resume = id, restart = true) }
-            }
+    private fun chooseClaude(titleRes: Int, values: Array<String>, current: String, label: (String) -> String, save: (String) -> Unit) {
+        Sheet(this)
+            .title(getString(titleRes))
+            .rows(values.map { value ->
+                Sheet.Row(title = label(value), checked = value == current) {
+                    if (value != current) {
+                        save(value)
+                        val svc = service
+                        if (svc != null) {
+                            val id = engine?.sessionId
+                            reopenChat(svc) { svc.openChat(agentId, folder = folder, resume = id, restart = true) }
+                        }
+                    }
+                }
+            })
             .show()
     }
 

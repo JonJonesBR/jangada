@@ -27,6 +27,7 @@ import io.github.jonjonesbr.jangada.linux.Fs
 import io.github.jonjonesbr.jangada.linux.Git
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
+import io.github.jonjonesbr.jangada.ui.Sheet
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -291,15 +292,11 @@ class ChangesActivity : JangadaActivity() {
                     return@runOnUiThread
                 }
                 val files = all.take(MAX_FOLDER_FILES)
-                val labels = files.map { it.removePrefix(dir).ifEmpty { it } }.toMutableList()
-                if (result.cut || all.size > files.size) labels += getString(R.string.changes_diff_cut)
-                AlertDialog.Builder(this)
-                    .setTitle(dir)
-                    .setItems(labels.toTypedArray()) { _, which ->
-                        files.getOrNull(which)?.let { showDiff(Git.Change(it, "??")) }
-                    }
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show()
+                val rows = files.map { path ->
+                    Sheet.Row(title = path.removePrefix(dir).ifEmpty { path }) { showDiff(Git.Change(path, "??")) }
+                }.toMutableList()
+                if (result.cut || all.size > files.size) rows += Sheet.Row(title = getString(R.string.changes_diff_cut), enabled = false) {}
+                Sheet(this).title(dir).rows(rows).show()
             }
         }
     }

@@ -470,4 +470,11 @@
     <string name="chat_worktree_reopen">Reopen the job</string>
     <string name="chat_worktree_open_base">Open %1$s</string>
     <string name="sheet_selected">selected</string>
+    <string name="sheet_desc_folder">Which repository the agent works in</string>
+    <string name="sheet_desc_changes">Changed files, diff and commit</string>
+    <string name="sheet_desc_view">How much detail the conversation shows</string>
+    <string name="sheet_desc_worktree">Its own working copy, on a new branch</string>
+    <string name="sheet_desc_close_job">Close this job</string>
+    <string name="chat_history_delete_row">Delete conversations…</string>
+    <string name="chat_history_delete_title">Delete which conversation?</string>
 </resources>

@@ -468,4 +468,11 @@
     <string name="chat_worktree_reopen">Reabrir o trabalho</string>
     <string name="chat_worktree_open_base">Abrir %1$s</string>
     <string name="sheet_selected">selecionado</string>
+    <string name="sheet_desc_folder">Em que repositório o agente trabalha</string>
+    <string name="sheet_desc_changes">Arquivos alterados, diff e commit</string>
+    <string name="sheet_desc_view">Quanto detalhe a conversa mostra</string>
+    <string name="sheet_desc_worktree">Cópia de trabalho própria, numa branch nova</string>
+    <string name="sheet_desc_close_job">Fechar este trabalho</string>
+    <string name="chat_history_delete_row">Apagar conversas…</string>
+    <string name="chat_history_delete_title">Qual conversa apagar?</string>
 </resources>

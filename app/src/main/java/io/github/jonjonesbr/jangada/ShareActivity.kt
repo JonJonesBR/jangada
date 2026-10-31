@@ -1,25 +1,23 @@
 package io.github.jonjonesbr.jangada
 
-import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ContentResolver
 import android.content.Intent
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
+import io.github.jonjonesbr.jangada.ui.Sheet
 
 /**
  * Recebe o "Compartilhar" de outros apps e manda o texto e os arquivos para
  * o chat de um agente. Não tem tela própria (o tema é translúcido): escolhe
  * o agente quando há mais de um e abre o chat.
  */
-class ShareActivity : ComponentActivity() {
+class ShareActivity : JangadaActivity() {
 
     private companion object {
         /** Máximo de arquivos por compartilhamento; o excesso é descartado com aviso. */
@@ -86,11 +84,10 @@ class ShareActivity : ComponentActivity() {
 
     /** Pergunta para qual agente mandar; cancelar fecha sem enviar. */
     private fun chooseAgent(agents: List<AgentRecipe>) {
-        AlertDialog.Builder(this, dialogTheme())
-            .setTitle(R.string.share_choose_agent)
-            .setItems(agents.map { it.name }.toTypedArray()) { _, which -> openChat(agents[which]) }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
-            .setOnCancelListener { finish() }
+        Sheet(this)
+            .title(getString(R.string.share_choose_agent))
+            .rows(agents.map { agent -> Sheet.Row(title = agent.name) { openChat(agent) } })
+            .onDismiss { finish() }
             .show()
     }
 
@@ -113,15 +110,5 @@ class ShareActivity : ComponentActivity() {
         }
         startActivity(chat)
         finish()
-    }
-
-    /** Tema do diálogo: o mesmo critério das telas do app (claro, escuro ou o do sistema). */
-    private fun dialogTheme(): Int {
-        val dark = when (AppSettings(this).appTheme) {
-            AppSettings.THEME_LIGHT -> false
-            AppSettings.THEME_DARK -> true
-            else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        }
-        return if (dark) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
     }
 }
