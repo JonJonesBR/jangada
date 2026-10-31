@@ -82,6 +82,7 @@ class AcpChat(
     /** Inicia o agente; com [resume], recarrega essa conversa (se o agente suportar). */
     fun start(resume: String? = null) {
         if (running) return
+        contextUsage = null
         launch(interactive = true) {
             runCatching { linux.refreshIntegration() }.onFailure { Log.w(TAG, "integração", it) }
             "mkdir -p ~/${LinuxEnv.WORKSPACE} && cd ~/${LinuxEnv.WORKSPACE} && exec $command"
@@ -625,6 +626,13 @@ class AcpChat(
             // Título da sessão: o app não o mostra, então nada a fazer.
             "session_info_update" -> Unit
             "config_option_update" -> parseConfig(update)
+            // Janela de contexto: quanto já ocupa e quanto cabe (o agente manda a cada mudança).
+            "usage_update" -> {
+                val used = update.optLong("used")
+                val size = update.optLong("size")
+                if (used > 0 && size > 0) contextUsage = ContextUsage(used, size)
+                changed()
+            }
             "available_commands_update" -> parseCommands(update)
             "current_mode_update" -> {
                 val mode = configOptions.firstOrNull { it.source == ConfigOption.Source.MODE || it.category == "mode" }

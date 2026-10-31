@@ -50,6 +50,8 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         protected set
     @Volatile override var interrupted = false
         protected set
+    @Volatile override var contextUsage: ContextUsage? = null
+        protected set
 
     /** Chamado (na thread principal) sempre que a conversa muda. */
     override var onChanged: (() -> Unit)? = null

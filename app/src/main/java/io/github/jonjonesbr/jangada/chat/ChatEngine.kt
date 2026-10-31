@@ -40,6 +40,8 @@ class ChatEngine(
     /** Lista de tarefas (TodoWrite) da conversa: um único plano, atualizado a cada chamada. */
     private var plan: ChatItem.Plan? = null
     private var requestCounter = 0
+    /** Maior janela de contexto que o Claude informou (0 = ainda não sabemos). */
+    private var contextWindow = 0L
 
     /**
      * Inicia o Claude. [resume] continua uma conversa específica;
@@ -55,6 +57,7 @@ class ChatEngine(
         previous: AgentChat? = null,
     ) {
         if (running) return
+        contextUsage = null
         val previousId = previous?.sessionId
         val previousItems = previous?.items?.toList().orEmpty()
         if (resume != null) sessionId = resume
@@ -228,12 +231,22 @@ class ChatEngine(
         // Mensagens de subagentes trazem o id da ferramenta que os chamou: não são a resposta principal.
         val fromSubagent = json.has("parent_tool_use_id") && !json.isNull("parent_tool_use_id")
         when (json.optString("type")) {
-            "system" -> if (json.optString("subtype") == "init") {
-                model = json.optString("model").ifEmpty { null }
-                changed()
+            "system" -> when (json.optString("subtype")) {
+                "init" -> {
+                    model = json.optString("model").ifEmpty { null }
+                    changed()
+                }
+                // A conversa foi compactada: o uso volta a ser medido no próximo turno.
+                "compact_boundary" -> {
+                    contextUsage = null
+                    changed()
+                }
             }
             "stream_event" -> if (!fromSubagent) handleStreamEvent(json.optJSONObject("event"))
-            "assistant" -> handleAssistant(json.optJSONObject("message"), fromSubagent)
+            "assistant" -> {
+                handleAssistant(json.optJSONObject("message"), fromSubagent)
+                if (!fromSubagent) updateUsage(json.optJSONObject("message")?.optJSONObject("usage"))
+            }
             "user" -> handleToolResults(json.optJSONObject("message"))
             "result" -> {
                 endStreaming()
@@ -253,6 +266,7 @@ class ChatEngine(
                         add(ChatItem.Info(friendlyError(result), isError = true))
                     }
                 }
+                updateWindow(json.optJSONObject("modelUsage"))
                 changed()
                 // Com mensagem na fila, o turno continua (busy segue true); o aviso de fim só sai no último.
                 sendQueued()
@@ -260,6 +274,30 @@ class ChatEngine(
             "control_request" -> handleControlRequest(json)
             "control_cancel_request" -> handleControlCancel(json.optString("request_id"))
         }
+    }
+
+    /**
+     * Tokens que a conversa ocupa agora, pelo uso da última resposta. A janela é a que o
+     * Claude informou; sem ela, 1M para modelos com "[1m]" no nome e 200 mil no resto.
+     */
+    private fun updateUsage(usage: JSONObject?) {
+        usage ?: return
+        val used = usage.optLong("input_tokens") + usage.optLong("cache_creation_input_tokens") +
+            usage.optLong("cache_read_input_tokens") + usage.optLong("output_tokens")
+        if (used <= 0) return
+        val size = contextWindow.takeIf { it > 0 } ?: if (model?.contains("[1m]") == true) 1_000_000L else 200_000L
+        contextUsage = ContextUsage(used, size)
+        changed()
+    }
+
+    /** O "result" traz a janela de cada modelo usado: guarda a maior e recalcula com o uso atual. */
+    private fun updateWindow(modelUsage: JSONObject?) {
+        modelUsage ?: return
+        val largest = modelUsage.keys().asSequence()
+            .maxOfOrNull { modelUsage.optJSONObject(it)?.optLong("contextWindow") ?: 0L } ?: 0L
+        if (largest <= 0) return
+        contextWindow = largest
+        contextUsage?.let { contextUsage = ContextUsage(it.used, largest) }
     }
 
     /** O CLI cancelou um pedido de permissão em aberto: o cartão fica recusado, sem resposta. */

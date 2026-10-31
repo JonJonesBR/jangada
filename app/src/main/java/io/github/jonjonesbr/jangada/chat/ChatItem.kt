@@ -69,6 +69,13 @@ class PermissionOption(val id: String, val label: String, val kind: Kind) {
 
 class PlanEntry(val text: String, val status: String)
 
+/** Quanto da janela de contexto a conversa ocupa: tokens usados e tamanho da janela. */
+class ContextUsage(val used: Long, val size: Long) {
+    /** Percentual usado, de 0 a 100 (arredondado; 0 sem tamanho conhecido). */
+    val percent: Int
+        get() = if (size <= 0) 0 else ((used * 100 + size / 2) / size).toInt().coerceIn(0, 100)
+}
+
 /** Comando com "/" que o agente anuncia (ex.: "/review"); o chat sugere quando o usuário digita "/". */
 data class SlashCommand(val name: String, val description: String)
 
@@ -115,6 +122,11 @@ interface AgentChat {
     val busy: Boolean
     val running: Boolean
     val interrupted: Boolean
+    /**
+     * Uso da janela de contexto. Null enquanto o agente não informou, ou depois de compactar.
+     * (Não se chama `context`: [ProcessChat] já tem um `context` Android.)
+     */
+    val contextUsage: ContextUsage?
     /** O agente lista as conversas anteriores. */
     val supportsHistory: Boolean
     var onChanged: (() -> Unit)?

@@ -80,6 +80,7 @@ class ChatActivity : JangadaActivity() {
     private lateinit var subtitle: TextView
     private lateinit var titleBlock: View
     private lateinit var continueChip: TextView
+    private lateinit var compactChip: TextView
     private lateinit var attachmentsRow: LinearLayout
     private lateinit var prepareActions: LinearLayout
     private lateinit var sendButton: View
@@ -133,6 +134,7 @@ class ChatActivity : JangadaActivity() {
         subtitle = findViewById(R.id.chat_subtitle)
         titleBlock = findViewById(R.id.chat_title_block)
         continueChip = findViewById(R.id.chat_continue)
+        compactChip = findViewById(R.id.chat_compact)
         attachmentsRow = findViewById(R.id.chat_attachments)
         prepareActions = findViewById(R.id.chat_prepare_actions)
         sendButton = findViewById(R.id.chat_send)
@@ -149,6 +151,7 @@ class ChatActivity : JangadaActivity() {
         findViewById<View>(R.id.chat_new).setOnClickListener { newConversation() }
         findViewById<View>(R.id.chat_history).setOnClickListener { showHistory() }
         continueChip.setOnClickListener { engine?.sendMessage(getString(R.string.chat_continue_prompt)) }
+        compactChip.setOnClickListener { engine?.sendMessage("/compact") }
         // Título e subtítulo formam um só alvo de toque (ajustes da conversa).
         findViewById<View>(R.id.chat_title_block).setOnClickListener { showChatSettings() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
@@ -446,16 +449,22 @@ class ChatActivity : JangadaActivity() {
         list.visibility = if (isEmpty) View.GONE else View.VISIBLE
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
         continueChip.visibility = if (chat.interrupted && !chat.busy) View.VISIBLE else View.GONE
+        // Uso do contexto (quando o agente informa): entre o modelo e a seta dos ajustes.
+        val usage = chat.contextUsage?.let { " · " + getString(R.string.chat_context_percent, it.percent) } ?: ""
         subtitle.text = if (isClaude) {
             val effort = settings.chatEffort.takeIf { it.isNotEmpty() }?.let { " · " + effortLabel(it) } ?: ""
-            (friendlyModel(chat.model) ?: getString(R.string.chat_model_default)) + effort + " ▾"
+            (friendlyModel(chat.model) ?: getString(R.string.chat_model_default)) + effort + usage + " ▾"
         } else {
             val acp = chat as? AcpChat
             val options = acp?.configOptions.orEmpty()
             val effort = options.firstOrNull { it.category == "thought_level" }?.let { " · " + it.currentName } ?: ""
             // O diálogo de ajustes sempre abre (tem ao menos a visualização).
-            (chat.model ?: "~/${LinuxEnv.WORKSPACE}") + effort + " ▾"
+            (chat.model ?: "~/${LinuxEnv.WORKSPACE}") + effort + usage + " ▾"
         }
+        // Contexto quase cheio: oferece compactar (só se o agente aceita e não está no meio de um turno).
+        val percent = chat.contextUsage?.percent ?: 0
+        val canCompact = isClaude || (chat as? AcpChat)?.commands?.any { it.name == "compact" } == true
+        compactChip.visibility = if (percent >= COMPACT_PERCENT && !chat.busy && canCompact) View.VISIBLE else View.GONE
         // O leitor de tela lê agente e modelo, e avisa que o toque abre os ajustes.
         titleBlock.contentDescription = getString(
             R.string.chat_title_description, agentName, subtitle.text.toString().removeSuffix(" ▾"), getString(R.string.chat_settings_title),
@@ -1536,6 +1545,8 @@ class ChatActivity : JangadaActivity() {
         const val COMMAND_ROW_DP = 48
         /** Modo Detalhado: linhas do começo da saída de cada ação, embaixo da linha dela. */
         const val TOOL_EXCERPT_LINES = 6
+        /** A partir deste percentual do contexto usado, aparece o chip de compactar. */
+        const val COMPACT_PERCENT = 80
         const val EXTRA_AGENT_ID = "agent_id"
         const val EXTRA_RESUME = "resume"
         const val EXTRA_NEW = "new"
