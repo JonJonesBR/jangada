@@ -37,6 +37,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
      * Só a thread principal mexe.
      */
     protected var silentTurn = false
+    override val turnSilenced: Boolean get() = silentTurn
 
     /** Turno em andamento: vira false também ao acabar sozinho (aí avisa, na thread principal). */
     @Volatile override var busy = false

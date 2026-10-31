@@ -113,6 +113,8 @@ class ChatActivity : JangadaActivity() {
     private var primed = false
     /** Pedidos de permissão já vistos nesta conversa (pela identidade do item). */
     private val seenPermissions: MutableSet<ChatItem> = Collections.newSetFromMap(IdentityHashMap<ChatItem, Boolean>())
+    /** Erros da conversa já vistos (pela identidade do item), como os pedidos acima. */
+    private val seenErrors: MutableSet<ChatItem> = Collections.newSetFromMap(IdentityHashMap<ChatItem, Boolean>())
     /** Um pedido de abrir o chat (feito ao ligar no serviço) espera o adaptador ficar pronto. */
     private var opening = false
     /** As pastas dos ajustes estão sendo lidas (evita abrir o diálogo duas vezes). */
@@ -587,6 +589,7 @@ class ChatActivity : JangadaActivity() {
         // Nova ligação com a conversa: o próximo redesenho só guarda o estado (ver announceChanges).
         primed = false
         seenPermissions.clear()
+        seenErrors.clear()
         refresh()
         input.requestFocus()
         flushPendingSend()
@@ -594,16 +597,17 @@ class ChatActivity : JangadaActivity() {
 
     /**
      * Envia o pedido de [EXTRA_SEND] pelo mesmo caminho do botão Enviar, quando o chat deste
-     * trabalho está ligado. Com texto já digitado na caixa, o pedido vai para o fim dela, em
-     * linha nova, e não é enviado.
+     * trabalho está ligado. Com texto já digitado (ou anexos) na caixa, o pedido vai para o fim dela,
+     * em linha nova, e não é enviado.
      */
     private fun flushPendingSend() {
         val text = pendingSend ?: return
         if (engine == null || service == null || preparing) return
         pendingSend = null
         val typed = input.text.toString().trimEnd()
-        if (typed.isNotBlank()) {
-            input.setText(typed + "\n" + text)
+        // Texto digitado ou anexos pendentes: o pedido não pode levá-los junto ao agente sem o usuário ver.
+        if (typed.isNotBlank() || pendingAttachments.isNotEmpty()) {
+            input.setText(if (typed.isBlank()) text else typed + "\n" + text)
             input.setSelection(input.text.length)
             return
         }
@@ -618,26 +622,29 @@ class ChatActivity : JangadaActivity() {
     }
 
     /**
-     * Anúncios para o leitor de tela e vibração: o turno terminou (busy passou de true para false)
-     * e apareceu um pedido de permissão novo. Só com a tela em primeiro plano. Erro, login ou
-     * parada não contam como resposta pronta.
+     * Anúncios para o leitor de tela e vibração: o turno terminou (busy passou de true para false),
+     * apareceu um pedido de permissão novo ou um erro novo. Só com a tela em primeiro plano; o que
+     * chegou em segundo plano ou já estava na conversa ao ligar a tela conta como visto, sem anúncio.
+     * Parar, erro e login não contam como resposta pronta. Vários pedidos de uma vez: só o primeiro.
      */
     private fun announceChanges(chat: AgentChat) {
         val finished = lastBusy && !chat.busy
         lastBusy = chat.busy
-        val pending = chat.items.toList().filterIsInstance<ChatItem.Permission>().filter { it.chosen == null }
-        // Pedidos que já estavam na tela (ou chegaram em segundo plano) não são novidade.
-        val fresh = pending.filter { seenPermissions.add(it) }
+        val items = chat.items.toList()
+        val freshPermission = items.filterIsInstance<ChatItem.Permission>()
+            .filter { it.chosen == null }.filter { seenPermissions.add(it) }.firstOrNull()
+        val freshError = items.filterIsInstance<ChatItem.Info>().filter { it.isError }.filter { seenErrors.add(it) }.firstOrNull()
         if (!primed) {
             primed = true
             return
         }
         if (!resumed) return
+        val messages = mutableListOf<String>()
         if (finished) {
-            val last = adapter.snapshot.lastOrNull()
-            val failed = (last is ChatItem.Info && last.isError) || last is ChatItem.Login || chat.interrupted
+            val last = items.lastOrNull()
+            val failed = (last is ChatItem.Info && last.isError) || last is ChatItem.Login || chat.turnSilenced
             if (!failed) {
-                list.announceForAccessibility(getString(R.string.chat_announce_finished))
+                messages += getString(R.string.chat_announce_finished)
                 if (settings.hapticOnFinish) {
                     list.performHapticFeedback(
                         if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY,
@@ -645,10 +652,14 @@ class ChatActivity : JangadaActivity() {
                 }
             }
         }
-        fresh.firstOrNull()?.let { request ->
+        freshError?.let { error -> messages += error.text.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty() }
+        freshPermission?.let { request ->
             val what = listOf(request.title, request.summary).filter { it.isNotBlank() }.joinToString(": ")
-            list.announceForAccessibility(getString(R.string.chat_announce_permission, what))
+            messages += getString(R.string.chat_announce_permission, what)
         }
+        // Uma só fala: dois anúncios seguidos fariam o segundo cortar o primeiro.
+        val text = messages.filter { it.isNotBlank() }.joinToString(". ")
+        if (text.isNotEmpty()) list.announceForAccessibility(text)
     }
 
     /** Tamanho do texto (ajustes do chat): a caixa e as linhas da conversa seguem a escolha. */

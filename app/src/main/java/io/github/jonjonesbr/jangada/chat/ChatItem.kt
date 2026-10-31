@@ -147,6 +147,11 @@ interface AgentChat {
     val running: Boolean
     val interrupted: Boolean
     /**
+     * O último turno foi parado pelo usuário (Parar) ou o agente foi fechado: o fim dele não é
+     * "resposta pronta". Zera quando um turno novo começa.
+     */
+    val turnSilenced: Boolean get() = false
+    /**
      * Uso da janela de contexto. Null enquanto o agente não informou, ou depois de compactar.
      * (Não se chama `context`: [ProcessChat] já tem um `context` Android.)
      */
