@@ -181,6 +181,12 @@
     <string name="chat_context_title">Contexto da conversa</string>
     <string name="chat_context_explain">%1$d%% da memória da conversa já está em uso. Compactar resume a conversa para ela continuar com mais espaço.</string>
     <string name="chat_compact_now">Compactar agora</string>
+    <string name="chat_permission_bar_title">%1$s quer:</string>
+    <string name="chat_permission_details">Detalhes</string>
+    <plurals name="chat_permission_more">
+        <item quantity="one">+%d pedido</item>
+        <item quantity="other">+%d pedidos</item>
+    </plurals>
     <plurals name="chat_quick_changes">
         <item quantity="one">⎇ %d mudança</item>
         <item quantity="other">⎇ %d mudanças</item>

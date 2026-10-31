@@ -100,6 +100,14 @@ class ChatActivity : JangadaActivity() {
     private lateinit var chipView: TextView
     private lateinit var chipContext: TextView
     private lateinit var chipChanges: TextView
+    /** Faixa fixa do pedido de permissão pendente (acima dos atalhos; ver [updatePermissionBar]). */
+    private lateinit var permissionBar: View
+    private lateinit var permissionTitle: TextView
+    private lateinit var permissionText: TextView
+    private lateinit var permissionMore: TextView
+    private lateinit var permissionAllow: Button
+    private lateinit var permissionDeny: Button
+    private lateinit var permissionDetails: Button
     private lateinit var attachmentsRow: LinearLayout
     private lateinit var prepareActions: LinearLayout
     private lateinit var sendButton: View
@@ -145,6 +153,8 @@ class ChatActivity : JangadaActivity() {
     private var changedFiles: Int? = null
     /** Número da leitura de mudanças mais nova: resultado de uma leitura anterior é descartado. */
     private var changesGeneration = 0
+    /** Pedido de permissão que a faixa fixa mostra agora (o primeiro pendente); null = faixa escondida. */
+    private var barPermission: ChatItem.Permission? = null
     private var engine: AgentChat? = null
     private var enterAt = -1
     private val pendingAttachments = mutableListOf<Attachment>()
@@ -193,6 +203,13 @@ class ChatActivity : JangadaActivity() {
         chipView = findViewById(R.id.chat_chip_view)
         chipContext = findViewById(R.id.chat_chip_context)
         chipChanges = findViewById(R.id.chat_chip_changes)
+        permissionBar = findViewById(R.id.chat_permission_bar)
+        permissionTitle = findViewById(R.id.chat_permission_title)
+        permissionText = findViewById(R.id.chat_permission_text)
+        permissionMore = findViewById(R.id.chat_permission_more)
+        permissionAllow = findViewById(R.id.chat_permission_allow)
+        permissionDeny = findViewById(R.id.chat_permission_deny)
+        permissionDetails = findViewById(R.id.chat_permission_details)
         attachmentsRow = findViewById(R.id.chat_attachments)
         prepareActions = findViewById(R.id.chat_prepare_actions)
         sendButton = findViewById(R.id.chat_send)
@@ -227,6 +244,9 @@ class ChatActivity : JangadaActivity() {
         chipView.setOnClickListener { chooseView() }
         chipContext.setOnClickListener { engine?.let { showContextSheet(it) } }
         chipChanges.setOnClickListener { openChanges() }
+        permissionAllow.setOnClickListener { answerBarPermission(PermissionOption.Kind.ALLOW_ONCE) }
+        permissionDeny.setOnClickListener { answerBarPermission(PermissionOption.Kind.REJECT_ONCE) }
+        permissionDetails.setOnClickListener { showBarPermission() }
         onBackPressedDispatcher.addCallback(this) { goHome() }
 
         // "Enter envia" (configurações): o Enter do teclado manda a mensagem.
@@ -744,9 +764,54 @@ class ChatActivity : JangadaActivity() {
         list.visibility = if (isEmpty) View.GONE else View.VISIBLE
         status.visibility = if (chat.busy) View.VISIBLE else View.GONE
         continueChip.visibility = if (chat.interrupted && !chat.busy) View.VISIBLE else View.GONE
+        updatePermissionBar(chat)
         updateQuickbar()
         // Comandos que o agente acabou de anunciar também podem entrar na sugestão.
         updateCommandSuggestions()
+    }
+
+    /**
+     * Faixa fixa com o primeiro pedido de permissão pendente (o cartão completo continua na conversa).
+     * Some quando não há pedido. Os botões só aparecem se a opção existe no pedido.
+     */
+    private fun updatePermissionBar(chat: AgentChat) {
+        // Cópia da lista: ela muda na thread principal enquanto se percorre.
+        val pending = chat.items.toList().filterIsInstance<ChatItem.Permission>().filter { it.chosen == null }
+        val first = pending.firstOrNull()
+        barPermission = first
+        permissionBar.visibility = if (first == null) View.GONE else View.VISIBLE
+        if (first == null) return
+        permissionTitle.text = getString(R.string.chat_permission_bar_title, agentName)
+        permissionText.text = listOf(first.title, first.summary).filter { it.isNotBlank() }.joinToString("\n")
+        val more = pending.size - 1
+        permissionMore.visibility = if (more > 0) View.VISIBLE else View.GONE
+        if (more > 0) permissionMore.text = resources.getQuantityString(R.plurals.chat_permission_more, more, more)
+        permissionAllow.visibility = if (first.options.any { it.kind == PermissionOption.Kind.ALLOW_ONCE }) View.VISIBLE else View.GONE
+        permissionDeny.visibility = if (first.options.any { it.kind == PermissionOption.Kind.REJECT_ONCE }) View.VISIBLE else View.GONE
+    }
+
+    /** Permitir ou Recusar pela faixa: o mesmo caminho do cartão (engine.answer). */
+    private fun answerBarPermission(kind: PermissionOption.Kind) {
+        val item = barPermission ?: return
+        val option = item.options.firstOrNull { it.kind == kind } ?: return
+        engine?.answer(item, option)
+    }
+
+    /**
+     * Detalhes da faixa: rola a lista até o cartão do pedido. Se o cartão não está na lista
+     * (a visualização não o mostra), abre o pedido inteiro numa caixa.
+     */
+    private fun showBarPermission() {
+        val item = barPermission ?: return
+        val index = adapter.snapshot.indexOfFirst { it === item }
+        if (index >= 0) {
+            list.smoothScrollToPosition(index)
+        } else {
+            val body = listOf(item.title, item.summary, item.detail, item.diff.orEmpty())
+                .filter { it.isNotBlank() }
+                .joinToString("\n\n")
+            showDetails(R.string.chat_permission_full, body)
+        }
     }
 
     /**

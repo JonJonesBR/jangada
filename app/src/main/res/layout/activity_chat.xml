@@ -188,6 +188,91 @@
             android:orientation="horizontal" />
     </HorizontalScrollView>
 
+    <!-- Pedido de permissão pendente, fixo acima dos atalhos (ver ChatActivity.updatePermissionBar).
+         O cartão do pedido continua na conversa. Sem anúncio próprio: o chat já anuncia pedidos novos. -->
+    <LinearLayout
+        android:id="@+id/chat_permission_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="8dp"
+        android:background="@drawable/card_bg"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/chat_permission_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/setup_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/chat_permission_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="3"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:textColor="@color/setup_text"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/chat_permission_more"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/setup_muted"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/chat_permission_allow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:backgroundTint="@color/key_active"
+                android:minHeight="48dp"
+                android:text="@string/chat_allow"
+                android:textAllCaps="false"
+                android:textColor="@color/setup_on_accent"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/chat_permission_deny"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/chat_deny"
+                android:textAllCaps="false"
+                android:textColor="@color/setup_error"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/chat_permission_details"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/chat_permission_details"
+                android:textAllCaps="false"
+                android:textColor="@color/accent_text"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+
     <!-- Atalhos acima da caixa: pasta, modelo, visualização, contexto e mudanças (ver ChatActivity.updateQuickbar).
          As views ficam aqui; o código só muda texto, descrição e visibilidade. -->
     <HorizontalScrollView

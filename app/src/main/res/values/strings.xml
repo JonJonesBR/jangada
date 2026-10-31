@@ -183,6 +183,12 @@
     <string name="chat_context_title">Conversation context</string>
     <string name="chat_context_explain">%1$d%% of the conversation’s memory is in use. Compacting summarizes the conversation so it can keep going with more room.</string>
     <string name="chat_compact_now">Compact now</string>
+    <string name="chat_permission_bar_title">%1$s wants to:</string>
+    <string name="chat_permission_details">Details</string>
+    <plurals name="chat_permission_more">
+        <item quantity="one">+%d request</item>
+        <item quantity="other">+%d requests</item>
+    </plurals>
     <plurals name="chat_quick_changes">
         <item quantity="one">⎇ %d change</item>
         <item quantity="other">⎇ %d changes</item>
