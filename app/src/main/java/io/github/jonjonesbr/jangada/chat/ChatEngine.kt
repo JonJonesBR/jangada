@@ -274,6 +274,13 @@ class ChatEngine(
             val block = content.optJSONObject(i) ?: continue
             when (block.optString("type")) {
                 "text" -> text.append(block.optString("text"))
+                "thinking" -> {
+                    // Bloco redigido vem vazio: não há o que mostrar.
+                    val thinking = block.optString("thinking")
+                    if (thinking.isNotBlank() && !fromSubagent) {
+                        items += ChatItem.Thinking(thinking)
+                    }
+                }
                 "tool_use" -> {
                     val id = block.optString("id")
                     if (block.optString("name") == TODO_TOOL) {

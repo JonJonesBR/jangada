@@ -31,6 +31,11 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_CHAT_EFFORT, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CHAT_EFFORT, value).apply()
 
+    /** Visualização do chat (ver ChatView): VIEW_DETAILED, VIEW_NORMAL ou VIEW_SUMMARY. */
+    var chatView: String
+        get() = prefs.getString(KEY_CHAT_VIEW, VIEW_NORMAL) ?: VIEW_NORMAL
+        set(value) = prefs.edit().putString(KEY_CHAT_VIEW, value).apply()
+
     /** Segura o processador acordado enquanto há sessões (agentes não param com a tela apagada). */
     var keepCpuAwake: Boolean
         get() = prefs.getBoolean(KEY_CPU_AWAKE, true)
@@ -75,6 +80,10 @@ class AppSettings(context: Context) {
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
         const val THEME_DARK = "dark"
+        const val VIEW_DETAILED = "detailed"
+        const val VIEW_NORMAL = "normal"
+        const val VIEW_SUMMARY = "summary"
+        private const val KEY_CHAT_VIEW = "chat_view"
         private const val KEY_APP_THEME = "app_theme"
         private const val KEY_TERMINAL_THEME = "terminal_theme"
         private const val KEY_CPU_AWAKE = "keep_cpu_awake"

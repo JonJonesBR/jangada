@@ -54,6 +54,7 @@ import io.github.jonjonesbr.jangada.chat.Attachments
 import io.github.jonjonesbr.jangada.chat.ChatEngine
 import io.github.jonjonesbr.jangada.chat.ChatHistory
 import io.github.jonjonesbr.jangada.chat.ChatItem
+import io.github.jonjonesbr.jangada.chat.ChatView
 import io.github.jonjonesbr.jangada.chat.Markdown
 import io.github.jonjonesbr.jangada.chat.PermissionOption
 import io.github.jonjonesbr.jangada.chat.SlashCommand
@@ -374,6 +375,28 @@ class ChatActivity : JangadaActivity() {
             .show()
     }
 
+    /** Marca de uma ação: … em andamento, ✕ se falhou, ✓ se terminou. */
+    private fun toolMark(tool: ChatItem.Tool) = when {
+        !tool.done -> "…"
+        tool.failed -> "✕"
+        else -> "✓"
+    }
+
+    /** Linha de uma ação: marca, rótulo e o comando ou arquivo envolvido. */
+    private fun toolLineText(tool: ChatItem.Tool) = "${toolMark(tool)} ${ToolText.label(this, tool.name)}  ${tool.summary}"
+
+    /** Modo Resumo: as ações do grupo, uma por linha; a que tem saída abre num toque. */
+    private fun showToolGroup(item: ChatItem.ToolGroup) {
+        val actions = item.tools
+        AlertDialog.Builder(this)
+            .setTitle(R.string.chat_tool_group_title)
+            .setItems(actions.map { toolLineText(it) }.toTypedArray()) { _, which ->
+                val tool = actions[which]
+                tool.output?.let { showDetails(R.string.chat_tool_output, "${toolLineText(tool)}\n\n$it") }
+            }
+            .show()
+    }
+
     private fun setPreparing(on: Boolean) {
         preparing = on
         input.isEnabled = !on
@@ -410,9 +433,11 @@ class ChatActivity : JangadaActivity() {
 
     private fun refresh() {
         val chat = engine ?: return
+        val mode = settings.chatView
+        adapter.viewMode = mode
         // A lista mostra uma cópia; assim ela nunca vê a conversa mudar
         // "por baixo" entre um redesenho e outro (o que derrubava o app).
-        adapter.snapshot = ArrayList(chat.items)
+        adapter.snapshot = ArrayList(ChatView.arrange(chat.items, mode))
         adapter.notifyDataSetChanged()
         val isEmpty = chat.items.isEmpty()
         empty.visibility = if (isEmpty) View.VISIBLE else View.GONE
@@ -735,35 +760,74 @@ class ChatActivity : JangadaActivity() {
             val rows = arrayOf(
                 getString(R.string.chat_setting_model) + ": " + modelLabel(settings.chatModel),
                 getString(R.string.chat_setting_effort) + ": " + effortLabel(settings.chatEffort),
+                viewRow(),
             )
             AlertDialog.Builder(this)
                 .setTitle(R.string.chat_settings_title)
-                .setItems(rows) { _, which -> if (which == 0) chooseClaude(MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it } else chooseClaude(EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it } }
+                .setItems(rows) { _, which ->
+                    when (which) {
+                        0 -> chooseClaude(MODELS, settings.chatModel, ::modelLabel) { settings.chatModel = it }
+                        1 -> chooseClaude(EFFORTS, settings.chatEffort, ::effortLabel) { settings.chatEffort = it }
+                        else -> chooseView()
+                    }
+                }
                 .show()
             return
         }
+        // Sem ajustes do agente (ou sem chat pronto), o diálogo mostra só a visualização, que é do app.
         val acp = engine as? AcpChat
         val options = acp?.configOptions.orEmpty()
-        if (acp == null || options.isEmpty()) {
-            Toast.makeText(this, getString(R.string.chat_settings_unsupported, agentName), Toast.LENGTH_LONG).show()
-            return
-        }
-        val rows = options.map { "${it.name}: ${it.currentName}" }.toTypedArray()
+        val rows = (listOf(viewRow()) + options.map { "${it.name}: ${it.currentName}" }).toTypedArray()
         AlertDialog.Builder(this)
             .setTitle(R.string.chat_settings_title)
             .setItems(rows) { _, which ->
-                val option = options[which]
-                val labels = option.choices.map { it.second }.toTypedArray()
-                val current = option.choices.indexOfFirst { it.first == option.current }
-                AlertDialog.Builder(this)
-                    .setTitle(option.name)
-                    .setSingleChoiceItems(labels, current) { dialog, choice ->
-                        dialog.dismiss()
-                        acp.setOption(option, option.choices[choice].first)
-                    }
-                    .show()
+                if (which == 0) {
+                    chooseView()
+                } else {
+                    val option = options[which - 1]
+                    val labels = option.choices.map { it.second }.toTypedArray()
+                    val current = option.choices.indexOfFirst { it.first == option.current }
+                    AlertDialog.Builder(this)
+                        .setTitle(option.name)
+                        .setSingleChoiceItems(labels, current) { dialog, choice ->
+                            dialog.dismiss()
+                            acp?.setOption(option, option.choices[choice].first)
+                        }
+                        .show()
+                }
             }
             .show()
+    }
+
+    /** Linha "Visualização: Normal" do diálogo de ajustes. */
+    private fun viewRow() = getString(R.string.chat_setting_view) + ": " + getString(viewLabelRes(settings.chatView))
+
+    /** Escolha do modo de visualização; muda só a tela, a conversa continua a mesma. */
+    private fun chooseView() {
+        val modes = listOf(AppSettings.VIEW_DETAILED, AppSettings.VIEW_NORMAL, AppSettings.VIEW_SUMMARY)
+        val labels = modes.map { getString(viewLabelRes(it)) + " — " + getString(viewHintRes(it)) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.chat_setting_view)
+            .setSingleChoiceItems(labels, modes.indexOf(settings.chatView)) { dialog, which ->
+                dialog.dismiss()
+                settings.chatView = modes[which]
+                refresh()
+            }
+            .show()
+    }
+
+    /** Nome curto do modo (linha de ajustes e escolha). */
+    private fun viewLabelRes(mode: String) = when (mode) {
+        AppSettings.VIEW_DETAILED -> R.string.chat_view_detailed
+        AppSettings.VIEW_SUMMARY -> R.string.chat_view_summary
+        else -> R.string.chat_view_normal
+    }
+
+    /** Descrição curta do modo, mostrada ao lado do nome na escolha. */
+    private fun viewHintRes(mode: String) = when (mode) {
+        AppSettings.VIEW_DETAILED -> R.string.chat_view_detailed_hint
+        AppSettings.VIEW_SUMMARY -> R.string.chat_view_summary_hint
+        else -> R.string.chat_view_normal_hint
     }
 
     /** Escolha de modelo/esforço do Claude: reabre a mesma conversa com o novo ajuste. */
@@ -902,6 +966,8 @@ class ChatActivity : JangadaActivity() {
     /** Monta cada item da conversa (sem XML: são poucos tipos e bem simples). */
     private inner class ChatAdapter : BaseAdapter() {
         var snapshot: List<ChatItem> = emptyList()
+        /** Modo de visualização da tela (AppSettings.chatView), lido uma vez por redesenho. */
+        var viewMode = AppSettings.VIEW_NORMAL
 
         override fun getCount() = snapshot.size
         override fun getItem(position: Int): Any = snapshot[position]
@@ -912,7 +978,7 @@ class ChatActivity : JangadaActivity() {
         private val answers = WeakHashMap<ChatItem.Assistant, Rendered>()
 
         /** Um tipo de linha para cada tipo de item (o Android reaproveita só dentro do mesmo tipo). */
-        override fun getViewTypeCount() = 7
+        override fun getViewTypeCount() = 9
 
         override fun getItemViewType(position: Int): Int = when (snapshot[position]) {
             is ChatItem.User -> 0
@@ -922,6 +988,8 @@ class ChatActivity : JangadaActivity() {
             is ChatItem.Plan -> 4
             is ChatItem.Login -> 5
             is ChatItem.Info -> 6
+            is ChatItem.Thinking -> 7
+            is ChatItem.ToolGroup -> 8
         }
 
         /**
@@ -950,6 +1018,8 @@ class ChatActivity : JangadaActivity() {
                     is ChatItem.Plan -> planView(item, old as? TextView)
                     is ChatItem.Login -> loginCard(item)
                     is ChatItem.Info -> infoText(item, old as? TextView)
+                    is ChatItem.Thinking -> thinkingView(item, old as? TextView)
+                    is ChatItem.ToolGroup -> toolGroupLine(item, old as? TextView)
                 },
             )
             return row
@@ -1065,17 +1135,23 @@ class ChatActivity : JangadaActivity() {
         }
 
         private fun toolLine(item: ChatItem.Tool, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
-            val mark = when {
-                !item.done -> "…"
-                item.failed -> "✕"
-                else -> "✓"
-            }
             val output = item.output
-            val line = "$mark ${ToolText.label(this@ChatActivity, item.name)}  ${item.summary}"
+            val line = toolLineText(item)
             // Falha: a primeira linha do erro já aparece; o resto (e a saída de quem deu certo) abre num toque.
             val firstError = output?.takeIf { item.failed }?.lineSequence()?.firstOrNull { it.isNotBlank() }
-            text = if (output == null) line else "$line  ›" + firstError?.let { "\n$it" }.orEmpty()
-            maxLines = if (firstError != null) 3 else 2
+            // Detalhado: o começo da saída fica embaixo da linha (a primeira linha de uma falha já é o erro).
+            val excerpt = output?.takeIf { viewMode == AppSettings.VIEW_DETAILED }
+                ?.lines()?.dropWhile { it.isBlank() }?.take(TOOL_EXCERPT_LINES)?.takeIf { it.isNotEmpty() }
+            text = when {
+                output == null -> line
+                excerpt != null -> "$line  ›\n" + excerpt.joinToString("\n")
+                else -> "$line  ›" + firstError?.let { "\n$it" }.orEmpty()
+            }
+            maxLines = when {
+                excerpt != null -> excerpt.size + 2
+                firstError != null -> 3
+                else -> 2
+            }
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE
             textSize = 12f
@@ -1095,6 +1171,53 @@ class ChatActivity : JangadaActivity() {
                 background = null
                 contentDescription = null
             }
+        }
+
+        /** Raciocínio do agente (só no modo Detalhado): itálico e discreto; o toque lê tudo. */
+        private fun thinkingView(item: ChatItem.Thinking, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
+            text = getString(R.string.chat_thinking) + ": " + item.text
+            // Linha reaproveitada: o estilo é refeito sempre, para não herdar o de outra linha.
+            setTypeface(null, Typeface.ITALIC)
+            textSize = 13f
+            setTextColor(getColor(R.color.setup_muted))
+            maxLines = 6
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(dp(4), dp(2), dp(4), dp(2))
+            minHeight = dp(32)
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundResource(selectableBackground)
+            setOnClickListener { showDetails(R.string.chat_thinking, item.text) }
+            contentDescription = getString(R.string.chat_thinking_description)
+        }
+
+        /** Modo Resumo: ações seguidas numa linha só (contagem e as mais usadas); o toque lista cada uma. */
+        private fun toolGroupLine(item: ChatItem.ToolGroup, old: TextView?) = (old ?: TextView(this@ChatActivity)).apply {
+            val tools = item.tools
+            // A última ação ainda em andamento aparece embaixo, para ver o que está rodando.
+            val running = tools.lastOrNull { !it.done }
+            val mark = when {
+                running != null -> "…"
+                tools.any { it.failed } -> "✕"
+                else -> "✓"
+            }
+            val counts = tools.groupBy { ToolText.label(this@ChatActivity, it.name) }
+                .entries.sortedByDescending { it.value.size }
+                .take(3)
+                .joinToString(", ") { "${it.value.size}× ${it.key}" }
+            val summary = getQuantityString(R.plurals.chat_tool_group, tools.size, tools.size) + " · " + counts
+            val second = running?.let { "\n" + ToolText.label(this@ChatActivity, it.name) + "  " + it.summary }
+            text = "$mark $summary  ›" + second.orEmpty()
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            typeface = Typeface.MONOSPACE
+            textSize = 12f
+            setTextColor(getColor(if (tools.any { it.failed }) R.color.setup_error else R.color.setup_muted))
+            setPadding(dp(4), dp(2), dp(4), dp(2))
+            gravity = Gravity.CENTER_VERTICAL
+            minHeight = dp(48)
+            setBackgroundResource(selectableBackground)
+            setOnClickListener { showToolGroup(item) }
+            contentDescription = getString(R.string.chat_tool_group_description, summary)
         }
 
         private fun permissionCard(item: ChatItem.Permission): View {
@@ -1379,6 +1502,8 @@ class ChatActivity : JangadaActivity() {
         const val COMMAND_SUGGESTIONS = 6
         /** Altura de cada linha do popup de comandos. */
         const val COMMAND_ROW_DP = 48
+        /** Modo Detalhado: linhas do começo da saída de cada ação, embaixo da linha dela. */
+        const val TOOL_EXCERPT_LINES = 6
         const val EXTRA_AGENT_ID = "agent_id"
         const val EXTRA_RESUME = "resume"
         const val EXTRA_NEW = "new"

@@ -45,6 +45,13 @@ sealed class ChatItem {
     class Plan(var entries: List<PlanEntry>) : ChatItem()
     /** [details]: texto técnico (ex.: saída de erro do agente), mostrado sob o link "Detalhes". */
     class Info(val text: String, val isError: Boolean = false, val details: String? = null) : ChatItem()
+    /** Raciocínio do agente: sempre guardado na conversa; a tela decide se mostra (ver [ChatView]). */
+    class Thinking(var text: String) : ChatItem()
+    /**
+     * Ações seguidas agrupadas (modo Resumo). Só de exibição: nunca entra em
+     * `chat.items`; [ChatView.arrange] monta na hora, a partir das ações de verdade.
+     */
+    class ToolGroup(val tools: List<Tool>) : ChatItem()
 }
 
 /** Quando o chat pede a atenção do usuário (o serviço decide se mostra um aviso). */

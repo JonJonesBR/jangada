@@ -82,6 +82,8 @@ object ChatHistory {
                         when (block.optString("type")) {
                             "text" -> block.optString("text").takeIf { it.isNotBlank() }
                                 ?.let { add(ChatItem.Assistant(it, streaming = false)) }
+                            "thinking" -> block.optString("thinking").takeIf { it.isNotBlank() }
+                                ?.let { add(ChatItem.Thinking(it)) }
                             "tool_use" -> if (block.optString("name") == ChatEngine.TODO_TOOL) {
                                 // Lista de tarefas: um único plano, atualizado (se ainda estiver na lista).
                                 val entries = ChatEngine.todoEntries(block.optJSONObject("input"))

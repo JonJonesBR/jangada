@@ -138,7 +138,21 @@
     <string name="chat_title_description">%1$s, %2$s. Tap to open %3$s</string>
     <string name="chat_setting_model">Model</string>
     <string name="chat_setting_effort">Effort</string>
-    <string name="chat_settings_unsupported">%s doesn’t offer settings through the chat</string>
+    <string name="chat_setting_view">View</string>
+    <string name="chat_view_detailed">Detailed</string>
+    <string name="chat_view_normal">Normal</string>
+    <string name="chat_view_summary">Summary</string>
+    <string name="chat_view_detailed_hint">reasoning and the start of each action’s output</string>
+    <string name="chat_view_normal_hint">the conversation and each action, without reasoning</string>
+    <string name="chat_view_summary_hint">consecutive actions grouped, without reasoning</string>
+    <string name="chat_thinking">Thinking</string>
+    <string name="chat_thinking_description">Thinking. Tap to read all of it.</string>
+    <plurals name="chat_tool_group">
+        <item quantity="one">%d action</item>
+        <item quantity="other">%d actions</item>
+    </plurals>
+    <string name="chat_tool_group_title">Actions</string>
+    <string name="chat_tool_group_description">%1$s. Tap to see each action.</string>
     <string name="effort_low">Low</string>
     <string name="effort_medium">Medium</string>
     <string name="effort_high">High</string>

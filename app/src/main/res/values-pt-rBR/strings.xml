@@ -136,7 +136,21 @@
     <string name="chat_title_description">%1$s, %2$s. Toque para abrir %3$s</string>
     <string name="chat_setting_model">Modelo</string>
     <string name="chat_setting_effort">Esforço</string>
-    <string name="chat_settings_unsupported">O %s não oferece ajustes pelo chat</string>
+    <string name="chat_setting_view">Visualização</string>
+    <string name="chat_view_detailed">Detalhado</string>
+    <string name="chat_view_normal">Normal</string>
+    <string name="chat_view_summary">Resumo</string>
+    <string name="chat_view_detailed_hint">raciocínio e começo da saída de cada ação</string>
+    <string name="chat_view_normal_hint">a conversa e cada ação, sem raciocínio</string>
+    <string name="chat_view_summary_hint">ações seguidas agrupadas, sem raciocínio</string>
+    <string name="chat_thinking">Raciocínio</string>
+    <string name="chat_thinking_description">Raciocínio. Toque para ler tudo.</string>
+    <plurals name="chat_tool_group">
+        <item quantity="one">%d ação</item>
+        <item quantity="other">%d ações</item>
+    </plurals>
+    <string name="chat_tool_group_title">Ações</string>
+    <string name="chat_tool_group_description">%1$s. Toque para ver cada ação.</string>
     <string name="effort_low">Baixo</string>
     <string name="effort_medium">Médio</string>
     <string name="effort_high">Alto</string>

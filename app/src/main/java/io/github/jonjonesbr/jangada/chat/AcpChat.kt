@@ -63,6 +63,8 @@ class AcpChat(
     private var draft: ChatItem.Assistant? = null
     private var draftMessageId: String? = null
     private var userDraft: ChatItem.User? = null
+    /** Raciocínio que está chegando (agent_thought_chunk), como o [draft] da resposta. */
+    private var thoughtDraft: ChatItem.Thinking? = null
     private var plan: ChatItem.Plan? = null
     private var ready = false
     private var loadingHistory = false
@@ -286,6 +288,7 @@ class AcpChat(
             }
         }
         draft = null
+        thoughtDraft = null
         request("session/prompt", JSONObject().put("sessionId", id).put("prompt", blocks)) { result, error ->
             busy = false
             finishDrafts()
@@ -461,6 +464,7 @@ class AcpChat(
         loadingHistory = false
         draft = null
         userDraft = null
+        thoughtDraft = null
         clearLoginTimeout()
         for (callback in waiting) callback(null, stoppedError())
         loginCard?.takeIf { it.state == ChatItem.Login.State.WORKING }?.let {
@@ -522,6 +526,7 @@ class AcpChat(
         when (update.optString("sessionUpdate")) {
             "agent_message_chunk" -> {
                 userDraft = null
+                thoughtDraft = null
                 val text = textOf(update.optJSONObject("content")) ?: return
                 val messageId = update.optString("messageId").ifEmpty { null }
                 val current = draft
@@ -534,9 +539,20 @@ class AcpChat(
                 }
                 changed(throttle = true)
             }
+            "agent_thought_chunk" -> {
+                val text = textOf(update.optJSONObject("content")) ?: return
+                val current = thoughtDraft
+                if (current != null && items.lastOrNull() === current) {
+                    current.text += text
+                } else {
+                    thoughtDraft = ChatItem.Thinking(text).also { items += it }
+                }
+                changed(throttle = true)
+            }
             "user_message_chunk" -> {
                 draft?.streaming = false
                 draft = null
+                thoughtDraft = null
                 val text = textOf(update.optJSONObject("content")) ?: return
                 val current = userDraft
                 if (current != null && items.lastOrNull() === current) {
@@ -552,6 +568,7 @@ class AcpChat(
                 draft?.streaming = false
                 draft = null
                 userDraft = null
+                thoughtDraft = null
                 val id = update.optString("toolCallId")
                 val tool = tools[id] ?: ChatItem.Tool(id, update.optString("title"), summaryOf(update)).also {
                     tools[id] = it
@@ -604,6 +621,7 @@ class AcpChat(
         draft?.streaming = false
         draft = null
         userDraft = null
+        thoughtDraft = null
     }
 
     private fun textOf(content: JSONObject?): String? =
