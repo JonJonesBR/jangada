@@ -464,7 +464,9 @@ class ChatActivity : JangadaActivity() {
         // Contexto quase cheio: oferece compactar (só se o agente aceita e não está no meio de um turno).
         val percent = chat.contextUsage?.percent ?: 0
         val canCompact = isClaude || (chat as? AcpChat)?.commands?.any { it.name == "compact" } == true
-        compactChip.visibility = if (percent >= COMPACT_PERCENT && !chat.busy && canCompact) View.VISIBLE else View.GONE
+        // Um chip por vez: "Continuar" vem antes (a resposta parou no meio); compactar aparece no fim do próximo turno.
+        val showCompact = percent >= COMPACT_PERCENT && !chat.busy && canCompact && continueChip.visibility != View.VISIBLE
+        compactChip.visibility = if (showCompact) View.VISIBLE else View.GONE
         // O leitor de tela lê agente e modelo, e avisa que o toque abre os ajustes.
         titleBlock.contentDescription = getString(
             R.string.chat_title_description, agentName, subtitle.text.toString().removeSuffix(" ▾"), getString(R.string.chat_settings_title),
@@ -1052,8 +1054,8 @@ class ChatActivity : JangadaActivity() {
                 setSpan(RelativeSizeSpan(0.8f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
             text = shown
-            // Na fila, a bolha fica mais apagada; as views são reaproveitadas, então isto vale em todo uso.
-            alpha = if (item.queued) 0.6f else 1f
+            // Na fila ou não enviada, a bolha fica mais apagada; as views são reaproveitadas, então isto vale em todo uso.
+            alpha = if (item.queued || item.dropped) 0.6f else 1f
             setTextColor(getColor(R.color.key_text))
             textSize = 16f
             setBackgroundResource(R.drawable.bubble_user)
@@ -1067,7 +1069,9 @@ class ChatActivity : JangadaActivity() {
             if (item.dropped) {
                 // Não enviada: toque devolve o texto para a caixa, para editar e enviar de novo.
                 setOnClickListener {
-                    input.setText(item.text)
+                    // Já há texto na caixa: não apaga, acrescenta numa linha nova.
+                    val typed = input.text.toString().trimEnd()
+                    input.setText(if (typed.isEmpty()) item.text else typed + "\n" + item.text)
                     input.setSelection(input.text.length)
                     input.requestFocus()
                 }

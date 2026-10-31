@@ -7,7 +7,7 @@ sealed class ChatItem {
     class User(val text: String, val attachments: List<String> = emptyList()) : ChatItem() {
         /** Na fila: ainda não foi enviada ao agente (espera o turno atual terminar). */
         var queued = false
-        /** Descartada (Parar ou agente encerrado) antes de ir ao agente; toque para editar. */
+        /** Descartada antes de ir ao agente (Parar, agente encerrado ou turno com erro); toque para editar. */
         var dropped = false
     }
     class Assistant(var text: String, var streaming: Boolean) : ChatItem()

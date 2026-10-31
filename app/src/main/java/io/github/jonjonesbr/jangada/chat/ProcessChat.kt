@@ -74,6 +74,12 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
     /** Mensagens na fila, em ordem (só a thread principal mexe). */
     protected val queue = ArrayDeque<QueuedMessage>()
 
+    /**
+     * O usuário tocou em Parar e o fim do turno cancelado ainda não chegou. Esse fim
+     * não descarta a fila (o que estiver nela foi enviado depois de Parar) mesmo com erro.
+     */
+    protected var cancelling = false
+
     /** Últimas linhas de erro do agente, mostradas se ele fechar sozinho. */
     private val stderrTail = ArrayDeque<String>()
     private var lastPost = 0L
@@ -143,6 +149,7 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         running = false
         // Parado pelo usuário: o turno interrompido não avisa que terminou.
         silentTurn = true
+        cancelling = false
         dropQueue()
         busy = false
         settleItems()
@@ -235,12 +242,13 @@ abstract class ProcessChat(protected val linux: LinuxEnv, private val tag: Strin
         running = false
         // O agente saiu: o fim do turno não avisa aqui (quem avisa é a falha, em readOutput).
         silentTurn = true
+        cancelling = false
         dropQueue()
         busy = false
     }
 
     /**
-     * Descarta as mensagens na fila (Parar ou agente encerrado): nenhuma foi enviada,
+     * Descarta as mensagens na fila (Parar, agente encerrado ou turno com erro): nenhuma foi enviada,
      * então os itens ficam marcados para o usuário editar e enviar de novo.
      */
     protected fun dropQueue() {

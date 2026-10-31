@@ -167,6 +167,9 @@ class ChatEngine(
             return
         }
         next.item.queued = false
+        // Turno novo: busy segue true (sem piscar), mas o "silencioso" de um Parar anterior não vale para ele.
+        busy = true
+        interrupted = false
         deliver(next.text, next.attachments)
         changed()
     }
@@ -176,6 +179,8 @@ class ChatEngine(
         if (!running) return
         // Interrompido pelo usuário: o fim desse turno não gera aviso.
         silentTurn = true
+        // O CLI ainda manda o "result" do turno cancelado; o que for enviado até lá espera por ele.
+        if (busy) cancelling = true
         // O que estava na fila não chegou a ser enviado: descarta.
         dropQueue()
         // Pedidos de permissão em aberto são recusados antes do interrupt (o CLI lê na ordem).
@@ -250,7 +255,10 @@ class ChatEngine(
             "user" -> handleToolResults(json.optJSONObject("message"))
             "result" -> {
                 endStreaming()
-                if (json.optBoolean("is_error")) {
+                val cancelled = cancelling
+                cancelling = false
+                val failed = json.optBoolean("is_error")
+                if (failed) {
                     val result = json.optString("result")
                     val subtype = json.optString("subtype")
                     val text = result.ifEmpty { subtype }
@@ -267,6 +275,9 @@ class ChatEngine(
                     }
                 }
                 updateWindow(json.optJSONObject("modelUsage"))
+                // Turno com erro (inclusive login): a fila não segue sozinha, a pessoa revisa antes.
+                // O erro de um turno que a pessoa mesma parou não conta: a fila já foi descartada no Parar.
+                if (failed && !cancelled) dropQueue()
                 changed()
                 // Com mensagem na fila, o turno continua (busy segue true); o aviso de fim só sai no último.
                 sendQueued()

@@ -287,6 +287,10 @@ class AcpChat(
             return
         }
         next.item.queued = false
+        // Turno novo: busy segue true (sem piscar), mas o "silencioso" de um Parar anterior não vale para ele;
+        // e a conversa já não está "parada no meio" (a carga do histórico pode ter marcado isso).
+        busy = true
+        interrupted = false
         prompt(next.text, next.attachments)
         changed()
     }
@@ -312,11 +316,17 @@ class AcpChat(
         draft = null
         thoughtDraft = null
         request("session/prompt", JSONObject().put("sessionId", id).put("prompt", blocks)) { result, error ->
+            val cancelled = cancelling
+            cancelling = false
             finishDrafts()
+            val refused = error == null && result?.optString("stopReason") == "refusal"
             if (error != null) {
                 if (isAuthError(error)) requireLogin(sessionId) else add(ChatItem.Info(friendlyError(error), isError = true))
             }
-            else if (result?.optString("stopReason") == "refusal") add(ChatItem.Info(context.getString(R.string.chat_acp_refused), isError = true))
+            else if (refused) add(ChatItem.Info(context.getString(R.string.chat_acp_refused), isError = true))
+            // Erro, login ou recusa: a fila não segue sozinha, a pessoa revisa antes.
+            // O erro de um turno que a pessoa mesma parou não conta: a fila já foi descartada no Parar.
+            if ((error != null || refused) && !cancelled) dropQueue()
             changed()
             // O turno acabou: a próxima mensagem da fila (se houver) vai agora.
             sendNext()
@@ -325,8 +335,9 @@ class AcpChat(
 
     override fun interrupt() {
         val id = sessionId
-        if (id == null) {
-            // Ainda sem sessão (iniciando ou falhou): nada a cancelar no agente; solta as mensagens na fila.
+        if (id == null || !ready) {
+            // Ainda sem sessão pronta (iniciando, recarregando, esperando login ou falhou): nenhum
+            // session/prompt saiu, então não há resposta que encerre o turno; solta a fila aqui.
             if (busy) {
                 silentTurn = true
                 dropQueue()
@@ -337,6 +348,8 @@ class AcpChat(
         }
         // Interrompido pelo usuário: o fim desse turno não gera aviso.
         silentTurn = true
+        // Pronto e ocupado = há um session/prompt em aberto; o que for enviado até a resposta dele espera.
+        if (busy) cancelling = true
         // Antes do cancelamento: a resposta cancelada não pode puxar a próxima mensagem da fila.
         dropQueue()
         notify("session/cancel", JSONObject().put("sessionId", id))
