@@ -17,7 +17,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.text.Editable
-import android.text.InputFilter
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextPaint
@@ -71,7 +70,9 @@ import io.github.jonjonesbr.jangada.linux.Fs
 import io.github.jonjonesbr.jangada.linux.Git
 import io.github.jonjonesbr.jangada.linux.LinuxEnv
 import io.github.jonjonesbr.jangada.linux.Workspace
+import io.github.jonjonesbr.jangada.linux.Worktrees
 import io.github.jonjonesbr.jangada.ui.Sheet
+import io.github.jonjonesbr.jangada.ui.askWorktreeName
 import java.io.File
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -1122,7 +1123,7 @@ class ChatActivity : JangadaActivity() {
             }
         }
         rows += Sheet.Row(title = getString(R.string.chat_folder_new), icon = "＋") { newFolderDialog() }
-        if (folders.any { canStartWorktree(it) }) rows += Sheet.Row(
+        if (folders.any { Worktrees.canStart(it) }) rows += Sheet.Row(
             title = getString(R.string.chat_worktree_new),
             icon = "⎇",
             description = getString(R.string.sheet_desc_worktree),
@@ -1139,13 +1140,9 @@ class ChatActivity : JangadaActivity() {
     /** Repositório que pode ser a base de um trabalho isolado: pasta git que não é worktree. */
     private fun canBeWorktreeBase(item: Workspace.Folder) = item.branch != null && item.worktreeOf == null
 
-    /** Base para um trabalho novo: além disso, o nome cabe em "<repo>--<nome>" (pasta válida, até 64 caracteres). */
-    private fun canStartWorktree(item: Workspace.Folder) =
-        canBeWorktreeBase(item) && Workspace.worktreeFolder(item.name, "x") != null
-
     /** Escolha do repositório base do novo trabalho isolado. */
     private fun chooseWorktreeBase(folders: List<Workspace.Folder>) {
-        val bases = folders.filter { canStartWorktree(it) }
+        val bases = folders.filter { Worktrees.canStart(it) }
         Sheet(this)
             .title(getString(R.string.chat_worktree_pick_base))
             .rows(bases.map { base ->
@@ -1154,65 +1151,29 @@ class ChatActivity : JangadaActivity() {
             .show()
     }
 
-    /** Nome do novo trabalho isolado, com a explicação de como ele funciona. */
+    /** Nome do novo trabalho isolado (diálogo compartilhado com a tela inicial); depois, cria o trabalho. */
     private fun newWorktreeDialog(base: Workspace.Folder) {
-        val explain = TextView(this).apply {
-            text = getString(R.string.chat_worktree_explain, base.name)
-            textSize = 14f
-            setTextColor(getColor(R.color.setup_muted))
-            setPadding(0, 0, 0, dp(8))
-        }
-        val max = Workspace.maxWorktreeName(base.name)
-        val field = EditText(this).apply {
-            hint = getString(R.string.chat_worktree_name_hint)
-            setSingleLine(true)
-            filters = arrayOf(InputFilter.LengthFilter(max.coerceAtLeast(1)))
-        }
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(8), dp(20), 0)
-            addView(explain)
-            addView(field)
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.chat_worktree_new)
-            .setView(content)
-            .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-        // Como em Nova pasta: o OK é ligado depois de mostrar o diálogo; nome inválido o mantém aberto.
-        dialog.setOnShowListener {
-            val ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-            ok.setOnClickListener {
-                val name = field.text.toString().trim()
-                // A pasta <repo>--<nome> também precisa ser um nome válido (até 64 caracteres), senão não aparece na lista.
-                val worktree = Workspace.worktreeFolder(base.name, name)
-                if (worktree == null) {
-                    field.error = getString(R.string.chat_worktree_name_invalid, max)
-                    return@setOnClickListener
-                }
-                createWorktree(base.name, name, worktree, dialog, ok)
-            }
-        }
-        dialog.show()
+        askWorktreeName(base.name) { name, done -> createWorktree(base.name, name, done) }
     }
 
     /**
-     * Cria a cópia de trabalho (`git worktree add -b jangada/<nome>`) fora da thread principal.
-     * Deu certo, abre o trabalho nela; falhou, mostra a saída e deixa tentar de novo.
+     * Cria a cópia de trabalho (Worktrees.create) fora da thread principal. Deu certo, fecha o
+     * diálogo e abre o trabalho nela; falhou, mostra a saída e o diálogo volta para tentar de novo.
      */
-    private fun createWorktree(baseName: String, name: String, worktree: String, dialog: AlertDialog, ok: View) {
-        ok.isEnabled = false
+    private fun createWorktree(baseName: String, name: String, done: (Boolean) -> Unit) {
         thread(name = "chat-worktree-new") {
-            val made = Git.run(linux, Workspace.path(baseName), "worktree", "add", "-b", "jangada/$name", Workspace.path(worktree))
+            val made = Worktrees.create(linux, baseName, name)
             runOnUiThread {
                 if (isDestroyed || isFinishing) return@runOnUiThread
-                if (made.code == 0) {
-                    dialog.dismiss()
-                    pickFolder(worktree)
-                } else {
-                    ok.isEnabled = true
-                    showDetails(R.string.git_failed_title, made.shown.ifBlank { getString(R.string.git_failed_title) })
+                when (made) {
+                    is Worktrees.Result.Created -> {
+                        done(true)
+                        pickFolder(made.folder)
+                    }
+                    is Worktrees.Result.Failed -> {
+                        done(false)
+                        showDetails(R.string.git_failed_title, made.output.ifBlank { getString(R.string.git_failed_title) })
+                    }
                 }
             }
         }
