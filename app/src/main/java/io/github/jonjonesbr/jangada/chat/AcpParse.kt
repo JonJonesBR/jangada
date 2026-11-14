@@ -192,4 +192,13 @@ internal object AcpParse {
             PermissionOption(o.optString("optionId"), o.optString("name"), kind)
         }
     }
+
+    /**
+     * O agente repetiu um pedido que ainda espera resposta (mesmo id, cartão sem escolha): não abre outro.
+     * Só conta o que está sem resposta: o agente reaberto (depois de dormir, cair ou ser parado)
+     * recomeça a contar os ids, e um cartão já respondido de antes com o mesmo id não pode engolir o
+     * pedido novo (o agente ficaria esperando para sempre, sem cartão na tela).
+     */
+    fun repeatedPermission(items: List<ChatItem>, id: Any): Boolean =
+        items.any { it is ChatItem.Permission && it.chosen == null && it.requestId == id }
 }

@@ -292,4 +292,22 @@ class AcpParseTest {
         // Id de outra filha não tira nada do toolCallId.
         assertEquals("ses_x:call_1", AcpParse.unprefixedToolId("ses_x:call_1", "ses_f"))
     }
+
+    /** O agy reaberto (depois de dormir) recomeça os ids: o cartão respondido de antes não engole o pedido novo. */
+    @Test
+    fun pedidoRepetidoSoContraCartaoSemResposta() {
+        fun card(id: Any, answered: Boolean) = ChatItem.Permission(id, "Rodar comando", "ls", emptyList()).apply {
+            if (answered) chosen = PermissionOption("allow", "Permitir", PermissionOption.Kind.ALLOW_ONCE)
+        }
+        val antigo = listOf<ChatItem>(card(0, answered = true), card(1, answered = true))
+        assertFalse(AcpParse.repeatedPermission(antigo, 0))
+        assertFalse(AcpParse.repeatedPermission(antigo, 1))
+        // Mesmo pedido ainda esperando: repetido, fica o primeiro cartão.
+        val esperando = antigo + card(0, answered = false)
+        assertTrue(AcpParse.repeatedPermission(esperando, 0))
+        assertFalse(AcpParse.repeatedPermission(esperando, 2))
+        // Id em texto (outros agentes) também vale.
+        assertTrue(AcpParse.repeatedPermission(listOf(card("abc", answered = false)), "abc"))
+        assertFalse(AcpParse.repeatedPermission(emptyList(), 0))
+    }
 }

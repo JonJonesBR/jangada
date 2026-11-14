@@ -802,7 +802,7 @@ class AcpChat(
         }
         val toolCall = params.optJSONObject("toolCall") ?: JSONObject()
         // O agente pode repetir o mesmo pedido: fica o primeiro cartão (responder duas vezes seria erro).
-        if (items.any { it is ChatItem.Permission && it.requestId == id }) return
+        if (AcpParse.repeatedPermission(items, id)) return
         // Pedido de subagente (opencode): o id do tool e o título vêm prefixados com a filha; sem o prefixo, acha o tool.
         val childId = AcpParse.permissionChildSession(toolCall)
         val childMetaTitle = AcpParse.permissionChildTitle(toolCall)
