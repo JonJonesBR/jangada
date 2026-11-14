@@ -214,7 +214,7 @@ class Sheet(private val activity: Activity) {
             root.addView(TextView(activity).apply {
                 text = m
                 textSize = 14f
-                setTextColor(activity.getColor(R.color.setup_muted))
+                setTextColor(activity.getColor(R.color.setup_muted_text))
                 setPadding(dp(16), 0, dp(16), dp(8))
             })
         }
@@ -299,7 +299,7 @@ class Sheet(private val activity: Activity) {
                     addView(TextView(activity).apply {
                         text = description
                         textSize = 13f
-                        setTextColor(activity.getColor(R.color.setup_muted))
+                        setTextColor(activity.getColor(R.color.setup_muted_text))
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     })
                 }

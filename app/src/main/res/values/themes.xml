@@ -21,7 +21,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:paddingTop">7dp</item>
         <item name="android:paddingBottom">7dp</item>
-        <item name="android:textColor">@color/setup_muted</item>
+        <item name="android:textColor">@color/setup_muted_text</item>
         <item name="android:textSize">17sp</item>
     </style>
 
@@ -30,7 +30,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">24dp</item>
         <item name="android:layout_marginBottom">10dp</item>
-        <item name="android:textColor">@color/setup_muted</item>
+        <item name="android:textColor">@color/setup_muted_text</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
     </style>

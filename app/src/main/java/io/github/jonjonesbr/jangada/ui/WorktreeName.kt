@@ -21,7 +21,7 @@ fun Activity.askWorktreeName(repo: String, onName: (name: String, done: (Boolean
     val explain = TextView(this).apply {
         text = getString(R.string.chat_worktree_explain, repo)
         textSize = 14f
-        setTextColor(getColor(R.color.setup_muted))
+        setTextColor(getColor(R.color.setup_muted_text))
         setPadding(0, 0, 0, dpToPx(8))
     }
     val max = Workspace.maxWorktreeName(repo)

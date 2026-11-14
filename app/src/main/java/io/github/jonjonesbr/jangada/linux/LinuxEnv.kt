@@ -9,6 +9,7 @@ import android.util.Log
 import io.github.jonjonesbr.jangada.AppSettings
 import io.github.jonjonesbr.jangada.agents.AgentCatalog
 import java.io.File
+import java.io.IOException
 import kotlin.concurrent.thread
 
 /**
@@ -264,10 +265,22 @@ class LinuxEnv(context: Context) {
             }
         }
         val process = builder.start()
-        onStart?.invoke(process)
-        process.outputStream.close()
-        process.inputStream.bufferedReader().useLines { lines -> lines.forEach(onLine) }
-        return process.waitFor()
+        return try {
+            onStart?.invoke(process)
+            process.outputStream.close()
+            process.inputStream.bufferedReader().useLines { lines -> lines.forEach(onLine) }
+            process.waitFor()
+        } catch (e: IOException) {
+            // Leitura cortada (processo morto ou fechado): sai com -1, como Git.run, sem derrubar quem chama.
+            -1
+        } catch (e: InterruptedException) {
+            // Quem chamou foi interrompido: devolve a interrupção à thread e sai com -1.
+            Thread.currentThread().interrupt()
+            -1
+        } finally {
+            // Em todos os caminhos (inclusive erro dentro de onLine): não deixa o processo para trás.
+            process.destroy()
+        }
     }
 
     /** Ajustes no Debian recém-extraído para ele funcionar dentro do Android. */
@@ -614,6 +627,12 @@ class LinuxEnv(context: Context) {
         /** Pasta (dentro da home do Debian) onde os agentes trabalham. */
         const val WORKSPACE = "projetos"
         private const val SHARED_STORAGE = "/storage/emulated/0"
+
+        /**
+         * Linha de shell que relê o jangada.sh. Usar depois das esperas da sessão: o bash de login
+         * já leu esse arquivo antes da espera, e ele pode ter sido regravado nesse intervalo.
+         */
+        const val PROFILE_RELOAD = "[ -f /etc/profile.d/jangada.sh ] && . /etc/profile.d/jangada.sh\n"
 
         private const val PROFILE_SCRIPT =
             "# Gerado pelo Jangada a cada sessão.\n" +

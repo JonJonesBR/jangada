@@ -25,12 +25,12 @@ class AboutActivity : JangadaActivity() {
         }
         content.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(dp(88), dp(88)))
         content.addView(text(getString(R.string.app_name), 26f, R.color.setup_text, bold = true))
-        content.addView(text(getString(R.string.about_version, version), 14f, R.color.setup_muted))
+        content.addView(text(getString(R.string.about_version, version), 14f, R.color.setup_muted_text))
         content.addView(text(getString(R.string.about_tagline), 16f, R.color.setup_text, top = 16))
-        content.addView(text(getString(R.string.about_privacy), 14f, R.color.setup_muted, top = 12))
+        content.addView(text(getString(R.string.about_privacy), 14f, R.color.setup_muted_text, top = 12))
         content.addView(link(getString(R.string.about_repo), REPO))
         content.addView(link(getString(R.string.about_licenses), "$REPO/blob/main/THIRD_PARTY_NOTICES.md"))
-        content.addView(text(getString(R.string.about_credits), 12f, R.color.setup_muted, top = 20, center = false))
+        content.addView(text(getString(R.string.about_credits), 12f, R.color.setup_muted_text, top = 20, center = false))
 
         // A Sobre só abre a partir dos Ajustes, então o botão volta para eles.
         val back = TextView(this).apply {

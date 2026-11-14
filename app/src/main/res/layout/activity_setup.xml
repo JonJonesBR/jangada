@@ -37,7 +37,7 @@
             android:layout_marginTop="12dp"
             android:lineSpacingMultiplier="1.25"
             android:text="@string/setup_intro"
-            android:textColor="@color/setup_muted"
+            android:textColor="@color/setup_muted_text"
             android:textSize="16sp" />
 
         <TextView
@@ -74,7 +74,7 @@
             android:layout_marginTop="6dp"
             android:ellipsize="end"
             android:maxLines="2"
-            android:textColor="@color/setup_muted"
+            android:textColor="@color/setup_muted_text"
             android:textSize="13sp" />
 
         <TextView
@@ -111,7 +111,7 @@
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:text="@string/setup_show_log"
-            android:textColor="@color/setup_muted"
+            android:textColor="@color/setup_muted_text"
             android:textSize="14sp" />
 
         <LinearLayout
@@ -128,7 +128,7 @@
                 android:background="@color/terminal_bg"
                 android:fontFamily="monospace"
                 android:padding="12dp"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textIsSelectable="true"
                 android:textSize="11sp" />
 

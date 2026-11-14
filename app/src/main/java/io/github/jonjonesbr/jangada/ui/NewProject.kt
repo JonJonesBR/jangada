@@ -43,7 +43,7 @@ fun Activity.askNewProject(
     val explain = TextView(this).apply {
         text = getString(R.string.project_new_explain)
         textSize = 14f
-        setTextColor(getColor(R.color.setup_muted))
+        setTextColor(getColor(R.color.setup_muted_text))
         setPadding(0, 0, 0, dpToPx(8))
     }
     val field = EditText(this).apply {
@@ -59,7 +59,7 @@ fun Activity.askNewProject(
     val where = TextView(this).apply {
         text = getString(R.string.host_new_where)
         textSize = 14f
-        setTextColor(getColor(R.color.setup_muted))
+        setTextColor(getColor(R.color.setup_muted_text))
         setPadding(0, dpToPx(12), 0, dpToPx(4))
         visibility = View.GONE
     }

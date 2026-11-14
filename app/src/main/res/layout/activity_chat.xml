@@ -115,7 +115,7 @@
         android:lineSpacingMultiplier="1.25"
         android:padding="32dp"
         android:text="@string/chat_empty"
-        android:textColor="@color/setup_muted"
+        android:textColor="@color/setup_muted_text"
         android:textSize="15sp"
         android:visibility="gone" />
 
@@ -192,7 +192,7 @@
             android:maxLines="3"
             android:ellipsize="end"
             android:text="@string/chat_working"
-            android:textColor="@color/setup_muted"
+            android:textColor="@color/setup_muted_text"
             android:textSize="13sp" />
 
         <TextView
@@ -236,7 +236,7 @@
             android:id="@+id/chat_permission_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/setup_muted"
+            android:textColor="@color/setup_muted_text"
             android:textSize="13sp" />
 
         <TextView
@@ -364,7 +364,7 @@
             android:paddingEnd="12dp"
             android:paddingBottom="8dp"
             android:textColor="@color/setup_text"
-            android:textColorHint="@color/setup_muted"
+            android:textColorHint="@color/setup_muted_text"
             android:textSize="16sp" />
 
         <TextView

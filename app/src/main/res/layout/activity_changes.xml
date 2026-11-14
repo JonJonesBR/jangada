@@ -102,7 +102,7 @@
         android:gravity="center"
         android:lineSpacingMultiplier="1.25"
         android:padding="32dp"
-        android:textColor="@color/setup_muted"
+        android:textColor="@color/setup_muted_text"
         android:textSize="15sp"
         android:visibility="gone" />
 
@@ -147,7 +147,7 @@
             android:paddingEnd="12dp"
             android:paddingBottom="8dp"
             android:textColor="@color/setup_text"
-            android:textColorHint="@color/setup_muted"
+            android:textColorHint="@color/setup_muted_text"
             android:textSize="15sp" />
 
         <Button

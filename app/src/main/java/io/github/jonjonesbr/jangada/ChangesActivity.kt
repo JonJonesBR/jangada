@@ -461,7 +461,7 @@ class ChangesActivity : JangadaActivity() {
         val explain = TextView(this).apply {
             text = getString(R.string.remote_link_explain)
             textSize = 14f
-            setTextColor(getColor(R.color.setup_muted))
+            setTextColor(getColor(R.color.setup_muted_text))
             setPadding(0, 0, 0, dp(8))
         }
         val field = EditText(this).apply {
@@ -699,7 +699,7 @@ class ChangesActivity : JangadaActivity() {
             text = spanned
             typeface = Typeface.MONOSPACE
             textSize = 12f
-            setTextColor(getColor(R.color.setup_muted))
+            setTextColor(getColor(R.color.setup_muted_text))
             setTextIsSelectable(true)
             setPadding(dp(16), dp(8), dp(16), dp(8))
             // Linhas longas rolam para o lado, sem quebrar o código.
@@ -716,11 +716,11 @@ class ChangesActivity : JangadaActivity() {
 
     /** Cor de uma linha do diff. Os cabeçalhos "+++" e "---" ficam cinza, como o resto. */
     private fun diffColor(line: String): Int = when {
-        line.startsWith("+++") || line.startsWith("---") -> R.color.setup_muted
-        line.startsWith("+") -> R.color.setup_done
+        line.startsWith("+++") || line.startsWith("---") -> R.color.setup_muted_text
+        line.startsWith("+") -> R.color.setup_done_text
         line.startsWith("-") -> R.color.setup_error
         line.startsWith("@@") -> R.color.accent_text
-        else -> R.color.setup_muted
+        else -> R.color.setup_muted_text
     }
 
     /** Texto longo (saída do git) numa caixa que se pode selecionar e copiar. */

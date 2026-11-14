@@ -302,14 +302,21 @@ object OpenCodeAuth {
         if (!isValidKey(key)) return KeyCheck.UNKNOWN
         var process: Process? = null
         return try {
-            process = linux.startProcess(script, secrets = false)
-            process.outputStream.use { it.write("$key\n".toByteArray(Charsets.UTF_8)) }
-            val lines = process.inputStream.bufferedReader().use { it.readLines() }
-            process.waitFor()
+            val started = linux.startProcess(script, secrets = false)
+            process = started
+            started.outputStream.use { it.write("$key\n".toByteArray(Charsets.UTF_8)) }
+            val lines = started.inputStream.bufferedReader().use { it.readLines() }
+            started.waitFor()
             parseKeyCheck(lines)
         } catch (e: IOException) {
-            process?.destroy()
             KeyCheck.UNKNOWN
+        } catch (e: InterruptedException) {
+            // Quem chamou foi interrompido: devolve a interrupção à thread e não dá resposta.
+            Thread.currentThread().interrupt()
+            KeyCheck.UNKNOWN
+        } finally {
+            // Sempre encerra o processo (ex.: se a leitura falhou ou a espera foi interrompida).
+            process?.destroy()
         }
     }
 

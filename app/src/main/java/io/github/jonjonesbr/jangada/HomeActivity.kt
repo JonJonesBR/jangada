@@ -273,7 +273,7 @@ class HomeActivity : JangadaActivity() {
         }
         val (text, low) = spaceLine(stat)
         view.text = text
-        view.setTextColor(getColor(if (low) R.color.setup_error else R.color.setup_muted))
+        view.setTextColor(getColor(if (low) R.color.setup_error else R.color.setup_muted_text))
         view.visibility = View.VISIBLE
     }
 
@@ -740,7 +740,7 @@ class HomeActivity : JangadaActivity() {
             limitsSummary(this, limits)?.let { summary ->
                 card.findViewById<TextView>(R.id.agent_limits).apply {
                     text = summary.text
-                    setTextColor(getColor(if (summary.high) R.color.setup_error else R.color.setup_muted))
+                    setTextColor(getColor(if (summary.high) R.color.setup_error else R.color.setup_muted_text))
                     contentDescription = getString(R.string.agent_limits_description, summary.names)
                     visibility = View.VISIBLE
                 }
@@ -780,7 +780,7 @@ class HomeActivity : JangadaActivity() {
         installedSizes[recipe.command]?.takeIf { isInstalled && task?.state != AgentTask.State.RUNNING && !queued }?.let { kb ->
             status.text = "${status.text} · ${formatSize(kb)}"
         }
-        status.setTextColor(getColor(if (isInstalled) R.color.setup_done else R.color.setup_muted))
+        status.setTextColor(getColor(if (isInstalled) R.color.setup_done_text else R.color.setup_muted_text))
 
         // Tarefa em andamento: barra de progresso e a última linha da saída.
         if (task?.state == AgentTask.State.RUNNING) {
@@ -1077,7 +1077,7 @@ class HomeActivity : JangadaActivity() {
         }
         if (memoryFit.visibility != View.VISIBLE) memoryFit.visibility = View.VISIBLE
         if (memoryFit.text.toString() != fit.first) memoryFit.text = fit.first
-        val color = getColor(if (fit.second) R.color.setup_error else R.color.setup_muted)
+        val color = getColor(if (fit.second) R.color.setup_error else R.color.setup_muted_text)
         if (memoryFit.currentTextColor != color) memoryFit.setTextColor(color)
     }
 

@@ -158,9 +158,9 @@ class SetupActivity : JangadaActivity() {
         // O texto original do passo fica guardado na tag, sem o marcador.
         val label = (view.tag as? String) ?: view.text.toString().also { view.tag = it }
         val (mark, color) = when (status) {
-            Status.PENDING -> "○" to R.color.setup_muted
+            Status.PENDING -> "○" to R.color.setup_muted_text
             Status.RUNNING -> "●" to R.color.accent_text
-            Status.DONE -> "✓" to R.color.setup_done
+            Status.DONE -> "✓" to R.color.setup_done_text
             Status.FAILED -> "✕" to R.color.setup_error
         }
         view.text = "$mark $label"

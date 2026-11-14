@@ -142,7 +142,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="@string/settings_max_agents_desc"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <TextView
@@ -160,7 +160,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="@string/settings_haptic_hint"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <TextView
@@ -229,7 +229,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="@string/settings_sleep_after_hint"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <TextView
@@ -251,7 +251,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="@string/settings_auto_compact_desc"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <TextView
@@ -259,7 +259,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="@string/settings_other_agents"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <TextView
@@ -267,7 +267,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="@string/settings_permissions_note"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <Switch
@@ -281,7 +281,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="@string/settings_agent_tips_hint"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <TextView
@@ -322,7 +322,7 @@
                 android:id="@+id/settings_linux_size"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="14sp" />
 
             <Switch
@@ -336,7 +336,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="@string/settings_auto_clean_hint"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <Button
@@ -376,7 +376,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/backup_intro"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <Button

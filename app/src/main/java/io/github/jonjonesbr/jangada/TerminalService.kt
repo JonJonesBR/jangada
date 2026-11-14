@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.LinkProperties
@@ -68,6 +69,8 @@ class TerminalService : Service() {
     /** Serviço iniciado por startService (fica vivo mesmo sem tela ligada a ele). */
     private var started = false
     private var linkWatcher: LinkWatcher? = null
+    /** Ouvinte do ajuste de manter o processador acordado (guardado aqui: o Android guarda só referência fraca). */
+    private var cpuAwakeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     /** Horários (elapsedRealtime) das aberturas diretas de link na janela; só a thread principal mexe. */
     private val directLinkOpens = ArrayDeque<Long>()
     /** Limpeza de restos antigos (onCreate); closeEverything espera por ela antes de apagar o Linux. */
@@ -429,6 +432,8 @@ class TerminalService : Service() {
         }
         watchNetworkDns()
         scheduleAutoClean()
+        // Trocar o ajuste nas configurações acorda ou solta o processador na hora.
+        cpuAwakeListener = AppSettings(this).watchCpuAwake { main.post { applyCpuAwake() } }
     }
 
     override fun onBind(intent: Intent): IBinder = binder
@@ -466,6 +471,8 @@ class TerminalService : Service() {
         main.removeCallbacks(autoCleanCheck)
         tearDownSessions().forEach { it.stop() }
         linkWatcher?.stopWatching()
+        cpuAwakeListener?.let { AppSettings(this).unwatchCpuAwake(it) }
+        cpuAwakeListener = null
         wakeLock?.let { if (it.isHeld) it.release() }
         networkCallback?.let { callback ->
             runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(callback) }
@@ -502,7 +509,23 @@ class TerminalService : Service() {
     fun createSession(title: String = DEFAULT_TITLE, script: String? = null, folder: String = ""): TerminalSession {
         val linux = LinuxEnv(this)
         val session = if (linux.isReady) {
-            runCatching { linux.refreshIntegration(trustClaude = false) }.onFailure { Log.w(TAG, "integração", it) }
+            // A integração (PATH, jangada-open, /tmp) é refeita fora da thread principal. Enquanto o
+            // arquivo-sinal dela existir, o shell espera (até 10 s), para não abrir sem o PATH pronto.
+            // Sem como criar o sinal, refaz aqui mesmo, como antes.
+            val integration = runCatching {
+                File(linux.rootfs, "tmp/.jangada-integration-${System.nanoTime()}").takeIf { it.createNewFile() }
+            }.getOrNull()
+            if (integration == null) {
+                runCatching { linux.refreshIntegration(trustClaude = false) }.onFailure { Log.w(TAG, "integração", it) }
+            } else {
+                thread(name = "jangada-integration") {
+                    try {
+                        runCatching { linux.refreshIntegration(trustClaude = false) }.onFailure { Log.w(TAG, "integração", it) }
+                    } finally {
+                        integration.delete()
+                    }
+                }
+            }
             // O ~/.claude.json pode ser grande: a confiança na pasta é feita fora da thread principal.
             // Enquanto o arquivo-sinal existir, o script da sessão espera (até 10 s) antes de abrir
             // o agente, para o Claude não ler o JSON antes da confiança e perguntar de novo.
@@ -517,10 +540,15 @@ class TerminalService : Service() {
                 }
             }
             startLinkWatcher(linux)
-            val waitTrust = pending?.let {
-                "i=0; while [ -e /tmp/${it.name} ] && [ \$i -lt 100 ]; do sleep 0.1; i=\$((i+1)); done; unset i\n"
-            }.orEmpty()
-            val inner = if (script == null) linux.loginCommand() else linux.sessionScriptCommand(waitTrust + script)
+            val waits = integration?.let { waitForFile(it.name) }.orEmpty() +
+                pending?.let { waitForFile(it.name) }.orEmpty()
+            val inner = when {
+                // Depois da espera, relê o PATH do Debian (o login já o leu antes do sinal).
+                script != null -> linux.sessionScriptCommand(waits + LinuxEnv.PROFILE_RELOAD + script)
+                waits.isEmpty() -> linux.loginCommand()
+                // Login sem script, mas com a integração ainda pendente: espera e depois abre o shell de login.
+                else -> linux.sessionScriptCommand(waits)
+            }
             val argv = linux.prootArgv(inner)
             TerminalSession(argv[0], filesDir.absolutePath, argv, linux.hostEnv(), TRANSCRIPT_ROWS, proxyClient)
         } else {
@@ -534,6 +562,10 @@ class TerminalService : Service() {
         sessionsChanged()
         return session
     }
+
+    /** Linha de shell que espera (até 10 s) o arquivo-sinal [name] em /tmp do Debian sumir. */
+    private fun waitForFile(name: String): String =
+        "i=0; while [ -e /tmp/$name ] && [ \$i -lt 100 ]; do sleep 0.1; i=\$((i+1)); done; unset i\n"
 
     fun session(handle: String): TerminalSession? = sessions.firstOrNull { it.mHandle == handle }
 
@@ -1147,6 +1179,10 @@ class TerminalService : Service() {
      */
     fun closeEverything(then: () -> Unit) {
         val gone = tearDownSessions()
+        // O vigia de links fica numa pasta do Linux que vai sumir: para e solta. startLinkWatcher o
+        // recria na próxima sessão ou chat, que só existem depois que o Linux volta.
+        linkWatcher?.stopWatching()
+        linkWatcher = null
         cancelRunningTasks()
         sessionListeners.forEach { it() }
         // Espera a saída de todos os chats soltos (sem nenhum, o latch já está liberado).
@@ -1176,13 +1212,25 @@ class TerminalService : Service() {
             started = true
             runCatching { startService(Intent(this, TerminalService::class.java)) }
         }
-        // Manter o processador acordado é opcional (configurações, Modo Pro).
-        if (wakeLock == null && AppSettings(this).keepCpuAwake) {
+        applyCpuAwake()
+    }
+
+    /**
+     * Segura o processador acordado só enquanto o serviço está em primeiro plano e o ajuste
+     * está ligado. Chamado ao entrar no primeiro plano e quando o ajuste muda. Thread principal.
+     */
+    private fun applyCpuAwake() {
+        val wanted = foreground && AppSettings(this).keepCpuAwake
+        val held = wakeLock
+        if (wanted && held == null) {
             val power = getSystemService(PowerManager::class.java)
             wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "jangada:sessions").apply {
                 setReferenceCounted(false)
                 acquire()
             }
+        } else if (!wanted && held != null) {
+            if (held.isHeld) held.release()
+            wakeLock = null
         }
     }
 

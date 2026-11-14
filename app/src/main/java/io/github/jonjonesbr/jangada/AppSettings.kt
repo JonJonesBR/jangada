@@ -1,6 +1,7 @@
 package io.github.jonjonesbr.jangada
 
 import android.content.Context
+import android.content.SharedPreferences
 import io.github.jonjonesbr.jangada.chat.AutoCompact
 import io.github.jonjonesbr.jangada.linux.ProjectOps
 
@@ -49,6 +50,22 @@ class AppSettings(context: Context) {
     var keepCpuAwake: Boolean
         get() = prefs.getBoolean(KEY_CPU_AWAKE, true)
         set(value) = prefs.edit().putBoolean(KEY_CPU_AWAKE, value).apply()
+
+    /**
+     * Avisa quando o ajuste de manter o processador acordado muda. Devolve o ouvinte, que deve
+     * ser desligado com [unwatchCpuAwake] (o serviço faz isso no onDestroy).
+     */
+    fun watchCpuAwake(onChange: () -> Unit): SharedPreferences.OnSharedPreferenceChangeListener {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_CPU_AWAKE) onChange()
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        return listener
+    }
+
+    fun unwatchCpuAwake(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
+    }
 
     /** Tela do terminal não apaga sozinha. */
     var keepScreenOn: Boolean

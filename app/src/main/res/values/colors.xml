@@ -19,6 +19,9 @@
     <color name="setup_muted">#5C6F75</color>
     <color name="setup_done">#1C8576</color>
     <color name="setup_error">#C2412B</color>
+    <!-- Verde e cinza para TEXTO no tema claro, escurecidos para >= 4,5:1 sobre setup_bg e bar_bg. Os de cima ficam para fundos e ícones. -->
+    <color name="setup_done_text">#156A5E</color>
+    <color name="setup_muted_text">#4F5F65</color>
     <color name="card_bg">#FFFFFF</color>
     <color name="card_stroke">#DDD5C5</color>
     <color name="chip_bg">#EEE8DC</color>

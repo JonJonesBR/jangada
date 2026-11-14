@@ -79,7 +79,7 @@ class ApiKeysActivity : JangadaActivity() {
         list.removeAllViews()
         list.addView(TextView(this).apply {
             setText(R.string.keys_intro)
-            setTextColor(getColor(R.color.setup_muted))
+            setTextColor(getColor(R.color.setup_muted_text))
             textSize = 14f
             setPadding(0, 0, 0, dp(12))
         })
@@ -115,14 +115,14 @@ class ApiKeysActivity : JangadaActivity() {
         })
         card.addView(TextView(this).apply {
             text = description
-            setTextColor(getColor(R.color.setup_muted))
+            setTextColor(getColor(R.color.setup_muted_text))
             textSize = 13f
         })
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val (statusText, statusColor) = when {
-            readable -> R.string.keys_saved to R.color.setup_done
+            readable -> R.string.keys_saved to R.color.setup_done_text
             stored -> R.string.keys_unreadable to R.color.setup_error
-            else -> R.string.keys_not_set to R.color.setup_muted
+            else -> R.string.keys_not_set to R.color.setup_muted_text
         }
         actions.addView(TextView(this).apply {
             setText(statusText)

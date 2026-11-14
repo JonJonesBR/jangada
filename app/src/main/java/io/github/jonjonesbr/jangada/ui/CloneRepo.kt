@@ -44,7 +44,7 @@ fun Activity.askCloneRepo(rootfs: File, onOk: (url: String, folder: String) -> U
     val explain = TextView(this).apply {
         text = getString(R.string.clone_explain)
         textSize = 14f
-        setTextColor(getColor(R.color.setup_muted))
+        setTextColor(getColor(R.color.setup_muted_text))
         setPadding(0, 0, 0, dpToPx(8))
     }
     val urlField = EditText(this).apply {

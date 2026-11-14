@@ -6,6 +6,9 @@
     <color name="setup_muted">#A9BEC3</color>
     <color name="setup_done">#7FD1C7</color>
     <color name="setup_error">#FF9E8A</color>
+    <!-- Texto no tema escuro: mesmos valores de setup_muted e setup_done. -->
+    <color name="setup_done_text">#7FD1C7</color>
+    <color name="setup_muted_text">#A9BEC3</color>
     <color name="card_bg">#123844</color>
     <color name="card_stroke">#1E4D5B</color>
     <color name="chip_bg">#0B2129</color>

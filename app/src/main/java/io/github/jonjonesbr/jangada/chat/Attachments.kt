@@ -99,10 +99,26 @@ object Attachments {
     /**
      * Copia o stream para [target], parando com [AttachmentTooLargeException]
      * se passar de [maxBytes]. Quem chama apaga o arquivo parcial. Falha se
-     * já existir algo em [target] (inclusive link), sem seguir nem sobrescrever.
+     * já existir algo em [target] (inclusive link), sem seguir nem sobrescrever. A exceção é o
+     * arquivo vazio reservado por [unique] (regular, sem link): nele a cópia entra.
      */
     internal fun copyLimited(input: InputStream, target: File, maxBytes: Long = MAX_ATTACHMENT_BYTES) {
-        Files.newOutputStream(target.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE).use { out ->
+        val path = target.toPath()
+        val exists = Files.exists(path, LinkOption.NOFOLLOW_LINKS)
+        val reserved = exists && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && Files.size(path) == 0L
+        if (exists && !reserved) throw FileAlreadyExistsException(target.path)
+        val out = if (reserved) {
+            // NOFOLLOW_LINKS: se o arquivo reservado virar link entre a conferência e a abertura, falha.
+            Files.newOutputStream(
+                path,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                LinkOption.NOFOLLOW_LINKS,
+            )
+        } else {
+            Files.newOutputStream(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+        }
+        out.use { stream ->
             val buffer = ByteArray(8192)
             var total = 0L
             while (true) {
@@ -110,7 +126,7 @@ object Attachments {
                 if (read < 0) break
                 total += read
                 if (total > maxBytes) throw AttachmentTooLargeException(maxBytes)
-                out.write(buffer, 0, read)
+                stream.write(buffer, 0, read)
             }
         }
     }
@@ -195,17 +211,23 @@ object Attachments {
         return base.substring(0, base.offsetByCodePoints(0, minOf(keep, base.codePointCount(0, base.length)))) + ext
     }
 
-    /** Nome livre em [dir]. Link quebrado conta como ocupado (não é seguido). */
+    /**
+     * Nome livre em [dir], já reservado: o arquivo é criado vazio com criação exclusiva, então dois
+     * anexos de mesmo nome nunca ficam com o mesmo caminho. Link quebrado conta como ocupado (não é seguido).
+     */
     internal fun unique(dir: File, name: String): File {
-        var file = File(dir, name)
-        var counter = 2
-        while (Fs.exists(file.toPath())) {
-            val dot = name.lastIndexOf('.')
-            val base = if (dot > 0) name.substring(0, dot) else name
-            val ext = if (dot > 0) name.substring(dot) else ""
-            file = File(dir, "$base-$counter$ext")
-            counter++
+        val dot = name.lastIndexOf('.')
+        val base = if (dot > 0) name.substring(0, dot) else name
+        val ext = if (dot > 0) name.substring(dot) else ""
+        var counter = 1
+        while (true) {
+            val candidate = File(dir, if (counter == 1) name else "$base-$counter$ext")
+            try {
+                Files.createFile(candidate.toPath())
+                return candidate
+            } catch (e: FileAlreadyExistsException) {
+                counter++
+            }
         }
-        return file
     }
 }

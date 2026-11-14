@@ -83,7 +83,7 @@ class ProjectsActivity : JangadaActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        empty = label(getString(R.string.projects_empty), 15f, R.color.setup_muted, top = 8)
+        empty = label(getString(R.string.projects_empty), 15f, R.color.setup_muted_text, top = 8)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(24))
@@ -259,11 +259,11 @@ class ProjectsActivity : JangadaActivity() {
         isFocusable = true
         setOnClickListener { openActions(item) }
         addView(label(item.name, 16f, R.color.setup_text, bold = true, top = 0))
-        Workspace.describe(this@ProjectsActivity, item)?.let { addView(label(it, 14f, R.color.setup_muted)) }
+        Workspace.describe(this@ProjectsActivity, item)?.let { addView(label(it, 14f, R.color.setup_muted_text)) }
         sizes[item.name]?.let {
-            addView(label(Formatter.formatShortFileSize(this@ProjectsActivity, it.total), 14f, R.color.setup_muted))
+            addView(label(Formatter.formatShortFileSize(this@ProjectsActivity, it.total), 14f, R.color.setup_muted_text))
         }
-        if (open) addView(label(getString(R.string.projects_open_work), 14f, R.color.setup_done))
+        if (open) addView(label(getString(R.string.projects_open_work), 14f, R.color.setup_done_text))
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             .apply { topMargin = dp(10) }
     }
@@ -553,7 +553,7 @@ class ProjectsActivity : JangadaActivity() {
             if (branch != null) getString(R.string.projects_delete_worktree, branch)
             else getString(R.string.projects_delete_message),
             14f,
-            R.color.setup_muted,
+            R.color.setup_muted_text,
             top = 0,
         )
         val field = EditText(this).apply {
@@ -651,7 +651,7 @@ class ProjectsActivity : JangadaActivity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), 0)
-            addView(label(getString(R.string.projects_rename_message), 14f, R.color.setup_muted, top = 0))
+            addView(label(getString(R.string.projects_rename_message), 14f, R.color.setup_muted_text, top = 0))
             addView(field)
         }
         val dialog = AlertDialog.Builder(this)
@@ -736,7 +736,7 @@ class ProjectsActivity : JangadaActivity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), 0)
-            addView(label(getString(R.string.projects_copy_message), 14f, R.color.setup_muted, top = 0))
+            addView(label(getString(R.string.projects_copy_message), 14f, R.color.setup_muted_text, top = 0))
             addView(field)
         }
         val dialog = AlertDialog.Builder(this)

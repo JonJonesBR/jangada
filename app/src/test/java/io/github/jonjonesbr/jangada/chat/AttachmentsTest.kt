@@ -93,4 +93,22 @@ class AttachmentsTest {
         }
         assertTrue(target.length() <= 1000L)
     }
+
+    @Test
+    fun doisAnexosDoMesmoNomeGanhamCaminhosDiferentes() {
+        val dir = java.nio.file.Files.createTempDirectory("anexos").toFile().apply { deleteOnExit() }
+        val primeiro = Attachments.unique(dir, "foto.jpg")
+        val segundo = Attachments.unique(dir, "foto.jpg")
+        assertEquals("foto.jpg", primeiro.name)
+        assertEquals("foto-2.jpg", segundo.name)
+        assertTrue(primeiro.exists() && segundo.exists())
+    }
+
+    @Test
+    fun copiaEntraNoArquivoReservadoPeloUnique() {
+        val dir = java.nio.file.Files.createTempDirectory("anexos").toFile().apply { deleteOnExit() }
+        val reservado = Attachments.unique(dir, "nota.txt")
+        Attachments.copyLimited(ByteArrayInputStream("olá".toByteArray()), reservado)
+        assertEquals("olá", reservado.readText())
+    }
 }

@@ -45,7 +45,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/home_subtitle"
-                    android:textColor="@color/setup_muted"
+                    android:textColor="@color/setup_muted_text"
                     android:textSize="14sp" />
             </LinearLayout>
 
@@ -57,7 +57,7 @@
                 android:contentDescription="@string/home_settings"
                 android:gravity="center"
                 android:text="⚙"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="24sp" />
         </LinearLayout>
 
@@ -96,7 +96,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:lineSpacingMultiplier="1.15"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="14sp" />
 
             <TextView
@@ -104,7 +104,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="14sp" />
 
             <Button
@@ -153,7 +153,7 @@
             android:layout_marginBottom="12dp"
             android:lineSpacingMultiplier="1.15"
             android:text="@string/home_jobs_empty"
-            android:textColor="@color/setup_muted"
+            android:textColor="@color/setup_muted_text"
             android:textSize="14sp"
             android:visibility="gone" />
 
@@ -251,7 +251,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp" />
 
             <!-- Previsão para mais um agente (ver HomeActivity.fitMessage); some sem histórico. -->
@@ -260,7 +260,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="13sp"
                 android:visibility="gone" />
         </LinearLayout>
@@ -310,7 +310,7 @@
                 android:layout_marginTop="4dp"
                 android:lineSpacingMultiplier="1.15"
                 android:text="@string/home_welcome_body"
-                android:textColor="@color/setup_muted"
+                android:textColor="@color/setup_muted_text"
                 android:textSize="14sp" />
 
             <Button
