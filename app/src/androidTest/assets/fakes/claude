@@ -42,6 +42,9 @@ while IFS= read -r line; do
       PENDING=; result ;;
     *'"type":"user"'*)
       N=$((N+1)); STUCK=0
+      # Como o Claude de verdade: grava o arquivo da conversa na primeira mensagem (sem ele o app não retoma com --resume).
+      KEY=$(printf '%s' "$PWD" | sed 's/[^A-Za-z0-9]/-/g'); mkdir -p "$HOME/.claude/projects/$KEY"
+      echo '{"type":"user","message":{"role":"user","content":"oi"}}' > "$HOME/.claude/projects/$KEY/$SID.jsonl"
       case "$line" in
         *pergunta*) ask q$N AskUserQuestion '{"questions":[{"question":"Qual cor?","header":"Cor","multiSelect":false,"options":[{"label":"Azul","description":"frio"},{"label":"Verde","description":"calmo"}]}]}' ;;
         *plano*) ask p$N ExitPlanMode '{"plan":"## Plano\n1. Fazer A\n2. Fazer B"}' ;;
