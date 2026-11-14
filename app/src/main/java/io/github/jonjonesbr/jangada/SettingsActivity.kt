@@ -182,14 +182,17 @@ class SettingsActivity : JangadaActivity() {
         terminalTheme.setOnClickListener {
             val ids = TerminalThemes.names.keys.toList()
             val labels = TerminalThemes.names.values.map { getString(it) }.toTypedArray()
-            AlertDialog.Builder(this)
-                .setTitle(R.string.terminal_theme_title)
-                .setSingleChoiceItems(labels, ids.indexOf(settings.terminalTheme).coerceAtLeast(0)) { dialog, which ->
-                    settings.terminalTheme = ids[which]
-                    dialog.dismiss()
-                    showTerminalTheme()
-                    if (ids[which] == "solarized_light") Toast.makeText(this, R.string.terminal_theme_note, Toast.LENGTH_LONG).show()
-                }
+            Sheet(this)
+                .title(getString(R.string.terminal_theme_title))
+                .rows(
+                    ids.mapIndexed { index, id ->
+                        Sheet.Row(title = labels[index], checked = id == settings.terminalTheme) {
+                            settings.terminalTheme = id
+                            showTerminalTheme()
+                            if (id == "solarized_light") Toast.makeText(this, R.string.terminal_theme_note, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                )
                 .show()
         }
 
@@ -202,16 +205,16 @@ class SettingsActivity : JangadaActivity() {
         }
         showChatText()
         chatText.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.settings_chat_text_title)
-                .setSingleChoiceItems(
-                    scaleOptions.map { getString(it.second) }.toTypedArray(),
-                    scaleOptions.indexOfFirst { it.first == settings.chatTextScale },
-                ) { dialog, which ->
-                    settings.chatTextScale = scaleOptions[which].first
-                    dialog.dismiss()
-                    showChatText()
-                }
+            Sheet(this)
+                .title(getString(R.string.settings_chat_text_title))
+                .rows(
+                    scaleOptions.map { (scale, nameRes) ->
+                        Sheet.Row(title = getString(nameRes), checked = scale == settings.chatTextScale) {
+                            settings.chatTextScale = scale
+                            showChatText()
+                        }
+                    },
+                )
                 .show()
         }
 
@@ -224,16 +227,16 @@ class SettingsActivity : JangadaActivity() {
         showStall()
         stallButton.setOnClickListener {
             val options = AppSettings.CHAT_STALL_OPTIONS
-            AlertDialog.Builder(this)
-                .setTitle(R.string.settings_chat_stall_title)
-                .setSingleChoiceItems(
-                    options.map { stallLabel(it) }.toTypedArray(),
-                    options.indexOf(settings.chatStallSeconds),
-                ) { dialog, which ->
-                    settings.chatStallSeconds = options[which]
-                    dialog.dismiss()
-                    showStall()
-                }
+            Sheet(this)
+                .title(getString(R.string.settings_chat_stall_title))
+                .rows(
+                    options.map { seconds ->
+                        Sheet.Row(title = stallLabel(seconds), checked = seconds == settings.chatStallSeconds) {
+                            settings.chatStallSeconds = seconds
+                            showStall()
+                        }
+                    },
+                )
                 .show()
         }
 
@@ -368,18 +371,24 @@ class SettingsActivity : JangadaActivity() {
     }
 
     private fun chooseBackup() {
-        val options = arrayOf(getString(R.string.backup_projects), getString(R.string.backup_everything))
-        AlertDialog.Builder(this)
-            .setTitle(R.string.backup_choose_title)
-            .setItems(options) { _, which ->
-                backupEverything = which == 1
-                val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date())
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-                    .addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("application/gzip")
-                    .putExtra(Intent.EXTRA_TITLE, "jangada-backup-$stamp.tar.gz")
-                runCatching { startActivityForResult(intent, REQUEST_EXPORT) }
-            }
+        // Escolha entre só os projetos ou tudo: abre num painel, como as outras escolhas da tela.
+        fun startExport(everything: Boolean) {
+            backupEverything = everything
+            val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date())
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/gzip")
+                .putExtra(Intent.EXTRA_TITLE, "jangada-backup-$stamp.tar.gz")
+            runCatching { startActivityForResult(intent, REQUEST_EXPORT) }
+        }
+        Sheet(this)
+            .title(getString(R.string.backup_choose_title))
+            .rows(
+                listOf(
+                    Sheet.Row(title = getString(R.string.backup_projects)) { startExport(false) },
+                    Sheet.Row(title = getString(R.string.backup_everything)) { startExport(true) },
+                ),
+            )
             .show()
     }
 

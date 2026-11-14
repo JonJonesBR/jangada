@@ -161,7 +161,7 @@
     <string name="chat_status_stalled_suffix">possible hang</string>
     <string name="chat_status_waiting">Waiting for your permission (%1$d) for %2$s</string>
     <string name="chat_status_stalled">No events for %1$s — possible hang</string>
-    <string name="chat_status_stalled_tip">Tap Stop again to end the agent.</string>
+    <string name="chat_status_stalled_tip">Wait a little longer, or tap Stop again to end the agent.</string>
     <string name="chat_status_lost">Connection lost: the agent exited (code %1$d)</string>
     <string name="chat_jump_end">Go to the latest message</string>
     <string name="chat_background_one">In the background: %1$s</string>

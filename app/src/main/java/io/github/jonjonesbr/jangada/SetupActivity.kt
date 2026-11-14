@@ -161,7 +161,7 @@ class SetupActivity : JangadaActivity() {
             Status.PENDING -> "○" to R.color.setup_muted_text
             Status.RUNNING -> "●" to R.color.accent_text
             Status.DONE -> "✓" to R.color.setup_done_text
-            Status.FAILED -> "✕" to R.color.setup_error
+            Status.FAILED -> "✕" to R.color.setup_error_text
         }
         view.text = "$mark $label"
         view.setTextColor(getColor(color))

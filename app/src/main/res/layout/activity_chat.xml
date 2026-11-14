@@ -199,7 +199,7 @@
             android:id="@+id/chat_stop"
             style="@style/BarButton"
             android:text="@string/chat_stop"
-            android:textColor="@color/setup_error" />
+            android:textColor="@color/setup_error_text" />
     </LinearLayout>
 
     <HorizontalScrollView

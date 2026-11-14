@@ -1356,7 +1356,7 @@ class ChatActivity : JangadaActivity() {
         chipMode.visibility = if (modeName == null) View.GONE else View.VISIBLE
         if (modeName != null) {
             chipMode.text = "🛡 $modeName"
-            chipMode.setTextColor(getColor(if (modeId != null && ModeText.isRisky(modeId)) R.color.setup_error else R.color.setup_text))
+            chipMode.setTextColor(getColor(if (modeId != null && ModeText.isRisky(modeId)) R.color.setup_error_text else R.color.setup_text))
             chipMode.contentDescription = getString(R.string.chat_chip_mode_description, modeName)
         }
 
@@ -1372,7 +1372,7 @@ class ChatActivity : JangadaActivity() {
             val percent = usage.percent
             val high = percent >= COMPACT_PERCENT
             chipContext.text = getString(if (high) R.string.chat_chip_context_high else R.string.chat_chip_context, percent)
-            chipContext.setTextColor(getColor(if (high) R.color.setup_error else R.color.setup_text))
+            chipContext.setTextColor(getColor(if (high) R.color.setup_error_text else R.color.setup_text))
             chipContext.contentDescription = getString(R.string.chat_chip_context_description, percent)
         }
 
@@ -1462,7 +1462,7 @@ class ChatActivity : JangadaActivity() {
         }
         chipLimits.visibility = View.VISIBLE
         chipLimits.text = summary.text
-        chipLimits.setTextColor(getColor(if (summary.high) R.color.setup_error else R.color.setup_text))
+        chipLimits.setTextColor(getColor(if (summary.high) R.color.setup_error_text else R.color.setup_text))
         chipLimits.contentDescription = getString(R.string.chat_chip_limits_description, summary.names)
     }
 
@@ -3350,11 +3350,12 @@ class ChatActivity : JangadaActivity() {
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE
             textSize = 12f * chatScale
-            setTextColor(getColor(if (item.failed) R.color.setup_error else R.color.setup_muted_text))
+            setTextColor(getColor(if (item.failed) R.color.setup_error_text else R.color.setup_muted_text))
             setPadding(dp(4), dp(2), dp(4), dp(2))
             gravity = Gravity.CENTER_VERTICAL
             if (output != null) {
-                minHeight = dp(32)
+                // Alvo de toque de 48dp (mínimo recomendado pelo Android).
+                minHeight = dp(48)
                 setBackgroundResource(selectableBackground)
                 setOnClickListener { showDetails(R.string.chat_tool_output, "$line\n\n$output") }
                 contentDescription = getString(R.string.chat_tool_output_description, listOfNotNull(line, firstError).joinToString(". "))
@@ -3411,7 +3412,7 @@ class ChatActivity : JangadaActivity() {
             ellipsize = TextUtils.TruncateAt.END
             typeface = Typeface.MONOSPACE
             textSize = 12f * chatScale
-            setTextColor(getColor(if (failed) R.color.setup_error else R.color.setup_muted_text))
+            setTextColor(getColor(if (failed) R.color.setup_error_text else R.color.setup_muted_text))
             setPadding(dp(4), dp(2), dp(4), dp(2))
             gravity = Gravity.CENTER_VERTICAL
             minHeight = dp(48)
@@ -3482,7 +3483,7 @@ class ChatActivity : JangadaActivity() {
             if (item.state != ChildState.RUNNING) {
                 // O erro vem antes do resultado; o resultado aparece inteiro com o cartão aberto.
                 item.error?.takeIf { it.isNotBlank() }?.let {
-                    card.addView(childText(it, 13f, R.color.setup_error).apply { setPadding(0, dp(6), 0, 0) })
+                    card.addView(childText(it, 13f, R.color.setup_error_text).apply { setPadding(0, dp(6), 0, 0) })
                 }
                 if (item.result.isNotEmpty()) {
                     card.addView(childText(item.result, 13f, R.color.setup_text).apply {
@@ -3659,7 +3660,7 @@ class ChatActivity : JangadaActivity() {
                         analysis.reasons.joinToString(", ") { riskReason(it) },
                     )
                     textSize = 13f * chatScale
-                    setTextColor(getColor(R.color.setup_error))
+                    setTextColor(getColor(R.color.setup_error_text))
                     setPadding(0, dp(4), 0, dp(2))
                 })
             }
@@ -3667,7 +3668,7 @@ class ChatActivity : JangadaActivity() {
             if (chosen != null) {
                 card.addView(TextView(this@ChatActivity).apply {
                     text = optionLabel(item, chosen)
-                    setTextColor(getColor(if (chosen.allows) R.color.setup_done_text else R.color.setup_error))
+                    setTextColor(getColor(if (chosen.allows) R.color.setup_done_text else R.color.setup_error_text))
                     textSize = 13f * chatScale
                     setPadding(0, dp(4), 0, 0)
                 })
@@ -3732,7 +3733,7 @@ class ChatActivity : JangadaActivity() {
                         isAllCaps = false
                         textSize = 14f * chatScale
                         minHeight = dp(48)
-                        setTextColor(getColor(R.color.setup_error))
+                        setTextColor(getColor(R.color.setup_error_text))
                         setOnClickListener { engine?.answer(item, deny) }
                     }
                     row.addView(
@@ -3766,7 +3767,7 @@ class ChatActivity : JangadaActivity() {
                     text = optionLabel(item, option)
                     isAllCaps = false
                     textSize = 14f * chatScale
-                    setTextColor(getColor(if (option.allows) R.color.accent_text else R.color.setup_error))
+                    setTextColor(getColor(if (option.allows) R.color.accent_text else R.color.setup_error_text))
                     setOnClickListener { engine?.answer(item, option) }
                 }
                 more.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -3826,7 +3827,7 @@ class ChatActivity : JangadaActivity() {
             if (chosen != null) {
                 card.addView(TextView(this@ChatActivity).apply {
                     text = optionLabel(item, chosen)
-                    setTextColor(getColor(if (chosen.allows) R.color.setup_done_text else R.color.setup_error))
+                    setTextColor(getColor(if (chosen.allows) R.color.setup_done_text else R.color.setup_error_text))
                     textSize = 13f * chatScale
                     setPadding(0, dp(4), 0, 0)
                 })
@@ -3846,7 +3847,7 @@ class ChatActivity : JangadaActivity() {
                     button.backgroundTintList = ColorStateList.valueOf(getColor(R.color.key_active))
                     button.setTextColor(getColor(R.color.setup_on_accent))
                 } else {
-                    button.setTextColor(getColor(if (option.allows) R.color.accent_text else R.color.setup_error))
+                    button.setTextColor(getColor(if (option.allows) R.color.accent_text else R.color.setup_error_text))
                 }
                 button.setOnClickListener { engine?.answer(item, option) }
                 buttons.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -3877,7 +3878,7 @@ class ChatActivity : JangadaActivity() {
             if (chosen != null && !chosen.allows) {
                 card.addView(TextView(this@ChatActivity).apply {
                     text = getString(R.string.chat_question_skipped)
-                    setTextColor(getColor(R.color.setup_error))
+                    setTextColor(getColor(R.color.setup_error_text))
                     textSize = 13f * chatScale
                     setPadding(0, dp(4), 0, 0)
                 })
@@ -3976,7 +3977,7 @@ class ChatActivity : JangadaActivity() {
                 text = getString(R.string.chat_question_skip)
                 isAllCaps = false
                 textSize = 14f * chatScale
-                setTextColor(getColor(R.color.setup_error))
+                setTextColor(getColor(R.color.setup_error_text))
                 setOnClickListener { engine?.answer(item, item.options.first { it.kind == PermissionOption.Kind.REJECT_ONCE }) }
             }
             buttons.addView(answer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -4070,7 +4071,7 @@ class ChatActivity : JangadaActivity() {
                     val start = length
                     append(line)
                     val color = when {
-                        line.startsWith("- ") -> R.color.setup_error
+                        line.startsWith("- ") -> R.color.setup_error_text
                         line.startsWith("+ ") -> R.color.setup_done_text
                         else -> R.color.setup_muted_text
                     }
@@ -4127,7 +4128,7 @@ class ChatActivity : JangadaActivity() {
                     item.message?.let { message ->
                         card.addView(TextView(this@ChatActivity).apply {
                             text = message
-                            setTextColor(getColor(R.color.setup_error))
+                            setTextColor(getColor(R.color.setup_error_text))
                             textSize = 13f * chatScale
                             setPadding(0, 0, 0, dp(6))
                         })
@@ -4200,7 +4201,7 @@ class ChatActivity : JangadaActivity() {
             movementMethod = if (hasLink) LinkMovementMethod.getInstance() else null
             gravity = Gravity.CENTER
             textSize = 13f * chatScale
-            setTextColor(getColor(if (item.isError) R.color.setup_error else R.color.setup_muted_text))
+            setTextColor(getColor(if (item.isError) R.color.setup_error_text else R.color.setup_muted_text))
             setPadding(dp(12), dp(6), dp(12), dp(6))
             setOnLongClickListener { copy(item.text); true }
         }

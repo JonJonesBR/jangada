@@ -366,7 +366,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/settings_reinstall"
                 android:textAllCaps="false"
-                android:textColor="@color/setup_error" />
+                android:textColor="@color/setup_error_text" />
 
             <TextView
                 style="@style/HomeSection"

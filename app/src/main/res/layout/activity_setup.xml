@@ -84,7 +84,7 @@
             android:layout_marginTop="16dp"
             android:accessibilityLiveRegion="polite"
             android:lineSpacingMultiplier="1.2"
-            android:textColor="@color/setup_error"
+            android:textColor="@color/setup_error_text"
             android:textSize="15sp"
             android:visibility="gone" />
 

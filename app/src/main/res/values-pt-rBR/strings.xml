@@ -159,7 +159,7 @@
     <string name="chat_status_stalled_suffix">possível travamento</string>
     <string name="chat_status_waiting">Aguardando sua permissão (%1$d) há %2$s</string>
     <string name="chat_status_stalled">Sem eventos há %1$s — possível travamento</string>
-    <string name="chat_status_stalled_tip">Toque em Parar de novo para encerrar o agente.</string>
+    <string name="chat_status_stalled_tip">Aguarde um pouco, ou toque em Parar de novo para encerrar o agente.</string>
     <string name="chat_status_lost">Conexão perdida: o agente encerrou (código %1$d)</string>
     <string name="chat_jump_end">Ir para a última mensagem</string>
     <string name="chat_background_one">Em segundo plano: %1$s</string>
@@ -302,12 +302,12 @@
     <string name="chat_permission_wait_previous">Responda o pedido %1$d de %2$d primeiro</string>
     <string name="chat_permission_confirm">Confirmar permissão</string>
     <string name="chat_permission_risk">⚠ Alto risco: %1$s</string>
-    <string name="chat_risk_push">push</string>
-    <string name="chat_risk_merge">merge</string>
-    <string name="chat_risk_tag">tag</string>
-    <string name="chat_risk_release">release</string>
+    <string name="chat_risk_push">enviar ao remoto (push)</string>
+    <string name="chat_risk_merge">juntar branches (merge)</string>
+    <string name="chat_risk_tag">criar tag de versão</string>
+    <string name="chat_risk_release">publicar release</string>
     <string name="chat_risk_api">API</string>
-    <string name="chat_risk_workflow">workflow</string>
+    <string name="chat_risk_workflow">alterar o workflow do CI</string>
     <string name="chat_risk_delete">apagar arquivos</string>
     <string name="chat_risk_outside">fora do projeto</string>
     <string name="chat_risk_shell_pipe">pipe para shell</string>

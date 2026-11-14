@@ -718,7 +718,7 @@ class ChangesActivity : JangadaActivity() {
     private fun diffColor(line: String): Int = when {
         line.startsWith("+++") || line.startsWith("---") -> R.color.setup_muted_text
         line.startsWith("+") -> R.color.setup_done_text
-        line.startsWith("-") -> R.color.setup_error
+        line.startsWith("-") -> R.color.setup_error_text
         line.startsWith("@@") -> R.color.accent_text
         else -> R.color.setup_muted_text
     }

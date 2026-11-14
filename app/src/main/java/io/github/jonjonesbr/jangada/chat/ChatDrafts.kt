@@ -15,7 +15,8 @@ class ChatDrafts(context: Context) {
     /** Texto em branco apaga o rascunho; texto grande é cortado em [MAX_CHARS]. */
     fun put(key: String, text: String) {
         val editor = prefs.edit()
-        if (text.isBlank()) editor.remove(key) else editor.putString(key, text.take(MAX_CHARS))
+        val kept = draftToStore(text)
+        if (kept == null) editor.remove(key) else editor.putString(key, kept)
         editor.apply()
     }
 
@@ -24,14 +25,7 @@ class ChatDrafts(context: Context) {
      * com o prefixo [ATTACHMENTS_PREFIX]. JSON inválido vira lista vazia.
      */
     fun getAttachments(key: String): List<Triple<String, String, String>> {
-        val raw = prefs.getString(ATTACHMENTS_PREFIX + key, null) ?: return emptyList()
-        return runCatching {
-            val array = JSONArray(raw)
-            (0 until array.length()).map { i ->
-                val obj = array.getJSONObject(i)
-                Triple(obj.getString("name"), obj.getString("path"), obj.getString("mime"))
-            }
-        }.getOrDefault(emptyList())
+        return decodeAttachments(prefs.getString(ATTACHMENTS_PREFIX + key, null))
     }
 
     /** Lista vazia apaga os anexos guardados do trabalho. */
@@ -40,11 +34,7 @@ class ChatDrafts(context: Context) {
         if (list.isEmpty()) {
             editor.remove(ATTACHMENTS_PREFIX + key)
         } else {
-            val array = JSONArray()
-            for ((name, path, mime) in list) {
-                array.put(JSONObject().put("name", name).put("path", path).put("mime", mime))
-            }
-            editor.putString(ATTACHMENTS_PREFIX + key, array.toString())
+            editor.putString(ATTACHMENTS_PREFIX + key, encodeAttachments(list))
         }
         editor.apply()
     }
@@ -78,3 +68,29 @@ class ChatDrafts(context: Context) {
         private const val ATTACHMENTS_PREFIX = "att:"
     }
 }
+
+/** Texto a guardar do rascunho: null se está em branco (apaga o rascunho); senão, cortado em [ChatDrafts.MAX_CHARS]. */
+internal fun draftToStore(text: String): String? =
+    if (text.isBlank()) null else text.take(ChatDrafts.MAX_CHARS)
+
+/** Anexos pendentes em JSON: uma lista de objetos com nome, caminho e tipo. */
+internal fun encodeAttachments(list: List<Triple<String, String, String>>): String {
+    val array = JSONArray()
+    for ((name, path, mime) in list) {
+        array.put(JSONObject().put("name", name).put("path", path).put("mime", mime))
+    }
+    return array.toString()
+}
+
+/** Lê os anexos do JSON guardado. Ausente ou inválido vira lista vazia. */
+internal fun decodeAttachments(raw: String?): List<Triple<String, String, String>> {
+    if (raw == null) return emptyList()
+    return runCatching {
+        val array = JSONArray(raw)
+        (0 until array.length()).map { i ->
+            val obj = array.getJSONObject(i)
+            Triple(obj.getString("name"), obj.getString("path"), obj.getString("mime"))
+        }
+    }.getOrDefault(emptyList())
+}
+

@@ -569,7 +569,7 @@ class ProjectsActivity : JangadaActivity() {
             setPadding(dp(20), dp(8), dp(20), 0)
             addView(explain)
             if (dirty > 0) {
-                addView(label(resources.getQuantityString(R.plurals.projects_dirty_files, dirty, dirty), 14f, R.color.setup_error, top = 8))
+                addView(label(resources.getQuantityString(R.plurals.projects_dirty_files, dirty, dirty), 14f, R.color.setup_error_text, top = 8))
             }
             addView(field)
             if (history) addView(historyBox)

@@ -51,35 +51,55 @@ class LinkWatcher(
      */
     private fun readLink(entry: Path, name: String): String? {
         val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-        if (!attrs.isRegularFile || attrs.size() > MAX_BYTES) {
+        if (!attrs.isRegularFile || attrs.size() > LINK_MAX_BYTES) {
             Log.w(TAG, "entrada ignorada (não é arquivo comum ou é grande demais): $name")
             return null
         }
         // Lê com limite: o arquivo pode ter crescido depois da conferência acima.
-        val text = Files.newInputStream(entry, LinkOption.NOFOLLOW_LINKS).use { input ->
-            val buffer = ByteArray(MAX_BYTES + 1)
-            var total = 0
-            while (total < buffer.size) {
-                val n = input.read(buffer, total, buffer.size - total)
+        val buffer = ByteArray(LINK_MAX_BYTES + 1)
+        val total = Files.newInputStream(entry, LinkOption.NOFOLLOW_LINKS).use { input ->
+            var read = 0
+            while (read < buffer.size) {
+                val n = input.read(buffer, read, buffer.size - read)
                 if (n < 0) break
-                total += n
+                read += n
             }
-            if (total > MAX_BYTES) null else String(buffer, 0, total, Charsets.UTF_8).trim()
+            read
         }
-        if (text == null) {
-            Log.w(TAG, "entrada ignorada (maior que $MAX_BYTES bytes): $name")
-            return null
+        return when (val result = interpretLinkBytes(buffer, total)) {
+            is LinkEntry.Link -> result.url
+            LinkEntry.TooLarge -> {
+                Log.w(TAG, "entrada ignorada (maior que $LINK_MAX_BYTES bytes): $name")
+                null
+            }
+            LinkEntry.NotHttp -> {
+                Log.w(TAG, "entrada ignorada (não é um link http ou https): $name")
+                null
+            }
         }
-        if (!text.startsWith("https://") && !text.startsWith("http://")) {
-            Log.w(TAG, "entrada ignorada (não é um link http ou https): $name")
-            return null
-        }
-        return text
     }
 
     private companion object {
         const val TAG = "LinkWatcher"
-        /** Um link cabe folgado em 4 KB; arquivos maiores não são links. */
-        const val MAX_BYTES = 4096
     }
+}
+
+/** Um link cabe folgado em 4 KB; arquivos maiores não são links. */
+internal const val LINK_MAX_BYTES = 4096
+
+/** O que dá para tirar de uma entrada lida: o link, ou o motivo de ignorar. */
+internal sealed class LinkEntry {
+    data class Link(val url: String) : LinkEntry()
+    object TooLarge : LinkEntry()
+    object NotHttp : LinkEntry()
+}
+
+/**
+ * Interpreta os bytes lidos da entrada (só os [total] primeiros valem). Acima do limite, não é link;
+ * senão, o texto sem espaços nas pontas tem de começar com http:// ou https://.
+ */
+internal fun interpretLinkBytes(bytes: ByteArray, total: Int): LinkEntry {
+    if (total > LINK_MAX_BYTES) return LinkEntry.TooLarge
+    val text = String(bytes, 0, total, Charsets.UTF_8).trim()
+    return if (text.startsWith("https://") || text.startsWith("http://")) LinkEntry.Link(text) else LinkEntry.NotHttp
 }

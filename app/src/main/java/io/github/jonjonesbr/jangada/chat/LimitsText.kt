@@ -15,9 +15,9 @@ class LimitsSummary(val text: String, val high: Boolean, val names: String)
  * O texto é o do chip: "⏱ 5h 40% · semana 12%", com ⚠ a partir de 80%.
  */
 internal fun limitsSummary(context: Context, limits: PlanLimits?): LimitsSummary? {
-    val shown = limits?.windows.orEmpty().filter { it.kind != LimitWindow.Kind.OTHER }
+    val shown = shownLimitWindows(limits)
     if (shown.isEmpty()) return null
-    val high = shown.any { it.usedPercent >= LIMIT_HIGH_PERCENT }
+    val high = isHighLimit(shown)
     val parts = shown.joinToString(" · ") { w ->
         if (w.kind == LimitWindow.Kind.FIVE_HOUR) {
             context.getString(R.string.chat_limit_short_five_hour, w.usedPercent)
@@ -31,6 +31,14 @@ internal fun limitsSummary(context: Context, limits: PlanLimits?): LimitsSummary
         names = shown.joinToString(" · ") { limitName(context, it) },
     )
 }
+
+/** Janelas do chip e do cartão: as "outras" só aparecem no painel. */
+internal fun shownLimitWindows(limits: PlanLimits?): List<LimitWindow> =
+    limits?.windows.orEmpty().filter { it.kind != LimitWindow.Kind.OTHER }
+
+/** Destaque (⚠) quando alguma janela mostrada chegou a [LIMIT_HIGH_PERCENT]. */
+internal fun isHighLimit(windows: List<LimitWindow>): Boolean =
+    windows.any { it.usedPercent >= LIMIT_HIGH_PERCENT }
 
 /** Uma janela por extenso, com o percentual usado (sem o horário de renovação). */
 internal fun limitName(context: Context, w: LimitWindow): String = when (w.kind) {

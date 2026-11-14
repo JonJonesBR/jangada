@@ -292,7 +292,7 @@ class Sheet(private val activity: Activity) {
                 addView(TextView(activity).apply {
                     text = row.title
                     textSize = 16f
-                    setTextColor(activity.getColor(if (row.destructive) R.color.setup_error else R.color.setup_text))
+                    setTextColor(activity.getColor(if (row.destructive) R.color.setup_error_text else R.color.setup_text))
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 })
                 row.description?.let { description ->

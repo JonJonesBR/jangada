@@ -23,6 +23,8 @@ class ApiKeysActivity : JangadaActivity() {
 
     private lateinit var store: SecretStore
     private lateinit var list: LinearLayout
+    /** Último erro de salvar ou validar; vazio some. */
+    private lateinit var errorView: TextView
 
     /** Variáveis conhecidas e para que servem (o usuário também pode criar outras). */
     private val presets by lazy {
@@ -65,6 +67,15 @@ class ApiKeysActivity : JangadaActivity() {
             textSize = 16f
         })
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
+
+        // Erro de salvar ou validar: texto fixo no topo, que fica na tela até a próxima tentativa dar certo (não some como um Toast).
+        errorView = TextView(this).apply {
+            setTextColor(getColor(R.color.setup_error_text))
+            textSize = 14f
+            setPadding(dp(20), dp(12), dp(20), 0)
+            visibility = View.GONE
+        }
+        root.addView(errorView)
 
         list = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -121,7 +132,7 @@ class ApiKeysActivity : JangadaActivity() {
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val (statusText, statusColor) = when {
             readable -> R.string.keys_saved to R.color.setup_done_text
-            stored -> R.string.keys_unreadable to R.color.setup_error
+            stored -> R.string.keys_unreadable to R.color.setup_error_text
             else -> R.string.keys_not_set to R.color.setup_muted_text
         }
         actions.addView(TextView(this).apply {
@@ -141,7 +152,7 @@ class ApiKeysActivity : JangadaActivity() {
             setText(R.string.chat_delete)
             isAllCaps = false
             minHeight = dp(48)
-            setTextColor(getColor(R.color.setup_error))
+            setTextColor(getColor(R.color.setup_error_text))
             setOnClickListener { confirmRemove(name) }
         })
         card.addView(actions)
@@ -177,10 +188,11 @@ class ApiKeysActivity : JangadaActivity() {
                 try {
                     store.put(name, value)
                 } catch (e: Exception) {
-                    // Falha do Android Keystore: avisa em vez de derrubar o app.
-                    Toast.makeText(this, R.string.api_key_save_failed, Toast.LENGTH_LONG).show()
+                    // Falha do Android Keystore: avisa na tela em vez de derrubar o app.
+                    showError(getString(R.string.api_key_save_failed))
                     return@setPositiveButton
                 }
+                showError(null)
                 Toast.makeText(this, R.string.keys_saved_note, Toast.LENGTH_LONG).show()
                 render()
             }
@@ -200,15 +212,19 @@ class ApiKeysActivity : JangadaActivity() {
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val name = field.text.toString().trim().uppercase()
                 when {
-                    !SecretStore.VALID_NAME.matches(name) ->
-                        Toast.makeText(this, R.string.keys_invalid_name, Toast.LENGTH_LONG).show()
-                    SecretStore.isReserved(name) ->
-                        Toast.makeText(this, getString(R.string.api_key_reserved, name), Toast.LENGTH_LONG).show()
+                    !SecretStore.VALID_NAME.matches(name) -> showError(getString(R.string.keys_invalid_name))
+                    SecretStore.isReserved(name) -> showError(getString(R.string.api_key_reserved, name))
                     else -> askValue(name)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /** Mostra o erro no topo da tela; null (ou vazio) esconde. */
+    private fun showError(message: String?) {
+        errorView.text = message.orEmpty()
+        errorView.visibility = if (message.isNullOrEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun dp(value: Int) =
