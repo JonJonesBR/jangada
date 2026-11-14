@@ -296,12 +296,6 @@
                 android:visibility="gone" />
 
             <TextView
-                android:id="@+id/chat_chip_mode"
-                style="@style/QuickChip"
-                android:layout_marginEnd="6dp"
-                android:visibility="gone" />
-
-            <TextView
                 android:id="@+id/chat_chip_view"
                 style="@style/QuickChip"
                 android:layout_marginEnd="6dp"
@@ -321,6 +315,12 @@
 
             <TextView
                 android:id="@+id/chat_chip_changes"
+                style="@style/QuickChip"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/chat_chip_mode"
                 style="@style/QuickChip"
                 android:layout_marginEnd="6dp"
                 android:visibility="gone" />
