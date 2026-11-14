@@ -1,5 +1,13 @@
 # Novidades
 
+## 1.21.0
+
+- Chat: chip do modo de permissão no fim da barra de atalhos, com nomes simples e troca na hora (agy, Claude e demais agentes com modos).
+- Chat: pedido de permissão mais simples, um cartão enxuto com Detalhes; a faixa de aviso só aparece quando o cartão sai da tela.
+- Antigravity CLI (agy): caminho legível no pedido de permissão, nomes das ferramentas traduzidos e sem mensagem duplicada.
+- Chat ACP: o pedido de permissão de um agente que dormiu (ou foi parado) e voltou não some mais; antes o chat parecia travado, com o agente esperando uma resposta que não aparecia.
+- Teste do emulador: o Claude falso grava o arquivo da conversa, para cobrir a retomada com --resume.
+
 ## 1.20.0
 
 - Antigravity CLI (agy): agora tem chat, pelo servidor ACP que vem no próprio CLI (`agy acp`); o primeiro login abre o terminal para colar o código da conta Google.
