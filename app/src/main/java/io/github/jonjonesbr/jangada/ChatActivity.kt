@@ -59,6 +59,7 @@ import io.github.jonjonesbr.jangada.agents.AgentRecipe
 import io.github.jonjonesbr.jangada.chat.AcpChat
 import io.github.jonjonesbr.jangada.chat.AgentChat
 import io.github.jonjonesbr.jangada.chat.AgentStatus
+import io.github.jonjonesbr.jangada.chat.ModeText
 import io.github.jonjonesbr.jangada.chat.Attachment
 import io.github.jonjonesbr.jangada.chat.AttachmentTooLargeException
 import io.github.jonjonesbr.jangada.chat.AutoCompact
@@ -139,6 +140,7 @@ class ChatActivity : JangadaActivity() {
     private lateinit var quickbar: View
     private lateinit var chipFolder: TextView
     private lateinit var chipModel: TextView
+    private lateinit var chipMode: TextView
     private lateinit var chipView: TextView
     private lateinit var chipContext: TextView
     private lateinit var chipLimits: TextView
@@ -318,6 +320,7 @@ class ChatActivity : JangadaActivity() {
         quickbar = findViewById(R.id.chat_quickbar)
         chipFolder = findViewById(R.id.chat_chip_folder)
         chipModel = findViewById(R.id.chat_chip_model)
+        chipMode = findViewById(R.id.chat_chip_mode)
         chipView = findViewById(R.id.chat_chip_view)
         chipContext = findViewById(R.id.chat_chip_context)
         chipLimits = findViewById(R.id.chat_chip_limits)
@@ -385,6 +388,7 @@ class ChatActivity : JangadaActivity() {
         titleBlock.setOnClickListener { showJobs() }
         chipFolder.setOnClickListener { showJobs() }
         chipModel.setOnClickListener { showModelSheet() }
+        chipMode.setOnClickListener { showModeSheet() }
         chipView.setOnClickListener { chooseView() }
         chipContext.setOnClickListener { engine?.let { showContextSheet(it) } }
         chipLimits.setOnClickListener { showLimitsSheet() }
@@ -1023,7 +1027,7 @@ class ChatActivity : JangadaActivity() {
     private fun applyTextScale() {
         val scale = settings.chatTextScale
         input.textSize = INPUT_TEXT_SP * scale
-        for (chip in listOf(chipFolder, chipModel, chipView, chipContext, chipLimits, chipChanges)) chip.textSize = CHIP_TEXT_SP * scale
+        for (chip in listOf(chipFolder, chipModel, chipMode, chipView, chipContext, chipLimits, chipChanges)) chip.textSize = CHIP_TEXT_SP * scale
         if (adapter.chatScale != scale) {
             adapter.chatScale = scale
             adapter.notifyDataSetChanged()
@@ -1344,6 +1348,16 @@ class ChatActivity : JangadaActivity() {
             } else {
                 getString(R.string.chat_chip_model_description, model, thought)
             }
+        }
+
+        // Modo de permissão: só quando o agente oferece; um toque abre a escolha.
+        val modeId = chat.currentMode
+        val modeName = modeId?.let { id -> ModeText.label(this, id, chat.modeChoices.firstOrNull { it.first == id }?.second.orEmpty()) }
+        chipMode.visibility = if (modeName == null) View.GONE else View.VISIBLE
+        if (modeName != null) {
+            chipMode.text = "🛡 $modeName"
+            chipMode.setTextColor(getColor(if (modeId != null && ModeText.isRisky(modeId)) R.color.setup_error else R.color.setup_text))
+            chipMode.contentDescription = getString(R.string.chat_chip_mode_description, modeName)
         }
 
         // Visualização: o modo atual, como nos ajustes.
@@ -2126,6 +2140,10 @@ class ChatActivity : JangadaActivity() {
         ) { openOpenCodeUsage() }
         // Sem ajustes do agente (ou sem chat pronto), o painel mostra a pasta e a visualização, que são do app.
         if (!isClaude) rows += optionRows(engine as? AcpChat)
+        // Agente pronto que não oferece modos: diz que ele pergunta antes de agir (em vez de sumir sem explicação).
+        if (!isClaude && engine is AcpChat && engine?.modeChoices.isNullOrEmpty() && engine?.running == true) {
+            rows += Sheet.Row(title = getString(R.string.chat_mode_none), icon = "🛡", enabled = false) {}
+        }
         Sheet(this).title(getString(R.string.chat_settings_title)).rows(rows).show()
     }
 
@@ -2142,6 +2160,36 @@ class ChatActivity : JangadaActivity() {
     /** Linhas dos ajustes que o agente ACP oferece (modelo, raciocínio, modo...). */
     private fun optionRows(acp: AcpChat?): List<Sheet.Row> = acp?.configOptions.orEmpty().map { option ->
         Sheet.Row(title = option.name, value = option.currentName, icon = "⚙") { chooseOption(acp, option) }
+    }
+
+    /** Escolha do modo de permissão direto do chat: nomes simples e uma frase sobre cada um. */
+    private fun showModeSheet() {
+        val chat = engine ?: return
+        val choices = chat.modeChoices
+        if (choices.isEmpty()) return
+        Sheet(this)
+            .title(getString(R.string.chat_mode_title))
+            .message(getString(R.string.chat_mode_note))
+            .rows(choices.map { (id, name) ->
+                Sheet.Row(
+                    title = ModeText.label(this, id, name),
+                    description = ModeText.description(this, id),
+                    checked = id == chat.currentMode,
+                    destructive = ModeText.isRisky(id),
+                ) { chooseMode(chat, id, name) }
+            })
+            .show()
+    }
+
+    private fun chooseMode(chat: AgentChat, id: String, name: String) {
+        if (id == chat.currentMode) return
+        if (!ModeText.isRisky(id)) return chat.setMode(id)
+        AlertDialog.Builder(this)
+            .setTitle(ModeText.label(this, id, name))
+            .setMessage(R.string.chat_mode_risky_confirm)
+            .setPositiveButton(R.string.chat_mode_risky_yes) { _, _ -> chat.setMode(id) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Escolha de uma opção do agente ACP (modelo, nível de raciocínio, modo...). */

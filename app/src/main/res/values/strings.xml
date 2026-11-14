@@ -194,7 +194,7 @@
     <string name="settings_chat">Claude Code chat permissions</string>
     <string name="settings_permissions_ask">Ask before each action (recommended)</string>
     <string name="settings_permissions_auto">Automatic: the agent decides what is safe</string>
-    <string name="settings_permissions_note">Applies to new conversations. Other agents always ask before acting.</string>
+    <string name="settings_permissions_note">Applies to new conversations. You can also change the mode in the chat with the 🛡 chip.</string>
     <string name="home_settings">Settings</string>
 
     <string name="chat_model_default">Account default</string>
@@ -941,4 +941,25 @@
         <item quantity="other">%1$d conversations will be deleted. This can’t be undone.</item>
     </plurals>
     <string name="projects_conversations_one">Delete one conversation…</string>
+
+    <string name="mode_default">Ask first</string>
+    <string name="mode_default_desc">Asks before editing files or running commands.</string>
+    <string name="mode_accept_edits">Accept edits</string>
+    <string name="mode_accept_edits_desc">Edits files without asking; still asks before running commands.</string>
+    <string name="mode_auto">Automatic</string>
+    <string name="mode_auto_desc">Approves edits and safe commands; asks before risky actions.</string>
+    <string name="mode_plan">Plan only</string>
+    <string name="mode_plan_desc">Plans first and changes nothing until you approve.</string>
+    <string name="mode_read_only">Read only</string>
+    <string name="mode_read_only_desc">Reads and answers; does not change anything.</string>
+    <string name="mode_build">Build</string>
+    <string name="mode_build_desc">Works on the project and asks when needed.</string>
+    <string name="mode_full">Allow everything</string>
+    <string name="mode_full_desc">Does everything without asking. Use only in projects you can undo.</string>
+    <string name="chat_chip_mode_description">Permission mode: %1$s. Tap to change.</string>
+    <string name="chat_mode_title">Permission mode</string>
+    <string name="chat_mode_note">Controls when the agent asks before acting.</string>
+    <string name="chat_mode_risky_confirm">The agent will run commands and change files without asking you. Turn it on only if you can undo the changes.</string>
+    <string name="chat_mode_risky_yes">Allow everything</string>
+    <string name="chat_mode_none">This agent has no permission modes: it always asks before acting.</string>
 </resources>

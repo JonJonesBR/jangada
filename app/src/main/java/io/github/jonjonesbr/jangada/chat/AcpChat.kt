@@ -66,6 +66,15 @@ class AcpChat(
     @Volatile var configOptions: List<ConfigOption> = emptyList()
         private set
 
+    private val modeOption: ConfigOption?
+        get() = configOptions.firstOrNull { it.source == ConfigOption.Source.MODE || it.category == "mode" }
+    override val modeChoices: List<Pair<String, String>> get() = modeOption?.choices.orEmpty()
+    override val currentMode: String? get() = modeOption?.current
+    override fun setMode(id: String) {
+        val option = modeOption ?: return
+        if (option.choices.any { it.first == id }) setOption(option, id)
+    }
+
     @Volatile var canDelete = false
         private set
 

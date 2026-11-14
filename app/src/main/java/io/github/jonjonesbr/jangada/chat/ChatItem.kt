@@ -332,6 +332,13 @@ interface AgentChat {
      */
     var onAttention: ((ChatAttention) -> Unit)?
 
+    /** Modos de permissão que o agente oferece (id e nome); vazia quando ele não oferece nenhum. */
+    val modeChoices: List<Pair<String, String>> get() = emptyList()
+    /** Id do modo de permissão em uso; null quando o agente não oferece modos. */
+    val currentMode: String? get() = null
+    /** Troca o modo de permissão (só vale para ids de [modeChoices]). */
+    fun setMode(id: String) {}
+
     fun sendMessage(text: String, attachments: List<Attachment> = emptyList())
     fun interrupt()
     fun answer(item: ChatItem.Permission, option: PermissionOption)

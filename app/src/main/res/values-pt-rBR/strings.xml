@@ -192,7 +192,7 @@
     <string name="settings_chat">Permissões no chat do Claude Code</string>
     <string name="settings_permissions_ask">Perguntar antes de cada ação (recomendado)</string>
     <string name="settings_permissions_auto">Automático: o agente decide o que é seguro</string>
-    <string name="settings_permissions_note">Vale para as próximas conversas. Os outros agentes sempre perguntam antes de agir.</string>
+    <string name="settings_permissions_note">Vale para as próximas conversas. O modo também se troca no chat, pelo chip 🛡.</string>
     <string name="home_settings">Configurações</string>
 
     <string name="chat_model_default">Padrão da conta</string>
@@ -937,4 +937,25 @@
         <item quantity="other">%1$d conversas serão apagadas. Não dá para desfazer.</item>
     </plurals>
     <string name="projects_conversations_one">Apagar uma conversa…</string>
+
+    <string name="mode_default">Perguntar antes</string>
+    <string name="mode_default_desc">Pergunta antes de editar arquivos ou rodar comandos.</string>
+    <string name="mode_accept_edits">Aceitar edições</string>
+    <string name="mode_accept_edits_desc">Edita arquivos sem perguntar; ainda pergunta antes de rodar comandos.</string>
+    <string name="mode_auto">Automático</string>
+    <string name="mode_auto_desc">Aprova edições e comandos seguros; pergunta antes de ações arriscadas.</string>
+    <string name="mode_plan">Só planejar</string>
+    <string name="mode_plan_desc">Faz um plano primeiro e não muda nada até você aprovar.</string>
+    <string name="mode_read_only">Só leitura</string>
+    <string name="mode_read_only_desc">Lê e responde; não altera nada.</string>
+    <string name="mode_build">Construir</string>
+    <string name="mode_build_desc">Trabalha no projeto e pergunta quando precisar.</string>
+    <string name="mode_full">Permitir tudo</string>
+    <string name="mode_full_desc">Faz tudo sem perguntar. Use só em projetos que você consegue desfazer.</string>
+    <string name="chat_chip_mode_description">Modo de permissão: %1$s. Toque para trocar.</string>
+    <string name="chat_mode_title">Modo de permissão</string>
+    <string name="chat_mode_note">Define quando o agente pergunta antes de agir.</string>
+    <string name="chat_mode_risky_confirm">O agente vai rodar comandos e mudar arquivos sem perguntar. Ligue só se você consegue desfazer as mudanças.</string>
+    <string name="chat_mode_risky_yes">Permitir tudo</string>
+    <string name="chat_mode_none">Este agente não tem modos de permissão: ele sempre pergunta antes de agir.</string>
 </resources>

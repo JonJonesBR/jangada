@@ -35,6 +35,22 @@ class ChatEngine(
         private set
     /** Com a sessão guardada, a próxima mensagem usa `--resume` e continua a conversa. */
     override val canResume: Boolean get() = sessionId != null
+    /** Modo de permissão desta conversa (começa pelo ajuste geral e muda pelo chip de modo). */
+    @Volatile private var permissionMode: String = if (askPermissions) "default" else "auto"
+    override val modeChoices: List<Pair<String, String>> = listOf(
+        "default" to "Default", "acceptEdits" to "Accept edits", "auto" to "Auto", "plan" to "Plan",
+    )
+    override val currentMode: String get() = permissionMode
+    override fun setMode(id: String) {
+        if (modeChoices.none { it.first == id } || id == permissionMode) return
+        permissionMode = id
+        // Com o CLI rodando, troca na hora; parado, o próximo início já usa o modo novo.
+        if (running) {
+            send(JSONObject().put("type", "control_request").put("request_id", nextRequestId())
+                .put("request", JSONObject().put("subtype", "set_permission_mode").put("mode", id)))
+        }
+        changed()
+    }
     @Volatile override var model: String? = null
         private set
     override val supportsHistory = true
@@ -111,11 +127,7 @@ class ChatEngine(
         val args = StringBuilder(AutoCompact.claudeEnvPrefix(autoCompact) + AgentRecipe.claudeIn(cwd, exec = true, job = jobId))
         args.append(" --output-format stream-json --verbose --input-format stream-json")
         args.append(" --include-partial-messages")
-        if (askPermissions) {
-            args.append(" --permission-prompt-tool stdio --permission-mode default")
-        } else {
-            args.append(" --permission-prompt-tool stdio --permission-mode auto")
-        }
+        args.append(" --permission-prompt-tool stdio --permission-mode ").append(permissionMode)
         if (modelAlias.isNotEmpty()) args.append(" --model ").append(AgentRecipe.q(modelAlias))
         if (effort.isNotEmpty()) args.append(" --effort ").append(AgentRecipe.q(effort))
         if (resume != null) args.append(" --resume=").append(AgentRecipe.q(resume))
